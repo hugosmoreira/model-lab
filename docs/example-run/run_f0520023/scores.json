@@ -1,0 +1,32 @@
+[
+  {
+    "endpointId": "anthropic/claude-sonnet-4-6",
+    "meanScore": 9.2,
+    "scoredSamples": 1,
+    "failedSampleCount": 0,
+    "testsPassed": 11,
+    "testsTotal": 12,
+    "tokensOut": 4320,
+    "costUsd": 0.0649
+  },
+  {
+    "endpointId": "openai/gpt-5-mini",
+    "meanScore": 10,
+    "scoredSamples": 1,
+    "failedSampleCount": 0,
+    "testsPassed": 12,
+    "testsTotal": 12,
+    "tokensOut": 5162,
+    "costUsd": 0.0103
+  },
+  {
+    "endpointId": "ollama/qwen3.5-abliterated",
+    "meanScore": 9.2,
+    "scoredSamples": 1,
+    "failedSampleCount": 0,
+    "testsPassed": 11,
+    "testsTotal": 12,
+    "tokensOut": 5377,
+    "costUsd": 0
+  }
+]

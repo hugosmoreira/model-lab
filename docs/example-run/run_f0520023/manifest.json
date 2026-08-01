@@ -1,0 +1,14 @@
+{
+  "runId": "run_f0520023",
+  "fingerprint": "fp_cd3c9dd1175a",
+  "benchmark": "raycaster-oneshot v1.3",
+  "promptHash": "9aef3acc",
+  "runnerVersion": "build-arena-runner v0.1.0",
+  "date": "2026-08-01",
+  "samplesPerModel": 1,
+  "modelCount": 3,
+  "scorers": [
+    "browser"
+  ],
+  "gitCommit": null
+}

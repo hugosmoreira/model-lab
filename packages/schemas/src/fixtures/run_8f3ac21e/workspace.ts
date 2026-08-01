@@ -151,6 +151,6 @@ export const workspaceSettings: WorkspaceSettings = {
   defaultScoringPolicy: "browser → human → judge",
   exportBranding: "repo + fingerprint",
   themeAccessibility: "dark · system motion",
-  repoUrl: "github.com/hugom/model-lab",
+  repoUrl: "github.com/hugosmoreira/model-lab",
   workspacePath: "~/dev/model-lab",
 };

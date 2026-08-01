@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Raycaster</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+  canvas { display: block; image-rendering: pixelated; }
+  #ui { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); color: #fff; font-family: monospace; font-size: 14px; text-align: center; text-shadow: 1px 1px 2px #000; pointer-events: none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">WASD = Move/Strafe &nbsp;|&nbsp; ←→ = Turn &nbsp;|&nbsp; Mouse = Look</div>
+<script>
+(function(){
+"use strict";
+
+// ─── Canvas setup ────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+const W = 800, H = 500;
+canvas.width  = W;
+canvas.height = H;
+
+// ─── Map ─────────────────────────────────────────────────────────────────────
+const MAP_W = 16, MAP_H = 16;
+// 0 = empty, 1-4 = wall types
+const MAP = [
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,2,2,0,0,0,0,3,0,3,0,0,1],
+  [1,0,0,0,0,2,0,0,0,0,0,0,0,0,0,1],
+  [1,0,2,0,0,0,0,0,0,0,3,0,3,0,0,1],
+  [1,0,0,0,0,0,0,4,4,4,4,0,0,0,0,1],
+  [1,0,0,0,0,0,0,4,0,0,4,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,4,0,0,0,0,1],
+  [1,0,0,3,0,0,0,4,0,0,4,0,0,0,0,1],
+  [1,0,0,3,0,0,0,4,4,4,4,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,2,2,2,0,0,0,0,0,0,0,4,4,0,1],
+  [1,0,2,0,2,0,0,0,0,0,0,0,4,0,0,1],
+  [1,0,2,0,2,0,0,0,0,0,0,0,4,4,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+];
+
+// ─── Procedural textures (64×64) ─────────────────────────────────────────────
+const TEX_SIZE = 64;
+function makeTexture(fn){
+  const buf = new Uint8ClampedArray(TEX_SIZE * TEX_SIZE * 4);
+  for(let y=0;y<TEX_SIZE;y++) for(let x=0;x<TEX_SIZE;x++){
+    const [r,g,b] = fn(x,y);
+    const i = (y*TEX_SIZE+x)*4;
+    buf[i]=r; buf[i+1]=g; buf[i+2]=b; buf[i+3]=255;
+  }
+  return buf;
+}
+
+// Brick wall (red/brown)
+const TEX1 = makeTexture((x,y)=>{
+  const row = Math.floor(y/8);
+  const col = Math.floor((x + (row%2)*16)/16);
+  const bx  = (x + (row%2)*16) % 16;
+  const by  = y % 8;
+  if(bx===0||by===0) return [80,60,40];
+  const n = (Math.sin(col*7.3+row*3.7)*0.5+0.5)*20;
+  return [160+n,80+n,50+n];
+});
+
+// Stone wall (grey)
+const TEX2 = makeTexture((x,y)=>{
+  const n = (Math.sin(x*0.4)*Math.cos(y*0.4)*10)|0;
+  const v = 100+n + ((x^y)&3)*5;
+  if((x%16===0)||(y%16===0)) return [60,60,65];
+  return [v,v,v+5];
+});
+
+// Wood planks (brown/tan)
+const TEX3 = makeTexture((x,y)=>{
+  const plank = Math.floor(x/8);
+  const n = (Math.sin(plank*5.1+y*0.15)*15)|0;
+  const grain = (Math.sin(y*0.8+plank)*5)|0;
+  if(x%8===0) return [60,35,15];
+  return [140+n+grain, 90+n, 40+n];
+});
+
+// Blue/teal tile
+const TEX4 = makeTexture((x,y)=>{
+  const cx = x%16, cy = y%16;
+  const dist = Math.sqrt((cx-7.5)**2+(cy-7.5)**2);
+  if(x%16===0||y%16===0) return [20,20,60];
+  const v = dist < 6 ? 1 : 0;
+  return v ? [40,120,180] : [20,60,120];
+});
+
+const TEXTURES = [null, TEX1, TEX2, TEX3, TEX4];
+
+// ─── Player ───────────────────────────────────────────────────────────────────
+let px=1.5, py=1.5;       // position
+let pa=0.0;               // angle (radians)
+let pfov = Math.PI/3;     // field of view
+
+// ─── Input ────────────────────────────────────────────────────────────────────
+const keys = {};
+document.addEventListener('keydown', e=>{ keys[e.code]=true; e.preventDefault(); });
+document.addEventListener('keyup',   e=>{ keys[e.code]=false; });
+
+// Mouse look
+canvas.addEventListener('click', ()=>canvas.requestPointerLock());
+document.addEventListener('mousemove', e=>{
+  if(document.pointerLockElement===canvas){
+    pa += e.movementX * 0.002;
+  }
+});
+
+// ─── Zbuffer ──────────────────────────────────────────────────────────────────
+const zbuf = new Float64Array(W);
+
+// ─── ImageData for fast pixel writes ─────────────────────────────────────────
+const imgData = ctx.createImageData(W, H);
+const pixels  = imgData.data;
+
+function setPixel(x, y, r, g, b){
+  const i = (y*W+x)*4;
+  pixels[i]=r; pixels[i+1]=g; pixels[i+2]=b; pixels[i+3]=255;
+}
+
+// ─── Raycasting ───────────────────────────────────────────────────────────────
+function castRays(){
+  for(let col=0; col<W; col++){
+    // Ray direction
+    const camX = 2*col/W - 1;
+    const rayDirX = Math.cos(pa) + Math.sin(pa)*(-pfov/2 + pfov*col/W - pfov/2);
+    // Proper ray direction using camera plane
+    const dirX = Math.cos(pa) - Math.sin(pa) * (camX * Math.tan(pfov/2));
+    const dirY = Math.sin(pa) + Math.cos(pa) * (camX * Math.tan(pfov/2));
+
+    let mapX = px|0, mapY = py|0;
+
+    const ddx = Math.abs(1/dirX);
+    const ddy = Math.abs(1/dirY);
+
+    let stepX, stepY, sideDistX, sideDistY;
+    if(dirX<0){ stepX=-1; sideDistX=(px-mapX)*ddx; }
+    else       { stepX= 1; sideDistX=(mapX+1-px)*ddx; }
+    if(dirY<0){ stepY=-1; sideDistY=(py-mapY)*ddy; }
+    else       { stepY= 1; sideDistY=(mapY+1-py)*ddy; }
+
+    let hit=0, side=0, wallType=0;
+    for(let i=0;i<64&&!hit;i++){
+      if(sideDistX<sideDistY){ sideDistX+=ddx; mapX+=stepX; side=0; }
+      else                    { sideDistY+=ddy; mapY+=stepY; side=1; }
+      if(mapX>=0&&mapX<MAP_W&&mapY>=0&&mapY<MAP_H && MAP[mapY][mapX]>0){
+        hit=1; wallType=MAP[mapY][mapX];
+      }
+    }
+
+    const perpWallDist = side===0
+      ? (mapX - px + (1-stepX)/2) / dirX
+      : (mapY - py + (1-stepY)/2) / dirY;
+
+    zbuf[col] = perpWallDist;
+
+    const lineH = (H/perpWallDist)|0;
+    const drawStart = Math.max(0, (H-lineH)>>1);
+    const drawEnd   = Math.min(H-1, (H+lineH)>>1);
+
+    // Texture X coordinate
+    let wallX;
+    if(side===0) wallX = py + perpWallDist * dirY;
+    else         wallX = px + perpWallDist * dirX;
+    wallX -= Math.floor(wallX);
+    let texX = (wallX * TEX_SIZE)|0;
+    if(side===0 && dirX>0) texX = TEX_SIZE-1-texX;
+    if(side===1 && dirY<0) texX = TEX_SIZE-1-texX;
+
+    const tex = TEXTURES[wallType];
+    const dimFactor = side===1 ? 0.6 : 1.0;
+    // Distance dimming
+    const dim = Math.max(0.15, 1/(1+perpWallDist*perpWallDist*0.05));
+
+    for(let y=drawStart; y<=drawEnd; y++){
+      const d = y*2 - H + lineH;
+      const texY = ((d * TEX_SIZE / lineH)>>1) & (TEX_SIZE-1);
+      const ti = (texY*TEX_SIZE+texX)*4;
+      const r = (tex[ti]   * dimFactor * dim)|0;
+      const g = (tex[ti+1] * dimFactor * dim)|0;
+      const b = (tex[ti+2] * dimFactor * dim)|0;
+      setPixel(col, y, r, g, b);
+    }
+
+    // Floor & ceiling
+    for(let y=0; y<drawStart; y++){
+      const t = y/H;
+      const cv = (20 + t*30)|0;
+      setPixel(col, y, cv>>1, cv>>1, cv);
+    }
+    for(let y=drawEnd+1; y<H; y++){
+      const t = 1-(y/H);
+      const fv = (15 + t*40)|0;
+      setPixel(col, y, fv, fv>>1, fv>>2);
+    }
+  }
+}
+
+// ─── Minimap ──────────────────────────────────────────────────────────────────
+const MM_TILE = 8, MM_X = W-MAP_W*MM_TILE-10, MM_Y = 10;
+function drawMinimap(){
+  for(let my=0;my<MAP_H;my++){
+    for(let mx=0;mx<MAP_W;mx++){
+      const wx = MM_X + mx*MM_TILE;
+      const wy = MM_Y + my*MM_TILE;
+      if(MAP[my][mx]>0){
+        const colors=['','#a04030','#888','#a07030','#2080b0'];
+        ctx.fillStyle = colors[MAP[my][mx]];
+      } else {
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      }
+      ctx.fillRect(wx,wy,MM_TILE-1,MM_TILE-1);
+    }
+  }
+  // Player dot
+  const pdx = MM_X + px*MM_TILE;
+  const pdy = MM_Y + py*MM_TILE;
+  ctx.fillStyle = '#ff0';
+  ctx.beginPath();
+  ctx.arc(pdx, pdy, 3, 0, Math.PI*2);
+  ctx.fill();
+  // Direction line
+  ctx.strokeStyle = '#ff0';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(pdx, pdy);
+  ctx.lineTo(pdx + Math.cos(pa)*10, pdy + Math.sin(pa)*10);
+  ctx.stroke();
+}
+
+// ─── Crosshair ────────────────────────────────────────────────────────────────
+function drawCrosshair(){
+  const cx=W/2, cy=H/2, s=8;
+  ctx.strokeStyle='rgba(255,255,255,0.7)';
+  ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(cx-s,cy); ctx.lineTo(cx+s,cy);
+  ctx.moveTo(cx,cy-s); ctx.lineTo(cx,cy+s);
+  ctx.stroke();
+}
+
+// ─── Collision helper ─────────────────────────────────────────────────────────
+function blocked(x,y){
+  const mx=(x|0), my=(y|0);
+  if(mx<0||mx>=MAP_W||my<0||my>=MAP_H) return true;
+  return MAP[my][mx]>0;
+}
+
+// ─── Game loop ────────────────────────────────────────────────────────────────
+let last=0;
+function loop(ts){
+  const dt = Math.min((ts-last)/1000, 0.05);
+  last=ts;
+
+  // Movement
+  const speed = 3.5 * dt;
+  const turnSpeed = 2.2 * dt;
+
+  if(keys['ArrowLeft'])  pa -= turnSpeed;
+  if(keys['ArrowRight']) pa += turnSpeed;
+
+  let dx=0, dy=0;
+  if(keys['KeyW']||keys['ArrowUp']){ dx+=Math.cos(pa)*speed; dy+=Math.sin(pa)*speed; }
+  if(keys['KeyS']||keys['ArrowDown']){ dx-=Math.cos(pa)*speed; dy-=Math.sin(pa)*speed; }
+  if(keys['KeyA']){ dx+=Math.sin(pa)*speed; dy-=Math.cos(pa)*speed; }
+  if(keys['KeyD']){ dx-=Math.sin(pa)*speed; dy+=Math.cos(pa)*speed; }
+
+  const margin=0.25;
+  if(!blocked(px+dx+Math.sign(dx)*margin, py)) px+=dx;
+  if(!blocked(px, py+dy+Math.sign(dy)*margin)) py+=dy;
+
+  // Render
+  castRays();
+  ctx.putImageData(imgData, 0, 0);
+  drawMinimap();
+  drawCrosshair();
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(ts=>{ last=ts; requestAnimationFrame(loop); });
+
+})();
+</script>
+</body>
+</html>

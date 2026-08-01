@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Single-file Raycaster (WASD + Minimap)</title>
+<style>
+  html,body { height:100%; margin:0; background:#111; color:#ddd; font-family:Segoe UI, Roboto, Arial; -webkit-user-select:none; user-select:none; }
+  canvas { display:block; margin:0; background:#666; width:100vw; height:100vh; }
+  #ui {
+    position:fixed; left:8px; bottom:8px; color:#ddd; background:rgba(0,0,0,0.35); padding:8px 10px; border-radius:6px; font-size:13px;
+  }
+  #hint { position:fixed; right:8px; top:8px; background:rgba(0,0,0,0.35); color:#ddd; padding:8px 10px; border-radius:6px; font-size:13px;}
+</style>
+</head>
+<body>
+<canvas id="screen"></canvas>
+<div id="ui">WASD move • Mouse/Arrows rotate • Click to enable mouse-look • R to reset</div>
+<div id="hint">Minimap: top-left</div>
+<script>
+(() => {
+  const canvas = document.getElementById('screen');
+  const ctx = canvas.getContext('2d', { alpha: false });
+
+  // Offscreen textures (procedurally generated)
+  function makeTexture(cols, rows, color1, color2, type=0) {
+    const size = 64;
+    const c = document.createElement('canvas');
+    c.width = size; c.height = size;
+    const g = c.getContext('2d');
+    // base
+    g.fillStyle = color1; g.fillRect(0,0,size,size);
+    if (type === 0) {
+      // vertical stripes
+      for (let i=0;i<8;i++){
+        g.fillStyle = i%2 ? color2 : color1;
+        g.fillRect(i*(size/8),0,size/8,size);
+      }
+      // add some bricks
+      g.fillStyle = 'rgba(0,0,0,0.08)';
+      for (let y=0;y<size;y+=8){
+        g.fillRect(0,y,size,2);
+      }
+    } else if (type === 1) {
+      // checker
+      const s = 8;
+      for (let y=0;y<size;y+=s) for (let x=0;x<size;x+=s){
+        g.fillStyle = ((x+y)/s)%2 ? color2 : color1;
+        g.fillRect(x,y,s,s);
+      }
+    } else {
+      // noise
+      const id = g.getImageData(0,0,size,size);
+      for (let i=0;i<id.data.length;i+=4) {
+        const v = (Math.random()*40)|0;
+        id.data[i+0] = Math.max(0, parseInt(color1.slice(1,3),16) - v);
+        id.data[i+1] = Math.max(0, parseInt(color1.slice(3,5),16) - v);
+        id.data[i+2] = Math.max(0, parseInt(color1.slice(5,7),16) - v);
+        id.data[i+3] = 255;
+      }
+      g.putImageData(id,0,0);
+    }
+    // vignette
+    const rg = g.createLinearGradient(0,0,size, size);
+    rg.addColorStop(0, 'rgba(0,0,0,0)');
+    rg.addColorStop(1, 'rgba(0,0,0,0.15)');
+    g.fillStyle = rg; g.fillRect(0,0,size,size);
+    return c;
+  }
+
+  const textures = [
+    makeTexture(64,64, '#c04b4b', '#7a2d2d', 0), // brick-ish
+    makeTexture(64,64, '#a0a0a0', '#6d6d6d', 1), // stone checker
+    makeTexture(64,64, '#7fbf7f', '#3f7f3f', 2)  // greenish/noise
+  ];
+
+  // Map: 2D grid - 0 empty, >0 wall type index
+  const map = [
+    [1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,2,0,1],
+    [1,0,0,0,0,0,0,2,0,0,0,1],
+    [1,0,0,0,0,0,0,2,0,0,0,1],
+    [1,0,0,0,0,2,0,0,0,0,0,1],
+    [1,0,0,2,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,2,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,2,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,2,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1]
+  ];
+  const MAPW = map[0].length, MAPH = map.length;
+  const TILE = 64;
+
+  // Player
+  const player = {
+    x: TILE * 3.5,
+    y: TILE * 3.5,
+    dir: 0.0, // angle in radians
+    moveSpeed: 150, // units per second
+    rotSpeed: Math.PI, // rad/s
+  };
+
+  // Canvas sizing
+  function resize() {
+    canvas.width = Math.floor(window.innerWidth);
+    canvas.height = Math.floor(window.innerHeight);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // Input
+  const keys = {};
+  window.addEventListener('keydown', (e) => {
+    keys[e.key.toLowerCase()] = true;
+    if (e.key === 'r' || e.key === 'R') resetPlayer();
+  });
+  window.addEventListener('keyup', (e) => {
+    keys[e.key.toLowerCase()] = false;
+  });
+
+  // Pointer lock for mouse look
+  canvas.addEventListener('click', () => {
+    if (document.pointerLockElement !== canvas) canvas.requestPointerLock();
+  });
+  let mouseLocked = false;
+  document.addEventListener('pointerlockchange', () => {
+    mouseLocked = (document.pointerLockElement === canvas);
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!mouseLocked) return;
+    const sensitivity = 0.0025;
+    player.dir += e.movementX * sensitivity;
+  });
+
+  function resetPlayer() {
+    player.x = TILE*3.5; player.y = TILE*3.5; player.dir = 0;
+  }
+
+  // Collision detection
+  function canMove(x, y) {
+    const mx = Math.floor(x / TILE);
+    const my = Math.floor(y / TILE);
+    if (mx < 0 || mx >= MAPW || my < 0 || my >= MAPH) return false;
+    return map[my][mx] === 0;
+  }
+
+  // Raycaster parameters
+  let FOV = 60 * Math.PI/180;
+  function render(delta) {
+    // Movement
+    const forward = (keys['w']?1:0) - (keys['s']?1:0);
+    const strafe = (keys['d']?1:0) - (keys['a']?1:0);
+    const rot = (keys['arrowright']?1:0) - (keys['arrowleft']?1:0);
+    if (rot) player.dir += rot * player.rotSpeed * delta;
+    // movement relative to direction
+    if (forward || strafe) {
+      const speed = player.moveSpeed * delta;
+      const dx = Math.cos(player.dir) * forward * speed - Math.sin(player.dir) * strafe * speed;
+      const dy = Math.sin(player.dir) * forward * speed + Math.cos(player.dir) * strafe * speed;
+      // collision: attempt separate axis movement for sliding
+      if (canMove(player.x + dx, player.y)) player.x += dx;
+      if (canMove(player.x, player.y + dy)) player.y += dy;
+    }
+
+    // clear sky/floor
+    const w = canvas.width, h = canvas.height;
+    const halfH = h/2;
+    // simple sky gradient
+    const sky = ctx.createLinearGradient(0,0,0,halfH);
+    sky.addColorStop(0, '#82c0ff'); sky.addColorStop(1, '#5088d0');
+    ctx.fillStyle = sky; ctx.fillRect(0,0,w,halfH);
+    // floor
+    const floorGrad = ctx.createLinearGradient(0,halfH,0,h);
+    floorGrad.addColorStop(0, '#6a6a6a'); floorGrad.addColorStop(1, '#222');
+    ctx.fillStyle = floorGrad; ctx.fillRect(0,halfH,w,halfH);
+
+    // projection plane
+    const planeDist = (w/2) / Math.tan(FOV/2);
+
+    // For minimap drawing rays, collect some rays
+    const miniRays = [];
+
+    // Raycasting per vertical column
+    for (let x=0; x<w; x++) {
+      const cameraX = 2 * x / w - 1; // -1..1
+      const rayAngle = player.dir + Math.atan(cameraX * Math.tan(FOV/2));
+      // Ray direction
+      const rayDirX = Math.cos(rayAngle);
+      const rayDirY = Math.sin(rayAngle);
+
+      // DDA initialization
+      let mapX = Math.floor(player.x / TILE), mapY = Math.floor(player.y / TILE);
+      const deltaDistX = Math.abs(1 / rayDirX);
+      const deltaDistY = Math.abs(1 / rayDirY);
+      let stepX, stepY, sideDistX, sideDistY;
+
+      if (rayDirX < 0) {
+        stepX = -1;
+        sideDistX = (player.x/TILE - mapX) * deltaDistX;
+      } else {
+        stepX = 1;
+        sideDistX = (mapX + 1 - player.x/TILE) * deltaDistX;
+      }
+      if (rayDirY < 0) {
+        stepY = -1;
+        sideDistY = (player.y/TILE - mapY) * deltaDistY;
+      } else {
+        stepY = 1;
+        sideDistY = (mapY + 1 - player.y/TILE) * deltaDistY;
+      }
+
+      // DDA loop
+      let hit = false, side = 0;
+      let wallType = 0;
+      let perpWallDist = 0;
+      let hitX, hitY;
+      while (!hit) {
+        if (sideDistX < sideDistY) {
+          sideDistX += deltaDistX;
+          mapX += stepX;
+          side = 0;
+        } else {
+          sideDistY += deltaDistY;
+          mapY += stepY;
+          side = 1;
+        }
+        if (mapX < 0 || mapX >= MAPW || mapY < 0 || mapY >= MAPH) { break; }
+        const cell = map[mapY][mapX];
+        if (cell > 0) {
+          hit = true;
+          wallType = cell;
+          // exact hit point
+          if (side === 0) {
+            perpWallDist = ( (mapX - player.x/TILE) + (1 - stepX)/2 ) / rayDirX;
+          } else {
+            perpWallDist = ( (mapY - player.y/TILE) + (1 - stepY)/2 ) / rayDirY;
+          }
+        }
+      }
+      if (!hit) { perpWallDist = 1000; }
+
+      // convert perpWallDist in tiles to world units
+      const distWorld = perpWallDist * TILE;
+
+      // line height on screen
+      const lineHeight = Math.floor((TILE / distWorld) * planeDist);
+
+      // draw range
+      let drawStart = Math.floor(halfH - lineHeight/2);
+      let drawEnd = Math.floor(halfH + lineHeight/2);
+      if (drawStart < 0) drawStart = 0;
+      if (drawEnd >= h) drawEnd = h-1;
+
+      // texture mapping: compute exact hit position (strip coordinate)
+      // calculate exact hit coordinate in world space
+      if (hit) {
+        if (side === 0) {
+          hitY = player.y + rayDirY * distWorld;
+          var wallX = hitY % TILE;
+        } else {
+          hitX = player.x + rayDirX * distWorld;
+          var wallX = hitX % TILE;
+        }
+        if (wallX < 0) wallX += TILE;
+        const tex = textures[(wallType-1) % textures.length];
+        const texW = tex.width, texH = tex.height;
+        let texX = Math.floor((wallX / TILE) * texW);
+        // flip texture for certain sides for variety
+        if ((side === 0 && rayDirX > 0) || (side === 1 && rayDirY < 0)) {
+          texX = texW - texX - 1;
+        }
+
+        // draw scaled vertical strip from texture using drawImage for performance
+        // source: (texX,0,1,texH) -> dest: (x,drawStart,1,drawEnd-drawStart)
+        const destH = drawEnd - drawStart + 1;
+        // shading based on distance
+        const shade = Math.max(0.2, 1 - Math.min(distWorld/900, 0.8));
+        // draw textured slice
+        ctx.drawImage(tex, texX, 0, 1, texH, x, drawStart, 1, destH);
+        // apply distance shading by overlaying translucent black
+        if (shade < 0.999) {
+          ctx.fillStyle = 'rgba(0,0,0,' + (1 - shade) + ')';
+          ctx.fillRect(x, drawStart, 1, destH);
+        }
+        // extra side darkening to emphasize edges
+        if (side === 1) {
+          ctx.fillStyle = 'rgba(0,0,0,0.12)';
+          ctx.fillRect(x, drawStart, 1, destH);
+        }
+      }
+
+      // For minimap: collect some rays (sparsely)
+      if (x % Math.floor(w/120 + 1) === 0) {
+        const endX = player.x + rayDirX * distWorld;
+        const endY = player.y + rayDirY * distWorld;
+        miniRays.push({x1:player.x, y1:player.y, x2:endX, y2:endY});
+      }
+    } // end columns
+
+    // Draw minimap
+    const mmScale = 0.14; // of shorter dimension
+    const mmSize = Math.min(200, Math.floor(Math.min(canvas.width, canvas.height) * mmScale));
+    const mmPadding = 10;
+    const mmX = mmPadding, mmY = mmPadding;
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    // background
+    ctx.fillStyle = 'rgba(20,20,20,0.7)';
+    ctx.fillRect(mmX-4, mmY-4, mmSize+8, mmSize+8);
+    // draw grid
+    const cellSize = mmSize / Math.max(MAPW, MAPH);
+    for (let my=0; my<MAPH; my++) {
+      for (let mx=0; mx<MAPW; mx++) {
+        if (map[my][mx] > 0) {
+          ctx.fillStyle = '#ccb';
+          ctx.fillRect(mmX + mx*cellSize, mmY + my*cellSize, cellSize, cellSize);
+          ctx.strokeStyle = 'rgba(80,80,80,0.6)';
+          ctx.strokeRect(mmX + mx*cellSize, mmY + my*cellSize, cellSize, cellSize);
+        } else {
+          ctx.fillStyle = 'rgba(0,0,0,0.0)';
+        }
+      }
+    }
+    // draw rays
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (const r of miniRays) {
+      ctx.moveTo(mmX + (r.x1 / TILE) * cellSize, mmY + (r.y1 / TILE) * cellSize);
+      ctx.lineTo(mmX + (r.x2 / TILE) * cellSize, mmY + (r.y2 / TILE) * cellSize);
+    }
+    ctx.stroke();
+
+    // draw player
+    const px = mmX + (player.x / TILE) * cellSize;
+    const py = mmY + (player.y / TILE) * cellSize;
+    ctx.fillStyle = '#ff0';
+    // triangle pointing to direction
+    const s = Math.max(6, cellSize*0.6);
+    ctx.beginPath();
+    ctx.moveTo(px + Math.cos(player.dir) * s, py + Math.sin(player.dir) * s);
+    ctx.lineTo(px + Math.cos(player.dir + 2.4) * s, py + Math.sin(player.dir + 2.4) * s);
+    ctx.lineTo(px + Math.cos(player.dir - 2.4) * s, py + Math.sin(player.dir - 2.4) * s);
+    ctx.closePath(); ctx.fill();
+    // border
+    ctx.strokeStyle = 'black'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.restore();
+
+    // small HUD
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(10, canvas.height-50, 180, 38);
+    ctx.fillStyle = '#fff'; ctx.font = '13px sans-serif';
+    ctx.fillText('Position: ' + player.x.toFixed(1) + ',' + player.y.toFixed(1), 18, canvas.height-32);
+    ctx.fillText('Angle: ' + (player.dir%(2*Math.PI)).toFixed(2), 18, canvas.height-14);
+  }
+
+  // Main loop
+  let last = performance.now();
+  function loop(now) {
+    const delta = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    render(delta);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // prevent context menu on right-click
+  window.addEventListener('contextmenu', (e) => e.preventDefault());
+})();
+</script>
+</body>
+</html>

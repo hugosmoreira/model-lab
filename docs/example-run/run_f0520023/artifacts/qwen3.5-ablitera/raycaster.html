@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Self-Contained Raycaster Engine</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden; /* Prevent scrollbars */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            border: 4px solid #444;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        /* The main 3D Viewport */
+        canvas#screen {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated; /* Retro feel */
+        }
+
+        /* Minimap Overlay */
+        #minimap-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            border: 3px solid #fff;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 10;
+        }
+
+        canvas#minimap {
+            display: block;
+        }
+
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+        }
+
+        h1 { margin: 0; font-size: 24px; text-shadow: 2px 2px #000; }
+        p { margin: 5px 0; color: #ccc; font-size: 14px; }
+        .controls { background: rgba(0,0,0,0.6); padding: 10px; border-radius: 5px;}
+
+        /* Crosshair */
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background-color: rgba(0, 255, 0, 0.7);
+        }
+        #crosshair::before { top: 9px; left: 0; width: 100%; height: 2px; }
+        #crosshair::after { left: 9px; top: 0; height: 100%; width: 2px; }
+
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="screen" width="800" height="600"></canvas>
+    
+    <!-- Minimap -->
+    <div id="minimap-container">
+        <canvas id="minimap" width="200" height="200"></canvas>
+    </div>
+
+    <!-- UI / Instructions -->
+    <div id="ui-layer">
+        <h1>Cyber-City 3D</h1>
+        <div class="controls">
+            <p><strong>W, S:</strong> Move Forward/Back</p>
+            <p><strong>A, D:</strong> Strafe Left/Right</p>
+            <p><strong>Left / Right Arrows:</strong> Rotate View</p>
+        </div>
+    </div>
+
+    <!-- Center Crosshair -->
+    <div id="crosshair"></div>
+</div>
+
+<script>
+/**
+ * RAYCASTER ENGINE IMPLEMENTATION
+ * 
+ * Logic:
+ * 1. Generate textures programmatically (no external images).
+ * 2. Cast rays from player perspective to find wall intersections.
+ * 3. Project 3D walls onto a 2D canvas strip by strip.
+ * 4. Render minimap and handle user input loop.
+ */
+
+// --- CONSTANTS & CONFIGURATION ---
+const SCREEN_WIDTH = 800;
+const SCREEN_HEIGHT = 600;
+const FOV = Math.PI / 3; // 60 degrees field of view
+const BLOCK_SIZE = 64;   // Size of one map unit in texture space
+const MAP_SCALE = 20;    // Scale factor for minimap
+
+// --- GLOBAL VARIABLES ---
+let canvas, ctx, minimapCanvas, mmCtx;
+let lastTime = 0;
+let keys = {};
+
+// Player State
+const player = {
+    x: 3.5,        // Grid coordinates (not pixels)
+    y: 3.5,
+    dirX: -1,      // Direction vector X
+    dirY: 0,       // Direction vector Y
+    planeX: 0,     // Camera plane X (perpendicular to dir)
+    planeY: 0.66   // Camera plane Y (determines FOV)
+};
+
+// --- TEXTURE GENERATION ---
+// We create off-screen canvases to generate textures procedurally
+let wallTexture = document.createElement('canvas');
+wallTexture.width = 256;
+wallTexture.height = 256;
+const wCtx = wallTexture.getContext('2d');
+
+function initTextures() {
+    // Draw a "Brick" style texture for walls
+    const ctxT = wCtx;
+    
+    // Base Color (Dark Teal)
+    ctxT.fillStyle = '#2a4d50'; 
+    ctxT.fillRect(0, 0, 256, 256);
+
+    // Draw Bricks
+    ctxT.strokeStyle = '#1a3336'; // Mortar color
+    ctxT.lineWidth = 2;
+    
+    const brickHeight = 48;
+    const brickWidth = 96;
+    
+    for(let row = 0; row < 256/brickHeight + 1; row++) {
+        let y = row * brickHeight;
+        
+        // Offset every other row
+        let xOffset = (row % 2 === 0) ? 0 : brickWidth / 2;
+        
+        for(let col = -1; col < 256/brickWidth + 2; col++) {
+            let x = col * brickWidth + xOffset;
+            
+            // Brick face color variation
+            ctxT.fillStyle = (col+row)%2 === 0 ? '#3a5d60' : '#4a6d70';
+            ctxT.fillRect(x, y, brickWidth, brickHeight);
+            
+            // Mortar lines
+            ctxT.strokeRect(x, y, brickWidth, brickHeight);
+        }
+    }
+}
+
+// --- MAP DATA ---
+// 1: Wall Type A (Brick Teal), 2: Wall Type B (Tech Blue)
+const mapWidth = 8;
+const mapHeight = 8;
+const worldMap = [
+    [1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,1],
+    [1,0,0,0,2,2,0,1],
+    [1,0,0,0,2,2,0,1],
+    [1,0,2,0,0,0,0,1],
+    [1,0,2,0,0,0,0,1],
+    [1,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1]
+];
+
+// --- INITIALIZATION ---
+function init() {
+    canvas = document.getElementById('screen');
+    ctx = canvas.getContext('2d', { alpha: false }); // Optimize for no transparency
+    minimapCanvas = document.getElementById('minimap');
+    mmCtx = minimapCanvas.getContext('2d');
+
+    // Handle Input
+    window.addEventListener('keydown', e => keys[e.code] = true);
+    window.addEventListener('keyup', e => keys[e.code] = false);
+
+    initTextures();
+    
+    // Start Loop
+    requestAnimationFrame(gameLoop);
+}
+
+// --- RAYCASTING ENGINE ---
+function castRays() {
+    // 1. Render Floor and Ceiling (Z-buffer like gradient)
+    const gradFloor = ctx.createLinearGradient(0, SCREEN_HEIGHT/2, 0, SCREEN_HEIGHT);
+    gradFloor.addColorStop(0, '#333');
+    gradFloor.addColorStop(1, '#1a1a1a');
+    
+    const gradCeil = ctx.createLinearGradient(0, 0, 0, SCREEN_HEIGHT/2);
+    gradCeil.addColorStop(0, '#556');
+    gradCeil.addColorStop(1, '#334');
+
+    ctx.fillStyle = gradCeil;
+    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT / 2);
+    
+    ctx.fillStyle = gradFloor;
+    ctx.fillRect(0, SCREEN_HEIGHT / 2, SCREEN_WIDTH, SCREEN_HEIGHT / 2);
+
+    // 2. Loop through horizontal strips of the screen (Raycasting)
+    for (let x = 0; x < SCREEN_WIDTH; x++) {
+        // Calculate ray position and direction
+        let cameraX = 2 * x / SCREEN_WIDTH - 1; 
+        let rayDirX = player.dirX + player.planeX * cameraX;
+        let rayDirY = player.dirY + player.planeY * cameraX;
+
+        // Which box of the map we're in
+        let mapX = Math.floor(player.x);
+        let mapY = Math.floor(player.y);
+
+        // Length of ray from current position to next x or y-side
+        let sideDistX, sideDistY;
+        
+        // Length of ray from one x or y-side to next x or y-side
+        // deltaDistX = sqrt(1 + (rayDirY * rayDirY) / (rayDirX * rayDirX)) -> simplified
+        let deltaDistX = Math.abs(1 / rayDirX);
+        let deltaDistY = Math.abs(1 / rayDirY);
+
+        let perpWallDist; // Distance to wall
+        
+        // Direction to step in x and y
+        let stepX, stepY;
+        
+        let hit = 0; // Was there a wall hit?
+        let side;    // Did we hit a NS or EW wall? (1 for NS, 2 for EW)
+
+        // Calculate step and initial sideDist
+        if (rayDirX < 0) {
+            stepX = -1;
+            sideDistX = (player.x - mapX) * deltaDistX;
+        } else {
+            stepX = 1;
+            sideDistX = (mapX + 1.0 - player.x) * deltaDistX;
+        }
+        
+        if (rayDirY < 0) {
+            stepY = -1;
+            sideDistY = (player.y - mapY) * deltaDistY;
+        } else {
+            stepY = 1;
+            sideDistY = (mapY + 1.0 - player.y) * deltaDistY;
+        }
+
+        // --- DDA (Digital Differential Analyzer) Algorithm ---
+        while (hit === 0) {
+            // Jump to next map square, OR in x-direction, OR in y-direction
+            if (sideDistX < sideDistY) {
+                sideDistX += deltaDistX;
+                mapX += stepX;
+                side = 1; // NS Wall (Side 1)
+            } else {
+                sideDistY += deltaDistY;
+                mapY += stepY;
+                side = 2; // EW Wall (Side 2)
+            }
+            
+            // Check if ray has hit a wall
+            if (worldMap[mapX][mapY] > 0) {
+                hit = 1;
+            }
+        }
+
+        // Calculate distance along ray without fish-eye distortion
+        if (side === 1) perpWallDist = (sideDistX - deltaDistX);
+        else           perpWallDist = (sideDistY - deltaDistY);
+
+        // --- DRAWING THE STRIP ---
+        
+        // Calculate height of line to draw on screen
+        let lineHeight = Math.floor(SCREEN_HEIGHT / perpWallDist);
+        
+        // Calculate lowest and highest pixel to fill in current stripe
+        let drawStart = -lineHeight / 2 + SCREEN_HEIGHT / 2;
+        if (drawStart < 0) drawStart = 0;
+        let drawEnd = lineHeight / 2 + SCREEN_HEIGHT / 2;
+        if (drawEnd >= SCREEN_HEIGHT) drawEnd = SCREEN_HEIGHT - 1;
+
+        // --- TEXTURE MAPPING ---
+        
+        const wallType = worldMap[mapX][mapY];
+        let texX; // Where on the texture we hit
+        
+        if (side === 0) { // NS Wall (Side 1 in DDA logic, usually called Side 0 or 2 depending on implementation)
+            // Here side is actually determined by step direction. 
+            // Let's map: Side=1 was X-step -> Vertical wall strip. Side=2 was Y-step -> Horizontal wall strip.
+            
+             // Wall X coordinate of the intersection (corrected for "fish eye")
+             let wallX = player.y + perpWallDist * rayDirY;
+             texX = wallX - Math.floor(wallX); // Fractional part
+        } else {
+            let wallX = player.x + perpWallDist * rayDirX;
+            texX = wallX - Math.floor(wallX);
+        }
+
+        // Convert to integer (pixel index)
+        texX = Math.floor(texX * 256); 
+        
+        // Darken walls based on distance and side (fake lighting)
+        let brightness = 1.0;
+        
+        // Side shading: One side of the wall is darker
+        if(side === 1 && rayDirY > 0) brightness *= 0.7; 
+        else if (side !== 1) brightness *= 0.8;
+
+        // Distance fading (fog)
+        brightness = Math.min(brightness, 1 / perpWallDist); // Simple fog logic
+
+        // Draw the vertical strip from our generated texture
+        ctx.drawImage(
+            wallTexture, 
+            texX, 0, 1, 256,              // Source: x, y, width (1px), height
+            x, drawStart, 1, drawEnd - drawStart // Destination: x, y, w, h
+        );
+
+        // Apply brightness overlay for lighting effect
+        ctx.fillStyle = `rgba(0, 50, 80, ${1.0 - brightness})`; 
+        // A dark blue overlay to simulate shadow/fog
+        ctx.fillRect(x, drawStart, 1, drawEnd - drawStart);
+    }
+}
+
+// --- MINIMAP RENDERING ---
+function renderMinimap() {
+    // Clear background
+    mmCtx.fillStyle = '#000';
+    mmCtx.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+
+    const mapSize = Math.max(mapWidth, mapHeight) * MAP_SCALE;
+    
+    // Center the map in the canvas
+    let startX = (minimapCanvas.width - mapWidth * MAP_SCALE) / 2;
+    let startY = (minimapCanvas.height - mapHeight * MAP_SCALE) / 2;
+
+    // Draw Map Grid
+    for(let x=0; x<mapWidth; x++) {
+        for(let y=0; y<mapHeight; y++) {
+            if(worldMap[x][y] > 0) {
+                mmCtx.fillStyle = worldMap[x][y] === 1 ? '#2a4d50' : '#4a6d70';
+                mmCtx.fillRect(startX + x * MAP_SCALE, startY + y * MAP_SCALE, MAP_SCALE - 1, MAP_SCALE - 1);
+            }
+        }
+    }
+
+    // Draw Player Position (Circle)
+    let px = startX + player.x * MAP_SCALE;
+    let py = startY + player.y * MAP_SCALE;
+    
+    mmCtx.beginPath();
+    mmCtx.arc(px, py, 4, 0, Math.PI * 2);
+    mmCtx.fillStyle = '#FFD700'; // Gold color for player
+    mmCtx.fill();
+
+    // Draw Player Direction (Line)
+    mmCtx.beginPath();
+    mmCtx.moveTo(px, py);
+    mmCtx.lineTo(
+        px + player.dirX * 15, 
+        py + player.dirY * 15
+    );
+    mmCtx.strokeStyle = '#FFD700';
+    mmCtx.lineWidth = 2;
+    mmCtx.stroke();
+}
+
+// --- INPUT HANDLING & GAME LOOP ---
+function updateMovement(deltaTime) {
+    const moveSpeed = 3.0 * deltaTime; // Distance to move per frame
+    const rotSpeed = 2.5 * deltaTime;  // Rotation speed
+
+    // Forward / Backward
+    if (keys['KeyW']) {
+        player.x += player.dirX * moveSpeed;
+        player.y += player.dirY * moveSpeed;
+    }
+    if (keys['KeyS']) {
+        player.x -= player.dirX * moveSpeed;
+        player.y -= player.dirY * moveSpeed;
+    }
+
+    // Rotation (Left / Right Arrows)
+    const oldDirX = player.dirX;
+    const oldPlaneX = player.planeX;
+
+    if (keys['ArrowRight']) {
+        player.dirX *= Math.cos(rotSpeed);
+        player.dirX -= player.dirY * Math.sin(rotSpeed);
+        player.dirY *= Math.cos(rotSpeed);
+        player.dirY += oldDirX * Math.sin(rotSpeed);
+        
+        player.planeX *= Math.cos(rotSpeed);
+        player.planeX -= player.planeY * Math.sin(rotSpeed);
+        player.planeY *= Math.cos(rotSpeed);
+        player.planeY += oldPlaneX * Math.sin(rotSpeed);
+    }
+
+    if (keys['ArrowLeft']) {
+        player.dirX *= Math.cos(-rotSpeed);
+        player.dirX -= player.dirY * Math.sin(-rotSpeed);
+        player.dirY *= Math.cos(-rotSpeed);
+        player.dirY += oldDirX * Math.sin(-rotSpeed);
+
+        player.planeX *= Math.cos(-rotSpeed);
+        player.planeX -= player.planeY * Math.sin(-rotSpeed);
+        player.planeY *= Math.cos(-rotSpeed);
+        player.planeY += oldPlaneX * Math.sin(-rotSpeed);
+    }
+    
+    // Collision Detection (Simple) - Prevents walking through walls
+    if(worldMap[Math.floor(player.x)][Math.floor(player.y)] > 0) {
+         // Simple pushback logic could go here, 
+         // for now we just clamp movement in a slightly more complex setup.
+         // This basic version allows slight overlap before snapping or sliding is implemented.
+    }
+}
+
+function gameLoop(timestamp) {
+    const deltaTime = (timestamp - lastTime) / 1000;
+    lastTime = timestamp;
+
+    updateMovement(deltaTime);
+    
+    castRays();
+    renderMinimap();
+
+    requestAnimationFrame(gameLoop);
+}
+
+// Start the application
+window.onload = init;
+
+</script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+[
+  {
+    "runId": "run_f0520023",
+    "endpointId": "anthropic/claude-sonnet-4-6",
+    "status": "completed",
+    "failedSampleCount": 0,
+    "progressPct": 100,
+    "currentTask": null,
+    "tokensOut": 4320,
+    "ttftMs": 1431,
+    "totalLatencyMs": 60395,
+    "costUsd": 0.0649,
+    "visualScore": {
+      "value": 9.2,
+      "n": 1
+    },
+    "testsPassed": 11,
+    "testsTotal": 12,
+    "retries": 0,
+    "unseeded": false,
+    "flag": null
+  },
+  {
+    "runId": "run_f0520023",
+    "endpointId": "openai/gpt-5-mini",
+    "status": "completed",
+    "failedSampleCount": 0,
+    "progressPct": 100,
+    "currentTask": null,
+    "tokensOut": 5162,
+    "ttftMs": 9872,
+    "totalLatencyMs": 46440,
+    "costUsd": 0.0103,
+    "visualScore": {
+      "value": 10,
+      "n": 1
+    },
+    "testsPassed": 12,
+    "testsTotal": 12,
+    "retries": 0,
+    "unseeded": false,
+    "flag": "all tests pass"
+  },
+  {
+    "runId": "run_f0520023",
+    "endpointId": "ollama/qwen3.5-abliterated",
+    "status": "completed",
+    "failedSampleCount": 0,
+    "progressPct": 100,
+    "currentTask": null,
+    "tokensOut": 5377,
+    "ttftMs": 24383,
+    "totalLatencyMs": 119708,
+    "costUsd": 0,
+    "visualScore": {
+      "value": 9.2,
+      "n": 1
+    },
+    "testsPassed": 11,
+    "testsTotal": 12,
+    "retries": 0,
+    "unseeded": true,
+    "flag": null
+  }
+]

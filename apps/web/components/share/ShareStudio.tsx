@@ -178,7 +178,7 @@ export interface ShareStudioProps {
   methodology: string;
   /** e.g. "* mean of n=2 — one sample failed" */
   footnote: string | null;
-  /** "run_8f3ac21e · github.com/hugom/model-lab" */
+  /** "run_8f3ac21e · github.com/hugosmoreira/model-lab" */
   runLink: string;
   /** ?template= deep-link preselect (validated by the page) */
   initialTemplate?: ShareTemplate;

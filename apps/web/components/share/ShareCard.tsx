@@ -72,7 +72,7 @@ export interface ShareCardContent {
   methodology: string;
   /** e.g. "* mean of n=2 — one sample failed"; appended to the methodology line */
   footnote: string | null;
-  /** "run_8f3ac21e · github.com/hugom/model-lab" */
+  /** "run_8f3ac21e · github.com/hugosmoreira/model-lab" */
   runLink: string;
   showRepoLink: boolean;
 }
