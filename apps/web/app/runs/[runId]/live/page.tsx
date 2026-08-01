@@ -1,11 +1,25 @@
 import { TopBar } from "@/components/shell/TopBar";
-import {
-  LiveRunScreen,
-  type ConsoleLineVM,
-  type LiveFailure,
-  type LiveModelMeta,
+import { LiveRunClient, type LiveRunSnapshot } from "@/components/live/LiveRunClient";
+import type {
+  ConsoleLineVM,
+  LiveFailure,
+  LiveModelMeta,
 } from "@/components/live/LiveRunScreen";
 import { endpointProviderLabel, fixtures, modelColor, modelIdOf } from "@/lib/data";
+import { getRun as getRegisteredRun } from "@/lib/live/run-registry";
+import type { Run } from "@model-lab/schemas";
+
+/** Reads the in-memory run registry — must render per request. */
+export const dynamic = "force-dynamic";
+
+/**
+ * Phase 1: the server resolves runId + endpoint ids + a static fixture
+ * snapshot; the client screen (LiveRunClient) subscribes to the SSE feed and
+ * renders the LIVE reduced state, falling back to the snapshot only when the
+ * stream errors immediately. NOTE: the SSE endpoint replays the same fixture
+ * script for ANY runId this phase, so freshly created runs stream the demo
+ * timeline under their own id.
+ */
 
 /**
  * Live output excerpt per endpoint, derived from fixtures.samples:
@@ -21,11 +35,27 @@ function excerptFor(endpointId: string): string {
   return latest?.rawExcerpt ?? "";
 }
 
-export default async function Page({ params }: { params: Promise<{ runId: string }> }) {
-  const { runId } = await params;
+/** Meta lookup that tolerates endpoint ids outside the fixture catalog. */
+function metaFor(endpointId: string): LiveModelMeta {
+  try {
+    return {
+      modelId: modelIdOf(endpointId),
+      providerLabel: endpointProviderLabel(endpointId),
+      color: modelColor(endpointId),
+      excerpt: excerptFor(endpointId),
+    };
+  } catch {
+    return {
+      modelId: endpointId,
+      providerLabel: "",
+      color: "var(--color-model-neutral)",
+      excerpt: "",
+    };
+  }
+}
 
-  // Phase 0: the only run in the fixture set is run_8f3ac21e's live snapshot.
-  // Phase 1 swaps these loads for the streaming store keyed by `runId`.
+/** The Phase 0 static snapshot — now the stream-error fallback. */
+function buildFixtureSnapshot(): LiveRunSnapshot {
   const run = fixtures.runLive;
   const models = fixtures.getRunModels("live");
   const events = fixtures.liveEvents;
@@ -37,25 +67,13 @@ export default async function Page({ params }: { params: Promise<{ runId: string
   const samplesTotal = run.samplesPerModel * run.modelCount;
   const samplesDone = fixtures.samples.length - LIVE_IN_FLIGHT_SAMPLES;
 
-  // "overall" = mean of per-model progress (the prototype's 78% ≠ 9/12 samples;
-  // the mean of 100/100/72/41 reproduces it exactly).
+  // "overall" = mean of per-model progress.
   const overallPct = Math.round(
     models.reduce((acc, m) => acc + m.progressPct, 0) / Math.max(1, models.length),
   );
 
-  // Every model in the live snapshot is on its final sample — the live-output
-  // panel tracks that in-flight sample index.
+  // Every model in the live snapshot is on its final sample.
   const liveSampleIndex = run.samplesPerModel;
-
-  const modelMeta: Record<string, LiveModelMeta> = {};
-  for (const rm of models) {
-    modelMeta[rm.endpointId] = {
-      modelId: modelIdOf(rm.endpointId),
-      providerLabel: endpointProviderLabel(rm.endpointId),
-      color: modelColor(rm.endpointId),
-      excerpt: excerptFor(rm.endpointId),
-    };
-  }
 
   const failedSample = fixtures.samples.find((s) => s.status === "failed");
   const failure: LiveFailure | null = failedSample
@@ -67,29 +85,76 @@ export default async function Page({ params }: { params: Promise<{ runId: string
       }
     : null;
 
-  // Console tail: newest last. Column-aligned via padEnd on the event type;
-  // the model scope is prepended unless the fixture message already leads with it.
   const consoleLines: ConsoleLineVM[] = events.map((e) => {
     const scope = e.endpointId ? modelIdOf(e.endpointId) : null;
     const detail = scope && !e.message.startsWith(scope) ? `${scope} · ${e.message}` : e.message;
     return { t: e.t, level: e.level, text: `${e.type.padEnd(16)} ${detail}` };
   });
 
+  return {
+    run,
+    models,
+    events,
+    consoleLines,
+    overallPct,
+    samplesDone,
+    samplesTotal,
+    liveSampleIndex,
+    failure,
+  };
+}
+
+export default async function Page({ params }: { params: Promise<{ runId: string }> }) {
+  const { runId } = await params;
+
+  const record = getRegisteredRun(runId);
+  const endpointIds = record?.config.endpointIds ?? [...fixtures.RUN_ENDPOINT_IDS];
+  const samplesPerModel = record?.config.samplesPerModel ?? fixtures.runConfiguration.samplesPerModel;
+
+  /* Static shell: registered runs synthesize a Run from their config; unknown
+     ids (deep links, the demo run) fall back to the fixture run under the
+     requested id. */
+  let baseRun: Run;
+  if (record) {
+    const pack = fixtures.benchmarkPacks.find((p) => p.slug === record.config.packSlug);
+    baseRun = {
+      ...fixtures.runLive,
+      id: record.id,
+      name: record.config.name ?? pack?.name ?? record.config.packSlug,
+      mode: record.config.mode,
+      status: "running",
+      pack: { slug: record.config.packSlug, version: pack?.version ?? "v1" },
+      samplesPerModel: record.config.samplesPerModel,
+      modelCount: record.config.endpointIds.length,
+      budgetCeilingUsd: fixtures.runConfiguration.maxBudgetUsd,
+      costSpentUsd: 0,
+      estCostRangeUsd: null,
+      startedAt: record.createdAt,
+      completedAt: null,
+      elapsedSec: 0,
+      verdict: null,
+    };
+  } else {
+    baseRun = { ...fixtures.runLive, id: runId };
+  }
+
+  /* Meta for the run's endpoints ∪ the fixture replay's endpoints (the SSE
+     script always streams the fixture four, whatever was registered). */
+  const modelMeta: Record<string, LiveModelMeta> = {};
+  for (const id of new Set([...endpointIds, ...fixtures.RUN_ENDPOINT_IDS])) {
+    modelMeta[id] = metaFor(id);
+  }
+
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <TopBar title={`Live Run — ${run.name}`} />
-      <LiveRunScreen
+      <TopBar title={`Live Run — ${baseRun.name}`} />
+      <LiveRunClient
         runId={runId}
-        run={run}
-        models={models}
+        endpointIds={endpointIds}
+        samplesPerModel={samplesPerModel}
+        baseRun={baseRun}
         modelMeta={modelMeta}
-        events={events}
-        consoleLines={consoleLines}
-        overallPct={overallPct}
-        samplesDone={samplesDone}
-        samplesTotal={samplesTotal}
-        liveSampleIndex={liveSampleIndex}
-        failure={failure}
+        fallback={buildFixtureSnapshot()}
       />
     </div>
   );

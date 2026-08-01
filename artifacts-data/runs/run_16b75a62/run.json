@@ -1,0 +1,859 @@
+{
+  "run": {
+    "id": "run_16b75a62",
+    "fingerprint": "fp_f81cb3a0ca6b",
+    "name": "API smoke test",
+    "mode": "build-arena",
+    "status": "completed",
+    "pack": {
+      "slug": "raycaster-oneshot",
+      "version": "v1.3"
+    },
+    "promptHash": "9aef3acc",
+    "samplesPerModel": 2,
+    "modelCount": 2,
+    "budgetCeilingUsd": 2,
+    "costSpentUsd": 0.0223,
+    "estCostRangeUsd": null,
+    "startedAt": "2026-08-01T06:10:40.083Z",
+    "completedAt": "2026-08-01T06:10:50.515Z",
+    "elapsedSec": 10,
+    "runnerVersion": "build-arena-runner v0.1.0",
+    "gitCommit": null,
+    "compositeWeighting": {
+      "browser": 50,
+      "visual": 35,
+      "efficiency": 15
+    },
+    "verdict": null,
+    "judgeReversalCount": 0
+  },
+  "models": [
+    {
+      "runId": "run_16b75a62",
+      "endpointId": "anthropic/claude-sonnet-4-6",
+      "status": "completed",
+      "failedSampleCount": 0,
+      "progressPct": 100,
+      "currentTask": null,
+      "tokensOut": 1264,
+      "ttftMs": 40,
+      "totalLatencyMs": 2250,
+      "costUsd": 0.0192,
+      "visualScore": {
+        "value": 10,
+        "n": 2
+      },
+      "testsPassed": 12,
+      "testsTotal": 12,
+      "retries": 0,
+      "unseeded": false,
+      "flag": "all tests pass"
+    },
+    {
+      "runId": "run_16b75a62",
+      "endpointId": "openai/gpt-5.2-mini",
+      "status": "completed",
+      "failedSampleCount": 0,
+      "progressPct": 100,
+      "currentTask": null,
+      "tokensOut": 1255,
+      "ttftMs": 40,
+      "totalLatencyMs": 2417,
+      "costUsd": 0.0031,
+      "visualScore": {
+        "value": 10,
+        "n": 2
+      },
+      "testsPassed": 12,
+      "testsTotal": 12,
+      "retries": 0,
+      "unseeded": false,
+      "flag": "all tests pass"
+    }
+  ],
+  "samples": [
+    {
+      "runId": "run_16b75a62",
+      "endpointId": "openai/gpt-5.2-mini",
+      "sampleIndex": 1,
+      "globalIndex": 1,
+      "status": "scored",
+      "score": {
+        "value": 10
+      },
+      "primaryScorer": "browser",
+      "costUsd": 0.0015,
+      "latencyMs": 2634,
+      "ttftMs": 40,
+      "seed": 42,
+      "hasArtifact": true,
+      "tokensOut": 628,
+      "rawExcerpt": "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>One-Shot Raycaster — gpt-5.2-mini s1</title>\n<style>\nhtml,body{margin:0;height:100%;background:#06060c;overflow:hidden}\n#screen{display:block}\n#minimap{position:fixed;top:12px;right:12px;background:#000;border:2px solid #e8e8f2}\n#hud{position:fixed;left:12px;bottom:12px;color:#f4f4fa;background:#0d0d15;font:14px/1.4 monospace;padding:6px ",
+      "scorerTrace": [
+        {
+          "name": "html.parses",
+          "status": "passed",
+          "note": "valid document",
+          "durationMs": 7
+        },
+        {
+          "name": "page.loads",
+          "status": "passed",
+          "note": "0.0s < 5s limit",
+          "durationMs": 7
+        },
+        {
+          "name": "console.clean",
+          "status": "passed",
+          "note": "no errors",
+          "durationMs": 0
+        },
+        {
+          "name": "canvas.renders",
+          "status": "passed",
+          "note": "frame delta confirmed",
+          "durationMs": 260
+        },
+        {
+          "name": "interaction.wasd",
+          "status": "passed",
+          "note": "movement responds",
+          "durationMs": 465
+        },
+        {
+          "name": "interaction.mouse",
+          "status": "passed",
+          "note": "no errors on mouse input",
+          "durationMs": 239
+        },
+        {
+          "name": "minimap.present",
+          "status": "passed",
+          "note": "detected (second canvas)",
+          "durationMs": 3
+        },
+        {
+          "name": "screenshot.captured",
+          "status": "passed",
+          "note": "1280×720 · 11kb",
+          "durationMs": 24
+        },
+        {
+          "name": "textures.applied",
+          "status": "passed",
+          "note": "color variance ok (19 tones)",
+          "durationMs": 2
+        },
+        {
+          "name": "fps.stable",
+          "status": "passed",
+          "note": "61fps sustained",
+          "durationMs": 718
+        },
+        {
+          "name": "resize.handled",
+          "status": "passed",
+          "note": "viewport resize ok",
+          "durationMs": 255
+        },
+        {
+          "name": "a11y.contrast",
+          "status": "passed",
+          "note": "min contrast 17.7:1",
+          "durationMs": 4
+        }
+      ],
+      "judgeReversed": false,
+      "humanReviewed": false,
+      "humanNote": null
+    },
+    {
+      "runId": "run_16b75a62",
+      "endpointId": "anthropic/claude-sonnet-4-6",
+      "sampleIndex": 1,
+      "globalIndex": 2,
+      "status": "scored",
+      "score": {
+        "value": 10
+      },
+      "primaryScorer": "browser",
+      "costUsd": 0.0096,
+      "latencyMs": 2308,
+      "ttftMs": 40,
+      "seed": 42,
+      "hasArtifact": true,
+      "tokensOut": 632,
+      "rawExcerpt": "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>One-Shot Raycaster — claude-sonnet-4-6 s1</title>\n<style>\nhtml,body{margin:0;height:100%;background:#06060c;overflow:hidden}\n#screen{display:block}\n#minimap{position:fixed;top:12px;right:12px;background:#000;border:2px solid #e8e8f2}\n#hud{position:fixed;left:12px;bottom:12px;color:#f4f4fa;background:#0d0d15;font:14px/1.4 monospace;padding",
+      "scorerTrace": [
+        {
+          "name": "html.parses",
+          "status": "passed",
+          "note": "valid document",
+          "durationMs": 12
+        },
+        {
+          "name": "page.loads",
+          "status": "passed",
+          "note": "0.0s < 5s limit",
+          "durationMs": 12
+        },
+        {
+          "name": "console.clean",
+          "status": "passed",
+          "note": "no errors",
+          "durationMs": 0
+        },
+        {
+          "name": "canvas.renders",
+          "status": "passed",
+          "note": "frame delta confirmed",
+          "durationMs": 261
+        },
+        {
+          "name": "interaction.wasd",
+          "status": "passed",
+          "note": "movement responds",
+          "durationMs": 466
+        },
+        {
+          "name": "interaction.mouse",
+          "status": "passed",
+          "note": "no errors on mouse input",
+          "durationMs": 239
+        },
+        {
+          "name": "minimap.present",
+          "status": "passed",
+          "note": "detected (second canvas)",
+          "durationMs": 2
+        },
+        {
+          "name": "screenshot.captured",
+          "status": "passed",
+          "note": "1280×720 · 12kb",
+          "durationMs": 42
+        },
+        {
+          "name": "textures.applied",
+          "status": "passed",
+          "note": "color variance ok (15 tones)",
+          "durationMs": 3
+        },
+        {
+          "name": "fps.stable",
+          "status": "passed",
+          "note": "61fps sustained",
+          "durationMs": 719
+        },
+        {
+          "name": "resize.handled",
+          "status": "passed",
+          "note": "viewport resize ok",
+          "durationMs": 253
+        },
+        {
+          "name": "a11y.contrast",
+          "status": "passed",
+          "note": "min contrast 17.7:1",
+          "durationMs": 2
+        }
+      ],
+      "judgeReversed": false,
+      "humanReviewed": false,
+      "humanNote": null
+    },
+    {
+      "runId": "run_16b75a62",
+      "endpointId": "openai/gpt-5.2-mini",
+      "sampleIndex": 2,
+      "globalIndex": 3,
+      "status": "scored",
+      "score": {
+        "value": 10
+      },
+      "primaryScorer": "browser",
+      "costUsd": 0.0015,
+      "latencyMs": 2200,
+      "ttftMs": 40,
+      "seed": 42,
+      "hasArtifact": true,
+      "tokensOut": 627,
+      "rawExcerpt": "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>One-Shot Raycaster — gpt-5.2-mini s2</title>\n<style>\nhtml,body{margin:0;height:100%;background:#06060c;overflow:hidden}\n#screen{display:block}\n#minimap{position:fixed;top:12px;right:12px;background:#000;border:2px solid #e8e8f2}\n#hud{position:fixed;left:12px;bottom:12px;color:#f4f4fa;background:#0d0d15;font:14px/1.4 monospace;padding:6px ",
+      "scorerTrace": [
+        {
+          "name": "html.parses",
+          "status": "passed",
+          "note": "valid document",
+          "durationMs": 5
+        },
+        {
+          "name": "page.loads",
+          "status": "passed",
+          "note": "0.0s < 5s limit",
+          "durationMs": 5
+        },
+        {
+          "name": "console.clean",
+          "status": "passed",
+          "note": "no errors",
+          "durationMs": 0
+        },
+        {
+          "name": "canvas.renders",
+          "status": "passed",
+          "note": "frame delta confirmed",
+          "durationMs": 260
+        },
+        {
+          "name": "interaction.wasd",
+          "status": "passed",
+          "note": "movement responds",
+          "durationMs": 466
+        },
+        {
+          "name": "interaction.mouse",
+          "status": "passed",
+          "note": "no errors on mouse input",
+          "durationMs": 250
+        },
+        {
+          "name": "minimap.present",
+          "status": "passed",
+          "note": "detected (second canvas)",
+          "durationMs": 1
+        },
+        {
+          "name": "screenshot.captured",
+          "status": "passed",
+          "note": "1280×720 · 11kb",
+          "durationMs": 34
+        },
+        {
+          "name": "textures.applied",
+          "status": "passed",
+          "note": "color variance ok (15 tones)",
+          "durationMs": 3
+        },
+        {
+          "name": "fps.stable",
+          "status": "passed",
+          "note": "61fps sustained",
+          "durationMs": 708
+        },
+        {
+          "name": "resize.handled",
+          "status": "passed",
+          "note": "viewport resize ok",
+          "durationMs": 254
+        },
+        {
+          "name": "a11y.contrast",
+          "status": "passed",
+          "note": "min contrast 17.7:1",
+          "durationMs": 2
+        }
+      ],
+      "judgeReversed": false,
+      "humanReviewed": false,
+      "humanNote": null
+    },
+    {
+      "runId": "run_16b75a62",
+      "endpointId": "anthropic/claude-sonnet-4-6",
+      "sampleIndex": 2,
+      "globalIndex": 4,
+      "status": "scored",
+      "score": {
+        "value": 10
+      },
+      "primaryScorer": "browser",
+      "costUsd": 0.0096,
+      "latencyMs": 2192,
+      "ttftMs": 41,
+      "seed": 42,
+      "hasArtifact": true,
+      "tokensOut": 632,
+      "rawExcerpt": "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>One-Shot Raycaster — claude-sonnet-4-6 s2</title>\n<style>\nhtml,body{margin:0;height:100%;background:#06060c;overflow:hidden}\n#screen{display:block}\n#minimap{position:fixed;top:12px;right:12px;background:#000;border:2px solid #e8e8f2}\n#hud{position:fixed;left:12px;bottom:12px;color:#f4f4fa;background:#0d0d15;font:14px/1.4 monospace;padding",
+      "scorerTrace": [
+        {
+          "name": "html.parses",
+          "status": "passed",
+          "note": "valid document",
+          "durationMs": 4
+        },
+        {
+          "name": "page.loads",
+          "status": "passed",
+          "note": "0.0s < 5s limit",
+          "durationMs": 4
+        },
+        {
+          "name": "console.clean",
+          "status": "passed",
+          "note": "no errors",
+          "durationMs": 0
+        },
+        {
+          "name": "canvas.renders",
+          "status": "passed",
+          "note": "frame delta confirmed",
+          "durationMs": 259
+        },
+        {
+          "name": "interaction.wasd",
+          "status": "passed",
+          "note": "movement responds",
+          "durationMs": 461
+        },
+        {
+          "name": "interaction.mouse",
+          "status": "passed",
+          "note": "no errors on mouse input",
+          "durationMs": 245
+        },
+        {
+          "name": "minimap.present",
+          "status": "passed",
+          "note": "detected (second canvas)",
+          "durationMs": 2
+        },
+        {
+          "name": "screenshot.captured",
+          "status": "passed",
+          "note": "1280×720 · 11kb",
+          "durationMs": 34
+        },
+        {
+          "name": "textures.applied",
+          "status": "passed",
+          "note": "color variance ok (18 tones)",
+          "durationMs": 3
+        },
+        {
+          "name": "fps.stable",
+          "status": "passed",
+          "note": "61fps sustained",
+          "durationMs": 706
+        },
+        {
+          "name": "resize.handled",
+          "status": "passed",
+          "note": "viewport resize ok",
+          "durationMs": 255
+        },
+        {
+          "name": "a11y.contrast",
+          "status": "passed",
+          "note": "min contrast 17.7:1",
+          "durationMs": 2
+        }
+      ],
+      "judgeReversed": false,
+      "humanReviewed": false,
+      "humanNote": null
+    }
+  ],
+  "artifacts": [
+    {
+      "endpointId": "openai/gpt-5.2-mini",
+      "sampleIndex": 1,
+      "path": "artifacts/16b7/gpt-5.2-mini/raycaster.html",
+      "filename": "raycaster.html",
+      "sizeKb": 2,
+      "renderOk": true,
+      "screenshotPath": "C:\\Users\\monster\\Desktop\\AI\\Codex\\AgenticOS\\artifacts-data\\screenshots\\16b7\\gpt-5.2-mini-s1.png",
+      "consoleLines": [
+        {
+          "t": "1.304s",
+          "level": "warn",
+          "msg": "Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently"
+        }
+      ],
+      "checks": [
+        {
+          "name": "html.parses",
+          "status": "passed",
+          "note": "valid document",
+          "durationMs": 7
+        },
+        {
+          "name": "page.loads",
+          "status": "passed",
+          "note": "0.0s < 5s limit",
+          "durationMs": 7
+        },
+        {
+          "name": "console.clean",
+          "status": "passed",
+          "note": "no errors",
+          "durationMs": 0
+        },
+        {
+          "name": "canvas.renders",
+          "status": "passed",
+          "note": "frame delta confirmed",
+          "durationMs": 260
+        },
+        {
+          "name": "interaction.wasd",
+          "status": "passed",
+          "note": "movement responds",
+          "durationMs": 465
+        },
+        {
+          "name": "interaction.mouse",
+          "status": "passed",
+          "note": "no errors on mouse input",
+          "durationMs": 239
+        },
+        {
+          "name": "minimap.present",
+          "status": "passed",
+          "note": "detected (second canvas)",
+          "durationMs": 3
+        },
+        {
+          "name": "screenshot.captured",
+          "status": "passed",
+          "note": "1280×720 · 11kb",
+          "durationMs": 24
+        },
+        {
+          "name": "textures.applied",
+          "status": "passed",
+          "note": "color variance ok (19 tones)",
+          "durationMs": 2
+        },
+        {
+          "name": "fps.stable",
+          "status": "passed",
+          "note": "61fps sustained",
+          "durationMs": 718
+        },
+        {
+          "name": "resize.handled",
+          "status": "passed",
+          "note": "viewport resize ok",
+          "durationMs": 255
+        },
+        {
+          "name": "a11y.contrast",
+          "status": "passed",
+          "note": "min contrast 17.7:1",
+          "durationMs": 4
+        }
+      ]
+    },
+    {
+      "endpointId": "anthropic/claude-sonnet-4-6",
+      "sampleIndex": 1,
+      "path": "artifacts/16b7/claude-sonnet-4-/raycaster.html",
+      "filename": "raycaster.html",
+      "sizeKb": 2,
+      "renderOk": true,
+      "screenshotPath": "C:\\Users\\monster\\Desktop\\AI\\Codex\\AgenticOS\\artifacts-data\\screenshots\\16b7\\claude-sonnet-4--s1.png",
+      "consoleLines": [
+        {
+          "t": "1.327s",
+          "level": "warn",
+          "msg": "Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently"
+        }
+      ],
+      "checks": [
+        {
+          "name": "html.parses",
+          "status": "passed",
+          "note": "valid document",
+          "durationMs": 12
+        },
+        {
+          "name": "page.loads",
+          "status": "passed",
+          "note": "0.0s < 5s limit",
+          "durationMs": 12
+        },
+        {
+          "name": "console.clean",
+          "status": "passed",
+          "note": "no errors",
+          "durationMs": 0
+        },
+        {
+          "name": "canvas.renders",
+          "status": "passed",
+          "note": "frame delta confirmed",
+          "durationMs": 261
+        },
+        {
+          "name": "interaction.wasd",
+          "status": "passed",
+          "note": "movement responds",
+          "durationMs": 466
+        },
+        {
+          "name": "interaction.mouse",
+          "status": "passed",
+          "note": "no errors on mouse input",
+          "durationMs": 239
+        },
+        {
+          "name": "minimap.present",
+          "status": "passed",
+          "note": "detected (second canvas)",
+          "durationMs": 2
+        },
+        {
+          "name": "screenshot.captured",
+          "status": "passed",
+          "note": "1280×720 · 12kb",
+          "durationMs": 42
+        },
+        {
+          "name": "textures.applied",
+          "status": "passed",
+          "note": "color variance ok (15 tones)",
+          "durationMs": 3
+        },
+        {
+          "name": "fps.stable",
+          "status": "passed",
+          "note": "61fps sustained",
+          "durationMs": 719
+        },
+        {
+          "name": "resize.handled",
+          "status": "passed",
+          "note": "viewport resize ok",
+          "durationMs": 253
+        },
+        {
+          "name": "a11y.contrast",
+          "status": "passed",
+          "note": "min contrast 17.7:1",
+          "durationMs": 2
+        }
+      ]
+    },
+    {
+      "endpointId": "openai/gpt-5.2-mini",
+      "sampleIndex": 2,
+      "path": "artifacts/16b7/gpt-5.2-mini/raycaster-s2.html",
+      "filename": "raycaster-s2.html",
+      "sizeKb": 2,
+      "renderOk": true,
+      "screenshotPath": "C:\\Users\\monster\\Desktop\\AI\\Codex\\AgenticOS\\artifacts-data\\screenshots\\16b7\\gpt-5.2-mini-s2.png",
+      "consoleLines": [
+        {
+          "t": "1.323s",
+          "level": "warn",
+          "msg": "Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently"
+        }
+      ],
+      "checks": [
+        {
+          "name": "html.parses",
+          "status": "passed",
+          "note": "valid document",
+          "durationMs": 5
+        },
+        {
+          "name": "page.loads",
+          "status": "passed",
+          "note": "0.0s < 5s limit",
+          "durationMs": 5
+        },
+        {
+          "name": "console.clean",
+          "status": "passed",
+          "note": "no errors",
+          "durationMs": 0
+        },
+        {
+          "name": "canvas.renders",
+          "status": "passed",
+          "note": "frame delta confirmed",
+          "durationMs": 260
+        },
+        {
+          "name": "interaction.wasd",
+          "status": "passed",
+          "note": "movement responds",
+          "durationMs": 466
+        },
+        {
+          "name": "interaction.mouse",
+          "status": "passed",
+          "note": "no errors on mouse input",
+          "durationMs": 250
+        },
+        {
+          "name": "minimap.present",
+          "status": "passed",
+          "note": "detected (second canvas)",
+          "durationMs": 1
+        },
+        {
+          "name": "screenshot.captured",
+          "status": "passed",
+          "note": "1280×720 · 11kb",
+          "durationMs": 34
+        },
+        {
+          "name": "textures.applied",
+          "status": "passed",
+          "note": "color variance ok (15 tones)",
+          "durationMs": 3
+        },
+        {
+          "name": "fps.stable",
+          "status": "passed",
+          "note": "61fps sustained",
+          "durationMs": 708
+        },
+        {
+          "name": "resize.handled",
+          "status": "passed",
+          "note": "viewport resize ok",
+          "durationMs": 254
+        },
+        {
+          "name": "a11y.contrast",
+          "status": "passed",
+          "note": "min contrast 17.7:1",
+          "durationMs": 2
+        }
+      ]
+    },
+    {
+      "endpointId": "anthropic/claude-sonnet-4-6",
+      "sampleIndex": 2,
+      "path": "artifacts/16b7/claude-sonnet-4-/raycaster-s2.html",
+      "filename": "raycaster-s2.html",
+      "sizeKb": 2,
+      "renderOk": true,
+      "screenshotPath": "C:\\Users\\monster\\Desktop\\AI\\Codex\\AgenticOS\\artifacts-data\\screenshots\\16b7\\claude-sonnet-4--s2.png",
+      "consoleLines": [
+        {
+          "t": "1.317s",
+          "level": "warn",
+          "msg": "Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently"
+        }
+      ],
+      "checks": [
+        {
+          "name": "html.parses",
+          "status": "passed",
+          "note": "valid document",
+          "durationMs": 4
+        },
+        {
+          "name": "page.loads",
+          "status": "passed",
+          "note": "0.0s < 5s limit",
+          "durationMs": 4
+        },
+        {
+          "name": "console.clean",
+          "status": "passed",
+          "note": "no errors",
+          "durationMs": 0
+        },
+        {
+          "name": "canvas.renders",
+          "status": "passed",
+          "note": "frame delta confirmed",
+          "durationMs": 259
+        },
+        {
+          "name": "interaction.wasd",
+          "status": "passed",
+          "note": "movement responds",
+          "durationMs": 461
+        },
+        {
+          "name": "interaction.mouse",
+          "status": "passed",
+          "note": "no errors on mouse input",
+          "durationMs": 245
+        },
+        {
+          "name": "minimap.present",
+          "status": "passed",
+          "note": "detected (second canvas)",
+          "durationMs": 2
+        },
+        {
+          "name": "screenshot.captured",
+          "status": "passed",
+          "note": "1280×720 · 11kb",
+          "durationMs": 34
+        },
+        {
+          "name": "textures.applied",
+          "status": "passed",
+          "note": "color variance ok (18 tones)",
+          "durationMs": 3
+        },
+        {
+          "name": "fps.stable",
+          "status": "passed",
+          "note": "61fps sustained",
+          "durationMs": 706
+        },
+        {
+          "name": "resize.handled",
+          "status": "passed",
+          "note": "viewport resize ok",
+          "durationMs": 255
+        },
+        {
+          "name": "a11y.contrast",
+          "status": "passed",
+          "note": "min contrast 17.7:1",
+          "durationMs": 2
+        }
+      ]
+    }
+  ],
+  "config": {
+    "runId": "run_16b75a62",
+    "name": "API smoke test",
+    "mode": "build-arena",
+    "pack": {
+      "slug": "raycaster-oneshot",
+      "version": "v1.3",
+      "prompt": "Build a playable raycaster in ONE self-contained HTML file. Textured walls, WASD movement, a minimap, and no external network dependencies. Return only the HTML document.",
+      "browserCheckCount": 12
+    },
+    "endpoints": [
+      {
+        "id": "anthropic/claude-sonnet-4-6",
+        "providerId": "anthropic",
+        "modelId": "claude-sonnet-4-6",
+        "baseKind": "mock",
+        "model": "claude-sonnet-4-6",
+        "priceInPerMtokUsd": 3,
+        "priceOutPerMtokUsd": 15,
+        "supportsSeed": true
+      },
+      {
+        "id": "openai/gpt-5.2-mini",
+        "providerId": "openai",
+        "modelId": "gpt-5.2-mini",
+        "baseKind": "mock",
+        "model": "gpt-5.2-mini",
+        "priceInPerMtokUsd": 0.6,
+        "priceOutPerMtokUsd": 2.4,
+        "supportsSeed": true
+      }
+    ],
+    "samplesPerModel": 2,
+    "temperature": 0.7,
+    "maxOutputTokens": 16000,
+    "seed": 42,
+    "concurrency": 4,
+    "maxBudgetUsd": 2,
+    "transportRetries": 1
+  }
+}

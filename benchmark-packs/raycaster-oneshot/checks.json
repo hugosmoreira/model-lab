@@ -1,0 +1,18 @@
+{
+  "pack": "raycaster-oneshot",
+  "version": "v1.3",
+  "checks": [
+    "html.parses",
+    "page.loads",
+    "console.clean",
+    "canvas.renders",
+    "interaction.wasd",
+    "interaction.mouse",
+    "minimap.present",
+    "screenshot.captured",
+    "textures.applied",
+    "fps.stable",
+    "resize.handled",
+    "a11y.contrast"
+  ]
+}

@@ -4,10 +4,12 @@
  * New Run — 6-step wizard (Run type → Challenge pack → Models & providers →
  * Shared settings → Scoring & safeguards → Review & launch) with a live cost
  * rail. All display values derive from fixtures; wizard state lives in one
- * useState object. Launch links to the demo live run — real creation is Phase 1.
+ * useState object. Start Run POSTs the actual selection to /api/runs and
+ * routes to the created run's live stream (Phase 1: simulated replay).
  */
 import { useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { z } from "zod";
 import type { ModelEndpoint, Provider, RunMode } from "@model-lab/schemas";
 import {
   Callout,
@@ -132,9 +134,15 @@ function endpointTags(ep: ModelEndpoint): string {
   return tags.join(" · ");
 }
 
+/** Shape of a successful POST /api/runs response. */
+const CreateRunResponse = z.object({ runId: z.string().min(1) });
+
 /* ------------------------------------------------------------------ */
 
 export function NewRunWizard() {
+  const router = useRouter();
+  const [launching, setLaunching] = useState(false);
+  const [launchError, setLaunchError] = useState<string | null>(null);
   const [state, setState] = useState<WizardState>(() => ({
     step: 1,
     mode: "build-arena",
@@ -295,6 +303,39 @@ export function NewRunWizard() {
   ];
 
   const continueBlocked = state.step === 5 && !modelCountOk;
+
+  /* Start Run: POST the wizard's actual selection, then route to the created
+     run's live stream. Phase 1: the stream replays a simulated event script. */
+  async function startRun() {
+    if (!canStart || launching) return;
+    setLaunching(true);
+    setLaunchError(null);
+    try {
+      const res = await fetch("/api/runs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(pack ? { name: pack.name } : {}),
+          mode: state.mode,
+          packSlug: state.packSlug,
+          endpointIds: selectedEndpoints.map((ep) => ep.id),
+          samplesPerModel: samples,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error(`Run creation failed (HTTP ${res.status}).`);
+      }
+      const parsed = CreateRunResponse.safeParse(await res.json());
+      if (!parsed.success) {
+        throw new Error("Run creation returned an unexpected response.");
+      }
+      router.push(`/runs/${parsed.data.runId}/live`);
+      // keep `launching` true — we are navigating away
+    } catch (err) {
+      setLaunchError(err instanceof Error ? err.message : "Run creation failed.");
+      setLaunching(false);
+    }
+  }
 
   /* ---------------------------------------------------------------- */
 
@@ -966,22 +1007,34 @@ export function NewRunWizard() {
                 </Callout>
               )}
 
+              {launchError && (
+                <Callout variant="danger" glyph="✕">
+                  {launchError} Nothing was launched — adjust the configuration and try again.
+                </Callout>
+              )}
+
               {canStart ? (
-                <Link
-                  href="/runs/run_8f3ac21e/live"
+                <button
+                  type="button"
+                  onClick={() => void startRun()}
+                  disabled={launching}
                   className="btn-primary"
                   style={{
                     alignSelf: "flex-start",
                     background: "var(--color-amber)",
                     color: "var(--color-on-accent)",
+                    border: "none",
                     fontWeight: 600,
                     borderRadius: 7,
                     padding: "11px 26px",
                     fontSize: 14,
+                    fontFamily: "inherit",
+                    cursor: launching ? "wait" : "pointer",
+                    opacity: launching ? 0.7 : 1,
                   }}
                 >
-                  Start Run — est. {costLabel}
-                </Link>
+                  {launching ? "Starting…" : `Start Run — est. ${costLabel}`}
+                </button>
               ) : (
                 <button
                   type="button"
@@ -1005,7 +1058,8 @@ export function NewRunWizard() {
                 </button>
               )}
               <span style={{ fontSize: 11.5, color: "var(--color-faint)" }}>
-                Phase 0: launching opens the demo live run — real run creation lands in Phase 1.
+                Launching registers this configuration and opens its live stream — Phase 1
+                replays a simulated event script; the native runner lands in Phase 2.
               </span>
             </div>
           </>

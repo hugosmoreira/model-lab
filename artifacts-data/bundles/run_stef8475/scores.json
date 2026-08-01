@@ -1,0 +1,22 @@
+[
+  {
+    "endpointId": "mock/alpha",
+    "meanScore": 2.5,
+    "scoredSamples": 2,
+    "failedSampleCount": 0,
+    "testsPassed": 3,
+    "testsTotal": 12,
+    "tokensOut": 1252,
+    "costUsd": 0.019
+  },
+  {
+    "endpointId": "mock/beta",
+    "meanScore": 2.1,
+    "scoredSamples": 2,
+    "failedSampleCount": 0,
+    "testsPassed": 3,
+    "testsTotal": 12,
+    "tokensOut": 1272,
+    "costUsd": 0
+  }
+]

@@ -54,6 +54,8 @@ export type LiveRunScreenProps = {
   samplesTotal: number;
   liveSampleIndex: number;
   failure: LiveFailure | null;
+  /** Connection chip in the status strip, e.g. "streaming · simulated replay". */
+  streamChip?: string | null;
 };
 
 const FALLBACK_META: LiveModelMeta = {
@@ -323,7 +325,10 @@ export function LiveRunScreen({
   samplesTotal,
   liveSampleIndex,
   failure,
+  streamChip = null,
 }: LiveRunScreenProps) {
+  const completed = run.status === "completed";
+
   // Multiple cards can be open at once; models with a failed sample start open
   // (the qwen card in the live fixture).
   const [open, setOpen] = useState<Record<string, boolean>>(() =>
@@ -331,6 +336,23 @@ export function LiveRunScreen({
       models.filter((m) => m.failedSampleCount > 0).map((m) => [m.endpointId, true] as const),
     ),
   );
+
+  // Streaming: a sample failure can arrive after mount — auto-open that card
+  // once, without overriding a card the user has explicitly toggled (a key in
+  // `open` means it was initialized or user-toggled already).
+  useEffect(() => {
+    setOpen((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const m of models) {
+        if (m.failedSampleCount > 0 && !(m.endpointId in next)) {
+          next[m.endpointId] = true;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [models]);
 
   const toggle = (endpointId: string) =>
     setOpen((prev) => ({ ...prev, [endpointId]: !prev[endpointId] }));
@@ -360,10 +382,25 @@ export function LiveRunScreen({
         }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          <StatusDot color="var(--color-teal)" size={8} glow pulse />
+          <StatusDot color="var(--color-teal)" size={8} glow pulse={!completed} />
           <span style={{ ...mono, fontSize: 12, color: "var(--color-muted)", whiteSpace: "nowrap" }}>
             {run.id} · {run.mode} · {run.pack.slug} {run.pack.version}
           </span>
+          {streamChip && (
+            <span
+              style={{
+                ...mono,
+                fontSize: 11,
+                color: "var(--color-faint)",
+                border: "1px solid var(--color-border-subtle)",
+                borderRadius: 4,
+                padding: "2px 7px",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {streamChip}
+            </span>
+          )}
         </span>
 
         <span style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 160 }}>
@@ -425,6 +462,32 @@ export function LiveRunScreen({
           </button>
         </span>
       </div>
+
+      {/* (1b) Completion banner — teal strip once runStatus reaches completed */}
+      {completed && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "9px 20px",
+            background: "color-mix(in srgb, var(--color-teal) 10%, transparent)",
+            borderBottom: "1px solid var(--color-border-success)",
+            flex: "0 0 auto",
+          }}
+        >
+          <StatusDot color="var(--color-teal)" size={8} glow />
+          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-teal)" }}>
+            Run complete
+          </span>
+          <Link
+            href={`/runs/${runId}/results`}
+            style={{ fontSize: 13, fontWeight: 600, color: "var(--color-amber)" }}
+          >
+            View Results →
+          </Link>
+        </div>
+      )}
 
       {/* (2) Partial-failure banner — full-width, squared */}
       {failure && (
