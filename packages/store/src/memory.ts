@@ -19,6 +19,7 @@ import type {
 } from "@model-lab/schemas";
 import {
   StoreError,
+  type RegistrySeed,
   type RunStatusPatch,
   type RunStore,
   type RunWithConfig,
@@ -208,17 +209,23 @@ export class MemoryStore implements RunStore {
     return [...this.packs.values()].map((p) => structuredClone(p));
   }
 
+  // -- registry seeding -------------------------------------------------------
+
+  async seedRegistry(reg: RegistrySeed): Promise<void> {
+    for (const p of reg.providers) this.providers.set(p.id, structuredClone(p));
+    for (const m of reg.modelDefinitions) {
+      this.modelDefinitions.set(m.id, structuredClone(m));
+    }
+    for (const e of reg.endpoints) this.endpoints.set(e.id, structuredClone(e));
+    for (const p of reg.packs) {
+      this.packs.set(packKey(p.slug, p.version), structuredClone(p));
+    }
+  }
+
   // -- demo data ------------------------------------------------------------
 
   async seedDemo(fixtures: SeedFixtures): Promise<void> {
-    for (const p of fixtures.providers) this.providers.set(p.id, structuredClone(p));
-    for (const m of fixtures.modelDefinitions) {
-      this.modelDefinitions.set(m.id, structuredClone(m));
-    }
-    for (const e of fixtures.endpoints) this.endpoints.set(e.id, structuredClone(e));
-    for (const p of fixtures.packs) {
-      this.packs.set(packKey(p.slug, p.version), structuredClone(p));
-    }
+    await this.seedRegistry(fixtures);
 
     // Replace any prior state for the demo run wholesale (idempotent reseed).
     this.runs.delete(fixtures.run.id);

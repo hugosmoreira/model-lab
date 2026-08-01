@@ -52,6 +52,7 @@ import {
   benchmarkPacks,
   endpoints as endpointCatalog,
   modelDefinitions,
+  providers,
   runConfiguration as defaultRunConfiguration,
   workspaceSettings,
 } from "@model-lab/schemas/fixtures";
@@ -163,9 +164,14 @@ interface ActiveRun {
    runs stay in the map as a fast replay source (buffer is ring-capped). */
 const globalStash = globalThis as typeof globalThis & {
   __modelLabRunService?: Map<string, ActiveRun>;
+  __modelLabRegistrySeeded?: WeakSet<RunStore>;
 };
 const activeRuns: Map<string, ActiveRun> = (globalStash.__modelLabRunService ??=
   new Map<string, ActiveRun>());
+/* Store instances whose registry tables were seeded this process (once per
+   process per instance; a store instance is a process-lifetime singleton). */
+const seededStores: WeakSet<RunStore> = (globalStash.__modelLabRegistrySeeded ??=
+  new WeakSet<RunStore>());
 
 /* ------------------------------------------------------------------------- *
  * Endpoint / pack resolution
@@ -306,6 +312,50 @@ async function getStoreSafe(): Promise<RunStore | null> {
   }
 }
 
+/** First line only, secrets redacted, capped at 160 chars — log-safe. */
+function scrub(message: string): string {
+  const firstLine = (message.split("\n", 1)[0] ?? "")
+    .replace(/sb_secret_[A-Za-z0-9_-]+/g, "[redacted]")
+    .replace(/eyJ[A-Za-z0-9_-]{10,}/g, "[redacted]");
+  return firstLine.length > 160 ? `${firstLine.slice(0, 160)}…` : firstLine;
+}
+
+const FK_ERROR_RE = /foreign key|violates.*constraint|\b23503\b/i;
+
+/**
+ * Shared catch handler for best-effort persistence: the run must continue
+ * even if persistence fails, but the failure lands in the server log instead
+ * of vanishing. When `store` is given and the error looks like an FK
+ * violation, the per-process "registry seeded" flag is reset so the next run
+ * start re-seeds the registry tables (belt and braces).
+ */
+function warnPersist(label: string, store?: RunStore): (err: unknown) => undefined {
+  return (err: unknown): undefined => {
+    const message = err instanceof Error ? err.message : String(err);
+    if (store !== undefined && FK_ERROR_RE.test(message)) seededStores.delete(store);
+    console.warn("[model-lab] persist failed:", label, scrub(message));
+    return undefined;
+  };
+}
+
+/**
+ * Upserts the registry fixtures (providers → model_definitions →
+ * model_endpoints → benchmark_packs) so run_models/samples/artifacts rows
+ * never hit FK violations on a fresh database — for ANY backend. Runs once
+ * per process per store instance; warnPersist resets the flag on FK-looking
+ * failures.
+ */
+async function ensureRegistrySeeded(store: RunStore): Promise<void> {
+  if (seededStores.has(store)) return;
+  await store.seedRegistry({
+    providers,
+    modelDefinitions,
+    endpoints: endpointCatalog,
+    packs: benchmarkPacks,
+  });
+  seededStores.add(store);
+}
+
 function synthesizeRun(cfg: RunnerConfig, startedAt: string): Run {
   return {
     id: cfg.runId,
@@ -378,6 +428,9 @@ async function persistRunCreation(
   cfg: RunnerConfig,
   startedAt: string,
 ): Promise<void> {
+  // FK safety on a fresh database: registry rows must exist before
+  // run_models/samples/artifacts reference them.
+  await ensureRegistrySeeded(store);
   await store.createRun(synthesizeRun(cfg, startedAt), synthesizeConfiguration(cfg));
   for (const ep of cfg.endpoints) {
     await store.upsertRunModel({
@@ -417,7 +470,9 @@ async function persistFinalSnapshot(
   fsRoot: string,
 ): Promise<void> {
   if (snapshot === null) {
-    await store.updateRunStatus(runId, { status: fallbackStatus }).catch(() => undefined);
+    await store
+      .updateRunStatus(runId, { status: fallbackStatus })
+      .catch(warnPersist("updateRunStatus:fallback", store));
     return;
   }
   await store
@@ -427,13 +482,17 @@ async function persistFinalSnapshot(
       completedAt: snapshot.run.completedAt,
       elapsedSec: snapshot.run.elapsedSec,
     })
-    .catch(() => undefined);
+    .catch(warnPersist("updateRunStatus:final", store));
   for (const model of snapshot.models) {
-    await store.upsertRunModel(model).catch(() => undefined);
+    await store
+      .upsertRunModel(model)
+      .catch(warnPersist(`upsertRunModel:${model.endpointId}`, store));
   }
   for (const sample of snapshot.samples) {
     // Terminal rows only; IMMUTABLE/DUPLICATE from an earlier flush is benign.
-    await store.insertSample(sample).catch(() => undefined);
+    await store
+      .insertSample(sample)
+      .catch(warnPersist(`insertSample:${sample.endpointId}#${sample.sampleIndex}`, store));
   }
   for (const stored of snapshot.artifacts) {
     const artifact: Artifact = {
@@ -462,7 +521,9 @@ async function persistFinalSnapshot(
         sizeLimitMb: 2,
       },
     };
-    await store.insertArtifact(artifact).catch(() => undefined);
+    await store
+      .insertArtifact(artifact)
+      .catch(warnPersist(`insertArtifact:${artifact.endpointId}#${artifact.sampleIndex}`, store));
   }
 }
 
@@ -491,7 +552,7 @@ async function pumpEvents(
               }
             }
           })
-          .catch(() => undefined);
+          .catch(warnPersist(`appendEvent:${event.type}`, store));
       }
     }
   } catch {
@@ -505,13 +566,13 @@ async function pumpEvents(
   } catch {
     fallbackStatus = "failed";
   }
-  await persistChain.catch(() => undefined);
+  await persistChain.catch(warnPersist("persistChain", store ?? undefined));
 
   const snapshot = fsStore.loadSnapshot(active.record.id);
   const finalStatus: RunStatus = snapshot?.run.status ?? fallbackStatus;
   if (store !== null) {
     await persistFinalSnapshot(store, active.record.id, finalStatus, snapshot, fsStore.root).catch(
-      () => undefined,
+      warnPersist("finalSnapshot", store),
     );
   }
 
@@ -588,7 +649,9 @@ export async function startRun(input: StartRunInput): Promise<{ runId: string }>
 
   const store = await getStoreSafe();
   if (store !== null) {
-    await persistRunCreation(store, cfg, createdAt).catch(() => undefined);
+    // Non-fatal: the live run continues even if the store rejects it, but the
+    // failure (e.g. a seedRegistry error against a fresh database) is logged.
+    await persistRunCreation(store, cfg, createdAt).catch(warnPersist("runCreation", store));
   }
 
   const fsStore = new FsRunStore();

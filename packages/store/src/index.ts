@@ -34,6 +34,7 @@
  */
 export {
   StoreError,
+  type RegistrySeed,
   type RunStatusPatch,
   type RunStore,
   type RunWithConfig,

@@ -29,6 +29,7 @@ import {
 } from "@model-lab/schemas";
 import {
   StoreError,
+  type RegistrySeed,
   type RunStatusPatch,
   type RunStore,
   type RunWithConfig,
@@ -435,26 +436,35 @@ export class SupabaseStore implements RunStore {
     );
   }
 
-  // -- demo data ------------------------------------------------------------
+  // -- registry seeding -------------------------------------------------------
 
-  async seedDemo(fixtures: SeedFixtures): Promise<void> {
+  async seedRegistry(reg: RegistrySeed): Promise<void> {
     const upsert = async (
       table: string,
       rows: Record<string, unknown>[],
       onConflict: string,
     ): Promise<void> => {
+      if (rows.length === 0) return;
       const { error } = await this.client.from(table).upsert(rows, { onConflict });
-      this.must(error, `seedDemo:${table}`);
+      this.must(error, `seedRegistry:${table}`);
     };
 
-    await upsert("providers", fixtures.providers.map(providerToRow), "id");
+    // Upsert order matters for FKs: model_endpoints references both
+    // providers(id) and model_definitions(id).
+    await upsert("providers", reg.providers.map(providerToRow), "id");
     await upsert(
       "model_definitions",
-      fixtures.modelDefinitions.map(modelDefinitionToRow),
+      reg.modelDefinitions.map(modelDefinitionToRow),
       "id",
     );
-    await upsert("model_endpoints", fixtures.endpoints.map(endpointToRow), "id");
-    await upsert("benchmark_packs", fixtures.packs.map(packToRow), "slug,version");
+    await upsert("model_endpoints", reg.endpoints.map(endpointToRow), "id");
+    await upsert("benchmark_packs", reg.packs.map(packToRow), "slug,version");
+  }
+
+  // -- demo data ------------------------------------------------------------
+
+  async seedDemo(fixtures: SeedFixtures): Promise<void> {
+    await this.seedRegistry(fixtures);
 
     // Replace prior demo-run data wholesale.
     const runId = fixtures.run.id;
@@ -578,7 +588,7 @@ function providerToRow(p: Provider): Record<string, unknown> {
   return {
     id: p.id, name: p.name, kind: p.kind, is_local: p.isLocal, status: p.status,
     health_latency_ms: p.healthLatencyMs, models_available: p.modelsAvailable,
-    models_loaded: p.modelsLoaded, last_tested_at: p.lastTestedAt,
+    models_loaded: p.modelsLoaded, last_tested_at: isoOrNull(p.lastTestedAt),
     credential_masked: p.credentialMasked, credential_store: p.credentialStore,
     warning_message: p.warning?.message ?? null,
     local_endpoint: p.localEndpoint, local_hardware: p.localHardware,
@@ -601,8 +611,18 @@ function endpointToRow(e: ModelEndpoint): Record<string, unknown> {
     price_in_per_mtok_usd: e.priceInPerMtokUsd,
     price_out_per_mtok_usd: e.priceOutPerMtokUsd, status: e.status,
     runs_count: e.runsCount, reliability_pct: e.reliabilityPct,
-    avg_visual_score: e.avgVisualScore, last_tested_at: e.lastTestedAt,
+    avg_visual_score: e.avgVisualScore, last_tested_at: isoOrNull(e.lastTestedAt),
   };
+}
+
+/**
+ * Fixture registry rows carry human display strings in timestamp-ish fields
+ * ("today", "6d ago"). Postgres timestamptz rejects them — persist only values
+ * that actually parse as ISO-like dates, null otherwise.
+ */
+function isoOrNull(value: string | null): string | null {
+  if (value == null) return null;
+  return /^\d{4}-\d{2}-\d{2}/.test(value) && !Number.isNaN(Date.parse(value)) ? value : null;
 }
 
 function packToRow(p: BenchmarkPack): Record<string, unknown> {
@@ -614,7 +634,7 @@ function packToRow(p: BenchmarkPack): Record<string, unknown> {
     est_cost_per_model_usd: p.estCostPerModelUsd,
     est_output_tokens_per_model: p.estOutputTokensPerModel,
     category: p.category, license: p.license, prompt: p.prompt,
-    content_hash: null, last_run_at: p.lastRunAt,
+    content_hash: null, last_run_at: isoOrNull(p.lastRunAt),
   };
 }
 

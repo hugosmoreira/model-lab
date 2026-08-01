@@ -70,12 +70,19 @@ export interface StoredRunEvent extends RunEvent {
   id: number;
 }
 
-/** Everything `seedDemo` needs to materialise one demo scenario. */
-export interface SeedFixtures {
+/**
+ * Registry rows only — the catalog tables run/sample/artifact rows reference
+ * via foreign keys. Never carries run data.
+ */
+export interface RegistrySeed {
   providers: Provider[];
   modelDefinitions: ModelDefinition[];
   endpoints: ModelEndpoint[];
   packs: BenchmarkPack[];
+}
+
+/** Everything `seedDemo` needs to materialise one demo scenario. */
+export interface SeedFixtures extends RegistrySeed {
   run: Run;
   configuration: RunConfiguration;
   runModels: RunModel[];
@@ -141,6 +148,14 @@ export interface RunStore {
   listModelDefinitions(): Promise<ModelDefinition[]>;
   listEndpoints(): Promise<ModelEndpoint[]>;
   listPacks(): Promise<BenchmarkPack[]>;
+
+  // -- registry seeding -------------------------------------------------------
+  /**
+   * Idempotent upsert of registry rows only — never touches run data.
+   * Existing rows with the same key are replaced. Insert order matters for
+   * FKs: providers → model_definitions → model_endpoints → packs.
+   */
+  seedRegistry(reg: RegistrySeed): Promise<void>;
 
   // -- demo data ------------------------------------------------------------
   /**

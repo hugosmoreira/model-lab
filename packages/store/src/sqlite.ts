@@ -36,6 +36,7 @@ import {
 } from "@model-lab/schemas";
 import {
   StoreError,
+  type RegistrySeed,
   type RunStatusPatch,
   type RunStore,
   type RunWithConfig,
@@ -733,15 +734,23 @@ export class SqliteStore implements RunStore {
     );
   }
 
+  // -- registry seeding -------------------------------------------------------
+
+  async seedRegistry(reg: RegistrySeed): Promise<void> {
+    // INSERT OR REPLACE per table, in FK order:
+    // providers → model_definitions → model_endpoints → benchmark_packs.
+    for (const p of reg.providers) this.upsertProvider(p);
+    for (const m of reg.modelDefinitions) this.upsertModelDefinition(m);
+    for (const e of reg.endpoints) this.upsertEndpoint(e);
+    for (const p of reg.packs) this.upsertPack(p);
+  }
+
   // -- demo data ------------------------------------------------------------
 
   async seedDemo(fixtures: SeedFixtures): Promise<void> {
     this.db.exec("begin");
     try {
-      for (const p of fixtures.providers) this.upsertProvider(p);
-      for (const m of fixtures.modelDefinitions) this.upsertModelDefinition(m);
-      for (const e of fixtures.endpoints) this.upsertEndpoint(e);
-      for (const p of fixtures.packs) this.upsertPack(p);
+      await this.seedRegistry(fixtures);
 
       // Replace prior demo-run data wholesale (FK enforcement is off, so
       // children are deleted explicitly).
