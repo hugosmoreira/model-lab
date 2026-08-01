@@ -60,6 +60,8 @@ export type EndpointStatus = z.infer<typeof EndpointStatus>;
 export const ModelEndpoint = z.object({
   id: z.string(), // "anthropic/claude-sonnet-4-6", "ollama/qwen3-coder-32b@q4_K_M"
   modelId: z.string(),
+  /** provider-side model identifier when it differs from modelId (e.g. ollama tags); null → use modelId */
+  apiModel: z.string().nullable().default(null),
   providerId: z.string(),
   deployment: z.enum(["cloud", "local", "aggregator"]),
   quantization: z.string().nullable().default(null), // "q4_K_M", "fp16"

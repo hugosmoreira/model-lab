@@ -819,6 +819,8 @@ export class SqliteStore implements RunStore {
   }
 
   private upsertEndpoint(e: ModelEndpoint): void {
+    // apiModel is intentionally not a column: registry persistence doesn't
+    // need it; listEndpoints' ModelEndpoint.parse defaults it to null.
     this.db
       .prepare(
         `insert or replace into model_endpoints (

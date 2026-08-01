@@ -22,8 +22,9 @@
  *
  * Provider keys: this app reads no provider credential itself — the runner
  * resolves ANTHROPIC_API_KEY / OPENAI_API_KEY / OPENROUTER_API_KEY /
- * GOOGLE_API_KEY / OLLAMA_BASE_URL from process.env server-side. This module
- * only *checks presence* of those variables to decide mock substitution.
+ * GOOGLE_API_KEY / DEEPSEEK_API_KEY / OLLAMA_BASE_URL from process.env
+ * server-side. This module only *checks presence* of those variables to
+ * decide mock substitution.
  *
  * Mock substitution (keyless demo fidelity):
  *  - MODEL_LAB_MOCK_PROVIDERS=1 → every selected endpoint runs the deterministic
@@ -32,8 +33,12 @@
  *    e.g. a local Ollama with no cloud keys).
  *  - unset → auto: when NO selected endpoint has its required API key present
  *    (Ollama counts as keyless — presence of a local server can't be proven by
- *    an env var), the whole run is mocked.
- *  - In mock mode, a qwen-ish endpoint (id/modelId contains "qwen") gets
+ *    an env var), the whole run is mocked. Otherwise substitution is
+ *    PER-ENDPOINT: exactly the endpoints whose required key is absent (e.g.
+ *    deepseek/google before keys exist) run the mock provider — the runner's
+ *    model.started message shows "· mock" for those endpoints — while keyed
+ *    endpoints and keyless-by-design Ollama run real.
+ *  - A mocked qwen-ish endpoint (id/modelId contains "qwen") gets
  *    failSample = { endpointId, sampleIndex: 2 } so the demo's preserved
  *    render-failure path stays exercised.
  */
@@ -188,6 +193,8 @@ function requiredKeyEnv(providerId: string): string | null {
       return "OPENROUTER_API_KEY";
     case "google":
       return "GOOGLE_API_KEY";
+    case "deepseek":
+      return "DEEPSEEK_API_KEY";
     case "ollama":
       return null; // keyless by design
     default:
@@ -203,11 +210,18 @@ function hasRequiredKey(providerId: string): boolean {
   return value !== undefined && value !== "";
 }
 
-function resolveMockMode(selected: ModelEndpoint[]): boolean {
+/**
+ * Per-endpoint mock decision (see module doc). Auto mode mocks the WHOLE run
+ * when the selection is fully keyless (keyless demo fidelity); in a mixed
+ * selection only the endpoints missing their required key are substituted —
+ * keyless-by-design providers (ollama) run real.
+ */
+function resolveMockPolicy(selected: ModelEndpoint[]): (ep: ModelEndpoint) => boolean {
   const flag = (process.env["MODEL_LAB_MOCK_PROVIDERS"] ?? "").trim();
-  if (flag === "1") return true;
-  if (flag === "0") return false;
-  return selected.every((ep) => !hasRequiredKey(ep.providerId));
+  if (flag === "1") return () => true;
+  if (flag === "0") return () => false;
+  if (selected.every((ep) => !hasRequiredKey(ep.providerId))) return () => true;
+  return (ep) => requiredKeyEnv(ep.providerId) !== null && !hasRequiredKey(ep.providerId);
 }
 
 /** providerId → runner baseKind (+ explicit baseUrl where needed). */
@@ -217,6 +231,10 @@ function baseFor(providerId: string): { baseKind: BaseKind; baseUrl?: string } {
       return { baseKind: "anthropic" };
     case "ollama":
       return { baseKind: "ollama" }; // baseUrl via OLLAMA_BASE_URL in the runner
+    case "deepseek":
+      // OpenAI-compatible surface; key resolves from DEEPSEEK_API_KEY
+      // (the runner derives <PROVIDERID>_API_KEY for explicit base URLs).
+      return { baseKind: "openai-compatible", baseUrl: "https://api.deepseek.com/v1" };
     case "google":
       // Google's OpenAI-compatible surface; key resolves from GOOGLE_API_KEY.
       return {
@@ -237,7 +255,8 @@ function toEndpointConfig(ep: ModelEndpoint, mock: boolean): EndpointConfig {
     providerId: ep.providerId,
     modelId: ep.modelId,
     baseKind: base.baseKind,
-    model: ep.modelId, // provider-facing name; MVP uses the catalog modelId
+    // provider-facing name: apiModel when it differs (e.g. ollama tags)
+    model: ep.apiModel ?? ep.modelId,
     priceInPerMtokUsd: ep.priceInPerMtokUsd,
     priceOutPerMtokUsd: ep.priceOutPerMtokUsd,
     supportsSeed: def?.supportsSeed ?? false,
@@ -598,8 +617,8 @@ export async function startRun(input: StartRunInput): Promise<{ runId: string }>
   });
   const verified = input.mode === "verified";
   const pack = verified ? toVerifiedPackConfig(input.packSlug) : toPackConfig(input.packSlug);
-  const mock = resolveMockMode(selected);
-  const endpoints = selected.map((ep) => toEndpointConfig(ep, mock));
+  const mockFor = resolveMockPolicy(selected);
+  const endpoints = selected.map((ep) => toEndpointConfig(ep, mockFor(ep)));
   const runId = newRunId();
   const name =
     input.name ??
@@ -623,9 +642,11 @@ export async function startRun(input: StartRunInput): Promise<{ runId: string }>
   };
   // Verified runs never inject the broken-artifact failSample (no artifacts,
   // no browser checks) — the mock's wrong-answer path covers the 0-score demo.
-  if (!verified && mock && input.samplesPerModel >= 2) {
+  // Only a MOCKED qwen-ish endpoint qualifies: never sabotage a real run.
+  if (!verified && input.samplesPerModel >= 2) {
     const qwenish = endpoints.find(
-      (ep) => ep.id.includes("qwen") || ep.modelId.includes("qwen"),
+      (ep) =>
+        ep.baseKind === "mock" && (ep.id.includes("qwen") || ep.modelId.includes("qwen")),
     );
     if (qwenish !== undefined) {
       cfg.failSample = { endpointId: qwenish.id, sampleIndex: 2 };

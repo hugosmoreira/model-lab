@@ -59,6 +59,12 @@ export const providers: Provider[] = [
     lastTestedAt: null, credentialMasked: "endpoint not set",
     credentialStore: "unset", warning: null, localEndpoint: null, localHardware: null,
   },
+  {
+    id: "deepseek", name: "DeepSeek", kind: "cloud", status: "disconnected", isLocal: false,
+    healthLatencyMs: null, modelsAvailable: null, modelsLoaded: null,
+    lastTestedAt: null, credentialMasked: "not configured",
+    credentialStore: "unset", warning: null, localEndpoint: null, localHardware: null,
+  },
 ];
 
 export const modelDefinitions: ModelDefinition[] = [
@@ -97,56 +103,115 @@ export const modelDefinitions: ModelDefinition[] = [
     identityColor: MODEL_COLORS.neutral, contextWindowTokens: 10_000_000,
     capabilities: ["general", "local"], supportsSeed: false,
   },
+  // --- real (live-capable) models -----------------------------------------
+  {
+    id: "gpt-5-mini", family: "GPT-5", shortName: "gpt-5-mini",
+    identityColor: MODEL_COLORS["gpt-5.2-mini"], contextWindowTokens: 400_000,
+    capabilities: ["code", "fast", "cheap"], supportsSeed: true,
+  },
+  {
+    id: "deepseek-chat", family: "DeepSeek V3", shortName: "deepseek-chat",
+    identityColor: "#5aa7d4", contextWindowTokens: 128_000,
+    capabilities: ["code", "cheap"], supportsSeed: false,
+  },
+  {
+    id: "deepseek-reasoner", family: "DeepSeek R1", shortName: "deepseek-r1",
+    identityColor: "#5aa7d4", contextWindowTokens: 128_000,
+    capabilities: ["code"], supportsSeed: false,
+  },
+  {
+    id: "qwen3.5-abliterated", family: "Qwen 3.5", shortName: "qwen3.5-abl",
+    identityColor: MODEL_COLORS["qwen3-coder-32b"], contextWindowTokens: 128_000,
+    capabilities: ["general", "local"], supportsSeed: false,
+  },
+  {
+    id: "qwen3-coder-next", family: "Qwen 3 Coder", shortName: "qwen3-coder-next",
+    identityColor: MODEL_COLORS["qwen3-coder-32b"], contextWindowTokens: 256_000,
+    capabilities: ["code", "local"], supportsSeed: false,
+  },
 ];
 
 export const endpoints: ModelEndpoint[] = [
   {
-    id: "anthropic/claude-sonnet-4-6", modelId: "claude-sonnet-4-6", providerId: "anthropic",
+    id: "anthropic/claude-sonnet-4-6", modelId: "claude-sonnet-4-6", apiModel: null, providerId: "anthropic",
     deployment: "cloud", quantization: null, hardware: null,
     priceInPerMtokUsd: 3, priceOutPerMtokUsd: 15, status: "healthy",
     runsCount: 14, reliabilityPct: 100, avgVisualScore: 9.0, lastTestedAt: "2026-07-31",
   },
   {
-    id: "anthropic/claude-haiku-4-5", modelId: "claude-haiku-4-5", providerId: "anthropic",
+    id: "anthropic/claude-haiku-4-5", modelId: "claude-haiku-4-5", apiModel: null, providerId: "anthropic",
     deployment: "cloud", quantization: null, hardware: null,
     priceInPerMtokUsd: 0.8, priceOutPerMtokUsd: 4, status: "healthy",
     runsCount: 6, reliabilityPct: 100, avgVisualScore: 7.8, lastTestedAt: "2026-07-26",
   },
   {
-    id: "openai/gpt-5.2-mini", modelId: "gpt-5.2-mini", providerId: "openai",
+    id: "openai/gpt-5.2-mini", modelId: "gpt-5.2-mini", apiModel: null, providerId: "openai",
     deployment: "cloud", quantization: null, hardware: null,
     priceInPerMtokUsd: 0.6, priceOutPerMtokUsd: 2.4, status: "healthy",
     runsCount: 11, reliabilityPct: 100, avgVisualScore: 8.0, lastTestedAt: "2026-07-31",
   },
   {
-    id: "openai/gpt-5.2", modelId: "gpt-5.2", providerId: "openai",
+    id: "openai/gpt-5.2", modelId: "gpt-5.2", apiModel: null, providerId: "openai",
     deployment: "cloud", quantization: null, hardware: null,
     priceInPerMtokUsd: 5, priceOutPerMtokUsd: 20, status: "healthy",
     runsCount: 4, reliabilityPct: 95, avgVisualScore: 8.9, lastTestedAt: "2026-07-24",
   },
   {
-    id: "google/gemini-3-flash", modelId: "gemini-3-flash", providerId: "google",
+    id: "google/gemini-3-flash", modelId: "gemini-3-flash", apiModel: null, providerId: "google",
     deployment: "cloud", quantization: null, hardware: null,
     priceInPerMtokUsd: 0.15, priceOutPerMtokUsd: 0.9, status: "healthy",
     runsCount: 9, reliabilityPct: 100, avgVisualScore: 7.3, lastTestedAt: "2026-07-31",
   },
   {
-    id: "ollama/qwen3-coder-32b@q4_K_M", modelId: "qwen3-coder-32b", providerId: "ollama",
+    id: "ollama/qwen3-coder-32b@q4_K_M", modelId: "qwen3-coder-32b", apiModel: null, providerId: "ollama",
     deployment: "local", quantization: "q4_K_M", hardware: "RTX 4090",
     priceInPerMtokUsd: null, priceOutPerMtokUsd: null, status: "loaded",
     runsCount: 7, reliabilityPct: 84, avgVisualScore: 6.9, lastTestedAt: "2026-07-31",
   },
   {
-    id: "openrouter/qwen3-coder-32b@fp16", modelId: "qwen3-coder-32b", providerId: "openrouter",
+    id: "openrouter/qwen3-coder-32b@fp16", modelId: "qwen3-coder-32b", apiModel: null, providerId: "openrouter",
     deployment: "aggregator", quantization: "fp16", hardware: null,
     priceInPerMtokUsd: 0.4, priceOutPerMtokUsd: 1.2, status: "rate-limited",
     runsCount: 2, reliabilityPct: 95, avgVisualScore: 7.2, lastTestedAt: "2026-07-17",
   },
   {
-    id: "ollama/llama-4-scout-17b", modelId: "llama-4-scout-17b", providerId: "ollama",
+    id: "ollama/llama-4-scout-17b", modelId: "llama-4-scout-17b", apiModel: null, providerId: "ollama",
     deployment: "local", quantization: null, hardware: "RTX 4090",
     priceInPerMtokUsd: null, priceOutPerMtokUsd: null, status: "not-loaded",
     runsCount: 1, reliabilityPct: null, avgVisualScore: null, lastTestedAt: "2026-06-30",
+  },
+  // --- real (live-capable) endpoints --------------------------------------
+  {
+    id: "openai/gpt-5-mini", modelId: "gpt-5-mini", apiModel: null, providerId: "openai",
+    deployment: "cloud", quantization: null, hardware: null,
+    priceInPerMtokUsd: 0.25, priceOutPerMtokUsd: 2.0, status: "healthy",
+    runsCount: 0, reliabilityPct: null, avgVisualScore: null, lastTestedAt: null,
+  },
+  {
+    id: "ollama/qwen3.5-abliterated", modelId: "qwen3.5-abliterated",
+    apiModel: "huihui_ai/qwen3.5-abliterated:latest", providerId: "ollama",
+    deployment: "local", quantization: null, hardware: "RTX 4090",
+    priceInPerMtokUsd: null, priceOutPerMtokUsd: null, status: "loaded",
+    runsCount: 0, reliabilityPct: null, avgVisualScore: null, lastTestedAt: null,
+  },
+  {
+    id: "ollama/qwen3-coder-next", modelId: "qwen3-coder-next",
+    apiModel: "hf.co/bartowski/huihui-ai_Qwen3-Coder-Next-abliterated-GGUF:Q4_K_M", providerId: "ollama",
+    deployment: "local", quantization: null, hardware: "RTX 4090",
+    priceInPerMtokUsd: null, priceOutPerMtokUsd: null, status: "loaded",
+    runsCount: 0, reliabilityPct: null, avgVisualScore: null, lastTestedAt: null,
+  },
+  {
+    id: "deepseek/deepseek-chat", modelId: "deepseek-chat", apiModel: null, providerId: "deepseek",
+    deployment: "cloud", quantization: null, hardware: null,
+    priceInPerMtokUsd: 0.27, priceOutPerMtokUsd: 1.1, status: "healthy",
+    runsCount: 0, reliabilityPct: null, avgVisualScore: null, lastTestedAt: null,
+  },
+  {
+    id: "deepseek/deepseek-reasoner", modelId: "deepseek-reasoner", apiModel: null, providerId: "deepseek",
+    deployment: "cloud", quantization: null, hardware: null,
+    priceInPerMtokUsd: 0.55, priceOutPerMtokUsd: 2.19, status: "healthy",
+    runsCount: 0, reliabilityPct: null, avgVisualScore: null, lastTestedAt: null,
   },
 ];
 

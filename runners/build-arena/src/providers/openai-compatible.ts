@@ -77,16 +77,42 @@ export class OpenAiCompatibleProvider implements Provider {
       headers["authorization"] = `Bearer ${this.opts.apiKey}`;
     }
 
-    let res: Response;
-    try {
-      res = await fetch(`${baseUrl}/chat/completions`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-        signal: req.signal ?? null,
-      });
-    } catch (err) {
-      throw new Error(`${this.kind} transport error: ${errorMessage(err)}`);
+    const post = async (): Promise<Response> => {
+      try {
+        return await fetch(`${baseUrl}/chat/completions`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+          signal: req.signal ?? null,
+        });
+      } catch (err) {
+        throw new Error(`${this.kind} transport error: ${errorMessage(err)}`);
+      }
+    };
+
+    let res = await post();
+    /**
+     * Param-shape adaptation: newer OpenAI model families reject legacy
+     * chat-completions params with explicit 400s. Adapt to what the server
+     * tells us (works for any OpenAI-compatible backend) and retry, at most
+     * once per distinct complaint:
+     *  - "Use 'max_completion_tokens'" → swap max_tokens for it
+     *  - unsupported temperature value  → drop temperature (server default)
+     *  - unsupported seed               → drop seed
+     */
+    for (let adapt = 0; adapt < 3 && res.status === 400; adapt++) {
+      const detail = await res.text().catch(() => "");
+      if (detail.includes("max_completion_tokens") && "max_tokens" in body) {
+        body["max_completion_tokens"] = body["max_tokens"];
+        delete body["max_tokens"];
+      } else if (/temperature/i.test(detail) && /unsupported|does not support/i.test(detail) && "temperature" in body) {
+        delete body["temperature"];
+      } else if (/seed/i.test(detail) && /unsupported|does not support/i.test(detail) && "seed" in body) {
+        delete body["seed"];
+      } else {
+        throw new Error(scrubSecrets(`${this.kind} HTTP 400: ${detail.slice(0, 300)}`));
+      }
+      res = await post();
     }
     if (!res.ok || res.body === null) {
       const detail = res.body === null ? "empty body" : await res.text().catch(() => "");

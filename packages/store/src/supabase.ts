@@ -605,6 +605,8 @@ function modelDefinitionToRow(m: ModelDefinition): Record<string, unknown> {
 }
 
 function endpointToRow(e: ModelEndpoint): Record<string, unknown> {
+  // apiModel is intentionally omitted: the DB has no column for it and
+  // registry persistence doesn't need it; rowTo parse defaults it to null.
   return {
     id: e.id, model_id: e.modelId, provider_id: e.providerId,
     deployment: e.deployment, quantization: e.quantization, hardware: e.hardware,
