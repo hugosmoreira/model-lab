@@ -1,8 +1,0 @@
-{
-  "slug": "raycaster-oneshot",
-  "version": "v1.3",
-  "kind": "build-arena",
-  "browserCheckCount": 12,
-  "prompt": "Build a playable raycaster in ONE self-contained HTML file. Textured walls, WASD movement, a minimap, and no external network dependencies. Return only the HTML document.",
-  "promptHash": "9aef3acc"
-}

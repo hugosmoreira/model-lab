@@ -11,3 +11,4 @@ artifacts/
 *.db-journal
 .DS_Store
 Thumbs.db
+artifacts-data/
