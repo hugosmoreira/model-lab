@@ -1,0 +1,55 @@
+import type { RunEvent } from "../../index";
+
+const R = "run_8f3ac21e";
+const S = "anthropic/claude-sonnet-4-6";
+const G = "openai/gpt-5.2-mini";
+const M = "google/gemini-3-flash";
+const Q = "ollama/qwen3-coder-32b@q4_K_M";
+
+const at = (hms: string) => `2026-07-31T${hms}Z`;
+
+/**
+ * Ordered event log for the live snapshot (newest last). Doubles as the
+ * Phase 1 SSE replay script. NOTE: qwen's failed sample emits sample.failed —
+ * the model keeps running (audit §7 naming rule).
+ */
+export const liveEvents: RunEvent[] = [
+  { t: at("14:21:02"), type: "run.started", runId: R, endpointId: null, sampleIndex: null, level: "info", message: "run_8f3ac21e · 4 models · n=3 · budget $2.00", payload: {} },
+  { t: at("14:21:04"), type: "model.started", runId: R, endpointId: S, sampleIndex: null, level: "info", message: "claude-sonnet-4-6 · anthropic · cloud", payload: {} },
+  { t: at("14:21:04"), type: "model.started", runId: R, endpointId: G, sampleIndex: null, level: "info", message: "gpt-5.2-mini · openai · cloud", payload: {} },
+  { t: at("14:21:05"), type: "model.started", runId: R, endpointId: M, sampleIndex: null, level: "info", message: "gemini-3-flash · google · cloud", payload: {} },
+  { t: at("14:21:07"), type: "model.started", runId: R, endpointId: Q, sampleIndex: null, level: "info", message: "qwen3-coder-32b · ollama · local · unseeded", payload: {} },
+  { t: at("14:22:31"), type: "sample.started", runId: R, endpointId: Q, sampleIndex: 2, level: "info", message: "2/3 · retry policy: none (first-shot)", payload: {} },
+  { t: at("14:28:44"), type: "sandbox.loaded", runId: R, endpointId: S, sampleIndex: 1, level: "info", message: "isolated origin · network blocked · 30s limit", payload: {} },
+  { t: at("14:29:12"), type: "artifact.created", runId: R, endpointId: S, sampleIndex: 1, level: "success", message: "raycaster.html · 48kb", payload: {} },
+  { t: at("14:29:41"), type: "sample.failed", runId: R, endpointId: Q, sampleIndex: 2, level: "error", message: "sample 2: Uncaught TypeError: ctx is null", payload: { reason: "render.failed" } },
+  { t: at("14:30:02"), type: "browser.checks", runId: R, endpointId: S, sampleIndex: 1, level: "warn", message: "10/12 passed", payload: { passed: 10, total: 12 } },
+  { t: at("14:30:29"), type: "sample.scored", runId: R, endpointId: G, sampleIndex: 3, level: "success", message: "12/12 browser tests · visual 8.1", payload: {} },
+  { t: at("14:30:58"), type: "model.completed", runId: R, endpointId: G, sampleIndex: null, level: "success", message: "3/3 samples · $0.18", payload: {} },
+  { t: at("14:31:44"), type: "artifact.created", runId: R, endpointId: M, sampleIndex: 3, level: "success", message: "raycaster.html · 36kb", payload: {} },
+  { t: at("14:32:19"), type: "judge.vote", runId: R, endpointId: S, sampleIndex: null, level: "info", message: "claude-sonnet-4-6 · pair 5/6 · order B/A", payload: {} },
+  { t: at("14:32:26"), type: "check.passed", runId: R, endpointId: M, sampleIndex: 3, level: "success", message: "canvas renders (620ms)", payload: { check: "canvas.renders" } },
+  { t: at("14:32:31"), type: "check.warn", runId: R, endpointId: M, sampleIndex: 3, level: "warn", message: "texture fallback used", payload: { check: "textures.applied" } },
+  { t: at("14:32:40"), type: "token.usage", runId: R, endpointId: Q, sampleIndex: 3, level: "info", message: "19.8k total · 34 tok/s", payload: { tokensOut: 19_800, toksPerSec: 34 } },
+  { t: at("14:32:41"), type: "budget.status", runId: R, endpointId: null, sampleIndex: null, level: "info", message: "$0.63 spent · 31% of ceiling", payload: { spentUsd: 0.63, ceilingUsd: 2 } },
+];
+
+/** Additional tail for the completed timeline (replayed after liveEvents). */
+export const completionEvents: RunEvent[] = [
+  { t: at("14:26:12"), type: "sample.scored", runId: R, endpointId: M, sampleIndex: 3, level: "success", message: "visual 7.4 · 9/12 tests", payload: {} },
+  { t: at("14:26:40"), type: "model.completed", runId: R, endpointId: M, sampleIndex: null, level: "success", message: "3/3 samples · $0.06", payload: {} },
+  { t: at("14:26:58"), type: "sample.scored", runId: R, endpointId: Q, sampleIndex: 3, level: "success", message: "visual 6.6 · local", payload: {} },
+  { t: at("14:27:10"), type: "model.completed", runId: R, endpointId: Q, sampleIndex: null, level: "warn", message: "2/3 scored · 1 render fail preserved", payload: {} },
+  { t: at("14:27:20"), type: "sample.scored", runId: R, endpointId: S, sampleIndex: 3, level: "success", message: "visual 9.1 · judge pass", payload: {} },
+  { t: at("14:27:33"), type: "model.completed", runId: R, endpointId: S, sampleIndex: null, level: "success", message: "3/3 samples · $0.41", payload: {} },
+  { t: at("14:27:41"), type: "run.completed", runId: R, endpointId: null, sampleIndex: null, level: "success", message: "12 samples · $0.65 · 1 judge reversal flagged", payload: {} },
+];
+
+/** Mission Control activity feed (condensed, HH:MM granularity). */
+export const activityFeed: RunEvent[] = [
+  { t: at("14:32:00"), type: "artifact.created", runId: R, endpointId: M, sampleIndex: 3, level: "info", message: "gemini-3-flash · raycaster", payload: {} },
+  { t: at("14:31:00"), type: "sample.scored", runId: R, endpointId: G, sampleIndex: 3, level: "success", message: "gpt-5.2-mini · 12/12 browser tests", payload: {} },
+  { t: at("14:29:00"), type: "sample.failed", runId: R, endpointId: Q, sampleIndex: 2, level: "error", message: "qwen3-coder-32b · console error", payload: {} },
+  { t: at("14:21:00"), type: "run.started", runId: R, endpointId: null, sampleIndex: null, level: "info", message: "run_8f3ac21e · 4 models", payload: {} },
+  { t: at("12:04:00"), type: "export.created", runId: "run_b91d004a", endpointId: null, sampleIndex: null, level: "info", message: "raycaster-scorecard.png", payload: {} },
+];

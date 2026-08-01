@@ -1,0 +1,165 @@
+@import "tailwindcss";
+
+/* ============================================================
+   Model Lab design tokens — canonical set from the design audit
+   (docs/REPO_AUDIT_AND_FRONTEND_PLAN.md §6.1). HANDOFF.md tokens
+   plus the undocumented interaction tiers found in the files.
+   ============================================================ */
+@theme {
+  /* Surfaces */
+  --color-page: #141119;
+  --color-rail: #16131d;
+  --color-panel: #1a1722;
+  --color-inset: #12101a;
+  --color-inset-alt: #171420;
+  --color-stage: #0e0c14;
+  --color-void: #0c0a10;
+  --color-raised: #221d2d;
+  --color-selected: #251f31;
+  --color-selected-row: #221c2e;
+  --color-row-hover: #1e1a28;
+  --color-row-checked: #1e1a2b;
+  --color-input: #1d1926;
+  --color-insight: #1e1826;
+  --color-insight-border: #3a2f3c;
+  --color-warning-bg: #211c22;
+  --color-warning-border: #4a3a2a;
+  --color-warning-text: #d9b98a;
+  --color-danger-bg: #231a20;
+  --color-danger-border: #4a2a2e;
+  --color-danger-text: #e8a0a0;
+  --color-danger-hover: #2a1a1e;
+
+  /* Borders */
+  --color-border: #2b2637;
+  --color-border-subtle: #241f2e;
+  --color-border-row: #1f1a29;
+  --color-border-hover: #48405a;
+  --color-border-success: #2a4a3c;
+  --color-border-magenta: #4a3546;
+
+  /* Text */
+  --color-text: #eae7f0;
+  --color-text-secondary: #c9c3d6;
+  --color-muted: #948da3;
+  --color-faint: #6b6478;
+  --color-disabled: #514a5e;
+  --color-timestamp: #5a5468;
+  --color-nav-idle: #a8a1b8;
+  --color-on-accent: #1a1420;
+
+  /* Accents & status */
+  --color-amber: #e8a33d;
+  --color-amber-hover: #f2b45a;
+  --color-magenta: #d16ba0;
+  --color-teal: #46b78c;
+  --color-red: #e05c5c;
+  --color-code-green: #a8d0b0;
+
+  /* Model identity (fixed; squares, never encode status) */
+  --color-model-claude: #e0a458;
+  --color-model-gpt: #7f9fe8;
+  --color-model-gemini: #a98ae8;
+  --color-model-qwen: #d9799c;
+  --color-model-neutral: #948da3;
+  --color-model-blind: #6b6478;
+
+  --font-sans: var(--font-plex), "IBM Plex Sans", sans-serif;
+  --font-mono: var(--font-jbmono), "JetBrains Mono", monospace;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--color-page);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+a {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--color-text);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 5px;
+}
+
+/* Focus — HANDOFF promises visible rings; prototypes omitted them */
+:focus-visible {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+
+/* Single sanctioned animation; gated on motion preference */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes mlPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+  .ml-pulse {
+    animation: mlPulse 1.6s ease-in-out infinite;
+  }
+}
+
+/* Nav items */
+.nav-item {
+  color: var(--color-nav-idle);
+  background: transparent;
+}
+.nav-item:hover {
+  background: var(--color-raised);
+  color: var(--color-text);
+}
+.nav-item-active {
+  color: var(--color-text);
+  background: var(--color-selected);
+  box-shadow: inset 2px 0 0 var(--color-amber);
+}
+.nav-item-active:hover {
+  background: var(--color-selected);
+}
+
+/* Generic interaction helpers */
+.hover-row:hover {
+  background: var(--color-row-hover);
+}
+.hover-border:hover {
+  border-color: var(--color-border-hover) !important;
+}
+.hover-amber-border:hover {
+  border-color: var(--color-amber) !important;
+}
+.hover-amber:hover {
+  color: var(--color-amber-hover) !important;
+}
+.hover-text:hover {
+  color: var(--color-text) !important;
+}
+.btn-primary:hover {
+  background: var(--color-amber-hover) !important;
+}
+
+/* Shared micro-patterns */
+.section-label {
+  font-size: 11px;
+  color: var(--color-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+}
+.panel {
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}

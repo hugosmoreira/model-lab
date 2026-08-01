@@ -1,0 +1,12 @@
+{
+  "name": "model-lab",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.34.4",
+  "scripts": {
+    "dev": "pnpm --filter @model-lab/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint"
+  }
+}
