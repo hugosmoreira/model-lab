@@ -1,15 +1,19 @@
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
-import type { RunModel } from "@model-lab/schemas";
+import type { RunModel, SampleResult } from "@model-lab/schemas";
 import { TopBar } from "@/components/shell/TopBar";
 import { ReproStrip } from "@/components/shell/ReproStrip";
-import { Callout, ModelDot, Panel, RUN_STATUS_COLORS } from "@/components/ui/primitives";
+import { Callout, EmptyState, ModelDot, Panel, RUN_STATUS_COLORS } from "@/components/ui/primitives";
 import { CategoryBars, type CategoryRow } from "@/components/charts/CategoryBars";
 import { CostQualityScatter, type ScatterPoint } from "@/components/charts/CostQualityScatter";
 import { LatencyBands, type LatencyBandRow } from "@/components/charts/LatencyBands";
 import { WTLMatrix } from "@/components/charts/WTLMatrix";
-import { endpointProviderLabel, fixtures, modelColor, modelIdOf, shortNameOf } from "@/lib/data";
+import { endpointProviderLabel, modelColor, modelIdOf, shortNameOf } from "@/lib/data";
+import { getRunView } from "@/lib/server/loaders";
 import { mmss, seconds, usd } from "@/lib/format";
+
+/** Reads the persistence store — must render per request. */
+export const dynamic = "force-dynamic";
 
 const mono = { fontFamily: "var(--font-mono)" } as const;
 
@@ -79,9 +83,9 @@ interface SampleStats {
 }
 
 /** Per-endpoint sample rollup: scored/failed counts + min–max of scored values. */
-function buildSampleStats(): Map<string, SampleStats> {
+function buildSampleStats(samples: SampleResult[]): Map<string, SampleStats> {
   const map = new Map<string, SampleStats>();
-  for (const s of fixtures.samples) {
+  for (const s of samples) {
     const cur = map.get(s.endpointId) ?? { failed: 0, total: 0, min: null, max: null };
     cur.total += 1;
     if (s.status === "failed" || (s.score != null && "failed" in s.score)) {
@@ -95,29 +99,36 @@ function buildSampleStats(): Map<string, SampleStats> {
   return map;
 }
 
-/**
- * Brief adherence (0–10): the judge's RUBRIC score per model (rubric v2,
- * averaged over both presentation orders) — a graded assessment of how well
- * the artifact fulfills the brief. Distinct from the pairwise W–T–L record,
- * which lives in the matrix panel with its own reversal-exclusion rule.
- */
-function judgeAdherence(endpointId: string): number | null {
-  return fixtures.judgeBriefScores[endpointId] ?? null;
-}
-
 export default async function ResultsPage({
   params,
 }: {
   params: Promise<{ runId: string }>;
 }) {
   const { runId } = await params;
-  const { runCompleted: run, runConfiguration, runManifest, samples, latencyRanges, wtlMatrix, judgePairs } =
-    fixtures;
-  const runModels = fixtures.getRunModels("completed");
+  const view = await getRunView(runId);
+  const {
+    run,
+    configuration: runConfiguration,
+    manifest: runManifest,
+    samples,
+    runModels,
+    latencyRanges,
+    judge,
+  } = view;
   const n = run.samplesPerModel;
-  const stats = buildSampleStats();
+  const stats = buildSampleStats(samples);
   const statsFor = (endpointId: string): SampleStats =>
     stats.get(endpointId) ?? { failed: 0, total: n, min: null, max: null };
+
+  /**
+   * Brief adherence (0–10): the judge's RUBRIC score per model (averaged over
+   * both presentation orders) — a graded assessment of how well the artifact
+   * fulfills the brief. Distinct from the pairwise W–T–L record, which lives
+   * in the matrix panel with its own reversal-exclusion rule. Null when the
+   * run had no judge scorer.
+   */
+  const judgeAdherence = (endpointId: string): number | null =>
+    judge?.briefScores[endpointId] ?? null;
 
   /* ---------- header meta ---------- */
   const meta = `${runManifest.date} · ${mmss(run.elapsedSec ?? 0)} duration · ${run.modelCount} models · n=${n} each · ${samples.length} samples`;
@@ -153,15 +164,17 @@ export default async function ResultsPage({
 
   const humanScorer = runConfiguration.scorers.find((s) => s.type === "human");
   const judgeScorer = runConfiguration.scorers.find((s) => s.type === "llm-judge");
-  const checksTotal = fixtures.CHECK_NAMES.length;
+  const checksTotal = view.checksTotal;
 
-  /* ---------- category bars (all values computed from fixtures) ---------- */
+  /* ---------- category bars (all values computed from the run's own data) ---------- */
   // Efficiency = 1 − (0.5·costNorm + 0.5·latencyNorm), each normalized 0–1
   // against the most expensive / slowest model in the run. Higher = cheaper + faster.
   const maxCost = Math.max(...runModels.map((rm) => rm.costUsd), 0.0001);
   const maxLat = Math.max(...runModels.map((rm) => rm.totalLatencyMs ?? 0), 1);
   const efficiency = (rm: RunModel): number =>
     1 - (0.5 * (rm.costUsd / maxCost) + 0.5 * ((rm.totalLatencyMs ?? maxLat) / maxLat));
+
+  const hasVisual = runModels.some((rm) => rm.visualScore != null);
 
   const categories: CategoryRow[] = [
     {
@@ -204,35 +217,49 @@ export default async function ResultsPage({
         };
       }),
     },
-    {
-      name: "Visual quality",
-      scorer: `human rubric ${humanScorer?.rubricVersion ?? ""}`.trim(),
-      bars: runModels.map((rm) => ({
-        key: rm.endpointId,
-        color: modelColor(rm.endpointId),
-        pct: (rm.visualScore?.value ?? 0) * 10,
-        label:
-          rm.visualScore != null ? (
-            `${rm.visualScore.value.toFixed(1)}${rm.visualScore.n < n ? ` (n=${rm.visualScore.n})` : ""}`
-          ) : (
-            <span style={{ color: "var(--color-faint)" }}>—</span>
-          ),
-      })),
-    },
-    {
-      name: "Brief adherence",
-      scorer: `judge${judgeScorer?.orderSwapped ? ", order-swapped" : ""}`,
-      // Derived: win-rate over non-excluded judge pairs ×10 (see judgeAdherence).
-      bars: runModels.map((rm) => {
-        const v = judgeAdherence(rm.endpointId);
-        return {
-          key: rm.endpointId,
-          color: modelColor(rm.endpointId),
-          pct: (v ?? 0) * 10,
-          label: v != null ? v.toFixed(1) : <span style={{ color: "var(--color-faint)" }}>—</span>,
-        };
-      }),
-    },
+    // Visual quality renders only when a visual score exists for this run
+    // (fixture: human rubric; store runs: mean per-sample score).
+    ...(hasVisual
+      ? [
+          {
+            name: "Visual quality",
+            scorer: humanScorer
+              ? `human rubric ${humanScorer.rubricVersion ?? ""}`.trim()
+              : "mean sample score",
+            bars: runModels.map((rm) => ({
+              key: rm.endpointId,
+              color: modelColor(rm.endpointId),
+              pct: (rm.visualScore?.value ?? 0) * 10,
+              label:
+                rm.visualScore != null ? (
+                  `${rm.visualScore.value.toFixed(1)}${rm.visualScore.n < n ? ` (n=${rm.visualScore.n})` : ""}`
+                ) : (
+                  <span style={{ color: "var(--color-faint)" }}>—</span>
+                ),
+            })),
+          } satisfies CategoryRow,
+        ]
+      : []),
+    // Brief adherence exists only when the run had a judge scorer.
+    ...(judge !== null
+      ? [
+          {
+            name: "Brief adherence",
+            scorer: `judge${judgeScorer?.orderSwapped ? ", order-swapped" : ""}`,
+            // Derived: win-rate over non-excluded judge pairs ×10 (see judgeAdherence).
+            bars: runModels.map((rm) => {
+              const v = judgeAdherence(rm.endpointId);
+              return {
+                key: rm.endpointId,
+                color: modelColor(rm.endpointId),
+                pct: (v ?? 0) * 10,
+                label:
+                  v != null ? v.toFixed(1) : <span style={{ color: "var(--color-faint)" }}>—</span>,
+              };
+            }),
+          } satisfies CategoryRow,
+        ]
+      : []),
     {
       name: "Efficiency",
       scorer: "objective · cost+latency",
@@ -278,16 +305,11 @@ export default async function ResultsPage({
     .sort((a, b) => a.medianMs - b.medianMs);
 
   // check.warn events per endpoint (surfaces gemini's texture-fallback warning)
-  const warnCounts = new Map<string, number>();
-  for (const ev of [...fixtures.liveEvents, ...fixtures.completionEvents]) {
-    if (ev.type === "check.warn" && ev.endpointId != null) {
-      warnCounts.set(ev.endpointId, (warnCounts.get(ev.endpointId) ?? 0) + 1);
-    }
-  }
+  const warnCounts = view.checkWarnCounts;
   const reliabilityRows = runModels.map((rm) => {
     const st = statsFor(rm.endpointId);
     const pct = st.total > 0 ? Math.round(((st.total - st.failed) / st.total) * 100) : 0;
-    const warns = warnCounts.get(rm.endpointId) ?? 0;
+    const warns = warnCounts[rm.endpointId] ?? 0;
     const detail =
       st.failed > 0
         ? `${st.failed} render fail`
@@ -373,8 +395,8 @@ export default async function ResultsPage({
 
         <ReproStrip manifest={runManifest} />
 
-        {/* Verdict banner */}
-        {run.verdict && (
+        {/* Verdict banner — neutral completion note when no verdict was recorded */}
+        {run.verdict ? (
           <Callout variant="insight" style={{ padding: "14px 18px" }}>
             <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
               <span
@@ -404,6 +426,13 @@ export default async function ResultsPage({
                 {tintNarrative(run.verdict.narrative, tints)}
               </p>
             </div>
+          </Callout>
+        ) : (
+          <Callout variant="note" style={{ padding: "14px 18px" }}>
+            <span style={{ fontSize: 13.5 }}>
+              Run {run.status} — {samples.length} samples · {usd(run.costSpentUsd)}. No verdict
+              narrative recorded for this run.
+            </span>
           </Callout>
         )}
 
@@ -458,7 +487,7 @@ export default async function ResultsPage({
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>Cost vs quality</span>
                   <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>
-                    visual, human-scored · n={n}/model
+                    {humanScorer ? "visual, human-scored" : "mean sample score"} · n={n}/model
                   </span>
                 </div>
                 <CostQualityScatter points={scatterPoints} showPareto footnote={scatterFootnote} />
@@ -505,24 +534,35 @@ export default async function ResultsPage({
             <Panel style={{ padding: "14px 18px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, gap: 10, flexWrap: "wrap" }}>
                 <span style={{ fontSize: 14, fontWeight: 600 }}>Win / tie / loss — judge pairs, order-swapped</span>
-                <span
-                  style={{
-                    ...mono,
-                    fontSize: 11,
-                    color: run.judgeReversalCount > 0 ? "var(--color-amber)" : "var(--color-faint)",
-                  }}
-                >
-                  {run.judgeReversalCount > 0
-                    ? `${run.judgeReversalCount} order reversal${run.judgeReversalCount === 1 ? "" : "s"} detected`
-                    : "no order reversals"}
-                </span>
+                {judge !== null && (
+                  <span
+                    style={{
+                      ...mono,
+                      fontSize: 11,
+                      color: run.judgeReversalCount > 0 ? "var(--color-amber)" : "var(--color-faint)",
+                    }}
+                  >
+                    {run.judgeReversalCount > 0
+                      ? `${run.judgeReversalCount} order reversal${run.judgeReversalCount === 1 ? "" : "s"} detected`
+                      : "no order reversals"}
+                  </span>
+                )}
               </div>
-              <WTLMatrix rows={matrixRows} matrix={wtlMatrix} />
-              <span style={{ fontSize: 11, color: "var(--color-faint)", display: "block", marginTop: 8 }}>
-                Read as row vs column: W–T–L over {judgePairs.length} pairs, n={n} samples × 2 orders per
-                pair. ⟲ = verdict reversed when answer order was swapped — the flagged pair is excluded from
-                the aggregate verdict; cells show raw tallies.
-              </span>
+              {judge !== null ? (
+                <>
+                  <WTLMatrix rows={matrixRows} matrix={judge.wtlMatrix} />
+                  <span style={{ fontSize: 11, color: "var(--color-faint)", display: "block", marginTop: 8 }}>
+                    Read as row vs column: W–T–L over {judge.judgePairs.length} pairs, n={n} samples × 2
+                    orders per pair. ⟲ = verdict reversed when answer order was swapped — the flagged pair
+                    is excluded from the aggregate verdict; cells show raw tallies.
+                  </span>
+                </>
+              ) : (
+                <EmptyState
+                  title="No judge scorer in this run"
+                  hint="Pairwise W–T–L verdicts require an LLM-judge scorer — this run scored with browser checks only."
+                />
+              )}
             </Panel>
           </div>
 

@@ -446,7 +446,8 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       endpointId: ep.id,
       sampleIndex: s,
       message: `${(gen.tokensOut / 1000).toFixed(1)}k out · ${toksPerSec} tok/s`,
-      payload: { tokensIn: gen.tokensIn, tokensOut: gen.tokensOut, toksPerSec },
+      // ttftMs: request start → first streamed delta (measured in streamOnce)
+      payload: { tokensIn: gen.tokensIn, tokensOut: gen.tokensOut, toksPerSec, ttftMs: gen.ttftMs },
     });
 
     // -- immutable raw output ------------------------------------------

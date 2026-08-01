@@ -2,10 +2,12 @@ import { TopBar } from "@/components/shell/TopBar";
 import { ReproStrip } from "@/components/shell/ReproStrip";
 import { ArenaGrid } from "@/components/artifact/ArenaGrid";
 import { getArenaData } from "@/components/artifact/model";
-import { fixtures } from "@/lib/data";
+import { DEMO_RUN_ID, getRunView } from "@/lib/server/loaders";
 
-export default function BuildArenaPage() {
-  const data = getArenaData();
+export default async function BuildArenaPage() {
+  // Top-level Arena shows the demo scenario (fixture view of run_8f3ac21e).
+  const view = await getRunView(DEMO_RUN_ID);
+  const data = getArenaData(view);
   return (
     <>
       <TopBar title="Build Arena" />
@@ -22,7 +24,7 @@ export default function BuildArenaPage() {
         }}
       >
         <ArenaGrid data={data} />
-        <ReproStrip manifest={fixtures.runManifest} />
+        <ReproStrip manifest={view.manifest} />
       </main>
     </>
   );

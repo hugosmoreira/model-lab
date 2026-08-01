@@ -15,7 +15,8 @@
  *                        the message when present ("… · $0.18")
  * - run.completed      → runStatus "completed"
  * - budget.status      → costSpentUsd from payload.spentUsd
- * - token.usage        → tokensOut from payload.tokensOut
+ * - token.usage        → tokensOut from payload.tokensOut; first payload.ttftMs
+ *                        seen sticks as the model's TTFT (runner semantics)
  *
  * `samplesDone` is derived as Σ per-model settled samples rather than a raw
  * sample.scored counter: the fixture replay script is a condensed excerpt
@@ -297,6 +298,7 @@ export function reduceRunEvent(state: LiveRunState, event: RunEvent): LiveRunSta
         patch(eid, (m) => ({
           ...m,
           tokensOut: asNumber(event.payload["tokensOut"]) ?? m.tokensOut,
+          ttftMs: m.ttftMs ?? asNumber(event.payload["ttftMs"]),
         }));
       break;
 

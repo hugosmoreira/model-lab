@@ -48,12 +48,18 @@ const FALLBACK_META: LiveModelMeta = {
   excerpt: "",
 };
 
-const CHIP_LABELS: Record<StreamConnection, string> = {
-  connecting: "connecting…",
-  streaming: "streaming · simulated replay",
-  done: "replay complete",
-  error: "stream interrupted",
-};
+/** The demo run streams a simulated fixture replay; real runs stream live. */
+const DEMO_RUN_ID = "run_8f3ac21e";
+
+function chipLabels(runId: string): Record<StreamConnection, string> {
+  const demo = runId === DEMO_RUN_ID;
+  return {
+    connecting: "connecting…",
+    streaming: demo ? "streaming · simulated replay" : "streaming · live",
+    done: demo ? "replay complete" : "run complete",
+    error: "stream interrupted",
+  };
+}
 
 function toRunModel(runId: string, m: LiveModelState): RunModel {
   return {
@@ -162,7 +168,7 @@ export function LiveRunClient({
       samplesTotal={samplesTotal}
       liveSampleIndex={liveSampleIndex}
       failure={failure}
-      streamChip={CHIP_LABELS[connection]}
+      streamChip={chipLabels(runId)[connection]}
     />
   );
 }

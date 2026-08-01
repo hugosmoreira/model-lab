@@ -1,0 +1,44 @@
+[
+  {
+    "runId": "run_63581b2e",
+    "endpointId": "anthropic/claude-sonnet-4-6",
+    "status": "completed",
+    "failedSampleCount": 0,
+    "progressPct": 100,
+    "currentTask": null,
+    "tokensOut": 1264,
+    "ttftMs": 83,
+    "totalLatencyMs": 2054,
+    "costUsd": 0.0192,
+    "visualScore": {
+      "value": 10,
+      "n": 2
+    },
+    "testsPassed": 12,
+    "testsTotal": 12,
+    "retries": 0,
+    "unseeded": false,
+    "flag": "all tests pass"
+  },
+  {
+    "runId": "run_63581b2e",
+    "endpointId": "openai/gpt-5.2-mini",
+    "status": "completed",
+    "failedSampleCount": 0,
+    "progressPct": 100,
+    "currentTask": null,
+    "tokensOut": 1255,
+    "ttftMs": 82,
+    "totalLatencyMs": 2058,
+    "costUsd": 0.0031,
+    "visualScore": {
+      "value": 10,
+      "n": 2
+    },
+    "testsPassed": 12,
+    "testsTotal": 12,
+    "retries": 0,
+    "unseeded": false,
+    "flag": "all tests pass"
+  }
+]

@@ -1,11 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { toPng, toSvg } from "html-to-image";
 import { ShareAspect, ShareTemplate } from "@model-lab/schemas";
-import { EmptyState, SectionLabel } from "@/components/ui/primitives";
-import { ShareCard } from "./ShareCard";
-import type { ShareCardRow, ShareCardTheme } from "./ShareCard";
+import type { RunManifest } from "@model-lab/schemas";
+import { Callout, EmptyState, SectionLabel } from "@/components/ui/primitives";
+import { buildAltText, buildCsv, buildJson, buildPostDraft } from "@/lib/share/export-data";
+import {
+  assertMethodologyRendered,
+  copyText,
+  downloadDataUrl,
+  downloadText,
+} from "@/lib/share/download";
+import { ShareCard, isShareCardTemplate } from "./ShareCard";
+import type { ShareCardContent, ShareCardRow, ShareCardTheme } from "./ShareCard";
 
 const TEMPLATE_LABELS: Record<ShareTemplate, string> = {
   "new-model-scorecard": "New Model Scorecard",
@@ -25,8 +34,12 @@ const CARD_THEMES: readonly ShareCardTheme[] = ["dark", "light"];
 const TITLE_MAX = 80;
 const TAKEAWAY_MAX = 120;
 
-const PHASE4_EXPORT = "export pipeline lands in Phase 4";
+const TEMPLATE_PENDING = "template design pending — future phase";
+const EXPORT_BLOCKED = "switch to an enabled template to export";
 const METHODOLOGY_LOCKED = "always on for exports — integrity rule";
+
+type ExportKind = "png" | "svg" | "data" | "alt" | "post";
+type CopiedKind = "alt" | "post";
 
 const mono = { fontFamily: "var(--font-mono)" } as const;
 
@@ -65,6 +78,32 @@ const toggleRowStyle: CSSProperties = {
   fontFamily: "inherit",
   textAlign: "left",
   cursor: "pointer",
+};
+
+const smallButtonStyle: CSSProperties = {
+  flex: 1,
+  background: "var(--color-raised)",
+  border: "1px solid var(--color-border)",
+  color: "var(--color-text-secondary)",
+  borderRadius: 6,
+  padding: 7,
+  fontSize: 12,
+  fontFamily: "inherit",
+  cursor: "pointer",
+};
+
+const ghostStyle: CSSProperties = {
+  background: "none",
+  border: "1px solid var(--color-border)",
+  color: "var(--color-muted)",
+  borderRadius: 6,
+  padding: 7,
+  fontSize: 12,
+  fontFamily: "inherit",
+  cursor: "pointer",
+  textAlign: "center",
+  textDecoration: "none",
+  display: "block",
 };
 
 function TogglePill({ on }: { on: boolean }) {
@@ -126,6 +165,10 @@ function LabeledInput({
 }
 
 export interface ShareStudioProps {
+  /** route run id — export filenames + the bundle download link */
+  runId: string;
+  /** provenance manifest embedded in the JSON export */
+  manifest: RunManifest;
   rows: ShareCardRow[];
   defaultTitle: string;
   defaultTakeaway: string;
@@ -137,9 +180,13 @@ export interface ShareStudioProps {
   footnote: string | null;
   /** "run_8f3ac21e · github.com/hugom/model-lab" */
   runLink: string;
+  /** ?template= deep-link preselect (validated by the page) */
+  initialTemplate?: ShareTemplate;
 }
 
 export function ShareStudio({
+  runId,
+  manifest,
   rows,
   defaultTitle,
   defaultTakeaway,
@@ -147,13 +194,108 @@ export function ShareStudio({
   methodology,
   footnote,
   runLink,
+  initialTemplate,
 }: ShareStudioProps) {
-  const [template, setTemplate] = useState<ShareTemplate>("new-model-scorecard");
+  const [template, setTemplate] = useState<ShareTemplate>(
+    initialTemplate ?? "new-model-scorecard",
+  );
   const [aspect, setAspect] = useState<ShareAspect>("16:9");
   const [theme, setTheme] = useState<ShareCardTheme>("dark");
   const [title, setTitle] = useState(defaultTitle);
   const [takeaway, setTakeaway] = useState(defaultTakeaway);
   const [showRepoLink, setShowRepoLink] = useState(true);
+
+  const [busy, setBusy] = useState<ExportKind | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<CopiedKind | null>(null);
+
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
+    },
+    [],
+  );
+
+  /* showMethodology is locked true (integrity rule) — content always carries it. */
+  const content: ShareCardContent = {
+    title,
+    takeaway,
+    date,
+    methodology,
+    footnote,
+    runLink,
+    showRepoLink,
+  };
+
+  const templateReady = isShareCardTemplate(template);
+  const exportsDisabled = busy !== null || !templateReady;
+  const exportTitle = templateReady ? undefined : EXPORT_BLOCKED;
+
+  function flashCopied(kind: CopiedKind): void {
+    setCopied(kind);
+    if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setCopied(null), 1600);
+  }
+
+  /** The ShareCard DOM node — the exact tree the raster exports capture. */
+  function cardNode(): HTMLElement {
+    const node = stageRef.current?.firstElementChild;
+    if (!(node instanceof HTMLElement)) {
+      throw new Error("card is not on the canvas — select an enabled template first");
+    }
+    return node;
+  }
+
+  function runExport(kind: ExportKind, fn: () => Promise<void>): void {
+    if (busy !== null) return;
+    setBusy(kind);
+    setError(null);
+    void fn()
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "export failed");
+      })
+      .finally(() => setBusy(null));
+  }
+
+  const exportPng = () =>
+    runExport("png", async () => {
+      const node = cardNode();
+      assertMethodologyRendered(node, methodology);
+      const dataUrl = await toPng(node, { pixelRatio: 2, cacheBust: true });
+      downloadDataUrl(dataUrl, `${template}-${runId}.png`);
+    });
+
+  const exportSvg = () =>
+    runExport("svg", async () => {
+      const node = cardNode();
+      assertMethodologyRendered(node, methodology);
+      const dataUrl = await toSvg(node, { cacheBust: true });
+      downloadDataUrl(dataUrl, `${template}-${runId}.svg`);
+    });
+
+  const exportData = () =>
+    runExport("data", async () => {
+      downloadText(buildCsv(rows), `${template}-${runId}.csv`, "text/csv");
+      downloadText(
+        buildJson(manifest, rows, content),
+        `${template}-${runId}.json`,
+        "application/json",
+      );
+    });
+
+  const copyAlt = () =>
+    runExport("alt", async () => {
+      await copyText(buildAltText(TEMPLATE_LABELS[template], rows, content));
+      flashCopied("alt");
+    });
+
+  const copyPost = () =>
+    runExport("post", async () => {
+      await copyText(buildPostDraft(rows, content));
+      flashCopied("post");
+    });
 
   return (
     <>
@@ -174,23 +316,34 @@ export function ShareStudio({
         {/* Template */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <SectionLabel>Template</SectionLabel>
-          {ShareTemplate.options.map((tpl) => (
-            <button
-              key={tpl}
-              type="button"
-              aria-pressed={template === tpl}
-              onClick={() => setTemplate(tpl)}
-              className="hover-border"
-              style={{
-                ...selectableStyle(template === tpl),
-                textAlign: "left",
-                padding: "7px 10px",
-                fontSize: 12.5,
-              }}
-            >
-              {TEMPLATE_LABELS[tpl]}
-            </button>
-          ))}
+          {ShareTemplate.options.map((tpl) => {
+            const enabled = isShareCardTemplate(tpl);
+            return (
+              <button
+                key={tpl}
+                type="button"
+                disabled={!enabled}
+                aria-pressed={template === tpl}
+                onClick={() => setTemplate(tpl)}
+                title={enabled ? undefined : TEMPLATE_PENDING}
+                className={enabled ? "hover-border" : undefined}
+                style={{
+                  ...selectableStyle(template === tpl),
+                  textAlign: "left",
+                  padding: "7px 10px",
+                  fontSize: 12.5,
+                  ...(enabled ? {} : { opacity: 0.5, cursor: "not-allowed" }),
+                }}
+              >
+                {TEMPLATE_LABELS[tpl]}
+                {!enabled && (
+                  <span style={{ ...mono, fontSize: 9.5, color: "var(--color-faint)", marginLeft: 6 }}>
+                    soon
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Layout */}
@@ -260,10 +413,17 @@ export function ShareStudio({
 
         {/* Export block — pinned to the bottom */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: "auto" }}>
+          {error !== null && (
+            <Callout variant="danger" style={{ padding: "8px 11px", fontSize: 11.5 }}>
+              {error}
+            </Callout>
+          )}
           <button
             type="button"
-            disabled
-            title={PHASE4_EXPORT}
+            disabled={exportsDisabled}
+            aria-busy={busy === "png"}
+            title={exportTitle}
+            onClick={exportPng}
             style={{
               background: "var(--color-amber)",
               border: "none",
@@ -273,54 +433,75 @@ export function ShareStudio({
               padding: 9,
               fontSize: 13,
               fontFamily: "inherit",
-              cursor: "not-allowed",
-              opacity: 0.65,
+              cursor: exportsDisabled ? "not-allowed" : "pointer",
+              opacity: exportsDisabled ? 0.65 : 1,
             }}
           >
-            Export PNG
+            {busy === "png" ? "Exporting…" : "Export PNG"}
           </button>
           <div style={{ display: "flex", gap: 6 }}>
-            {["SVG", "CSV/JSON", "Alt text"].map((label) => (
-              <button
-                key={label}
-                type="button"
-                disabled
-                title={PHASE4_EXPORT}
-                style={{
-                  flex: 1,
-                  background: "var(--color-raised)",
-                  border: "1px solid var(--color-border)",
-                  color: "var(--color-text-secondary)",
-                  borderRadius: 6,
-                  padding: 7,
-                  fontSize: 12,
-                  fontFamily: "inherit",
-                  cursor: "not-allowed",
-                  opacity: 0.65,
-                }}
-              >
-                {label}
-              </button>
-            ))}
+            <button
+              type="button"
+              disabled={exportsDisabled}
+              aria-busy={busy === "svg"}
+              title={exportTitle}
+              onClick={exportSvg}
+              className="hover-border"
+              style={{
+                ...smallButtonStyle,
+                ...(exportsDisabled ? { cursor: "not-allowed", opacity: 0.65 } : {}),
+              }}
+            >
+              {busy === "svg" ? "…" : "SVG"}
+            </button>
+            <button
+              type="button"
+              disabled={exportsDisabled}
+              aria-busy={busy === "data"}
+              title={exportTitle}
+              onClick={exportData}
+              className="hover-border"
+              style={{
+                ...smallButtonStyle,
+                ...(exportsDisabled ? { cursor: "not-allowed", opacity: 0.65 } : {}),
+              }}
+            >
+              {busy === "data" ? "…" : "CSV/JSON"}
+            </button>
+            <button
+              type="button"
+              disabled={exportsDisabled}
+              title={exportTitle}
+              onClick={copyAlt}
+              className="hover-border"
+              style={{
+                ...smallButtonStyle,
+                ...(copied === "alt" ? { color: "var(--color-teal)" } : {}),
+                ...(exportsDisabled ? { cursor: "not-allowed", opacity: 0.65 } : {}),
+              }}
+            >
+              {copied === "alt" ? "Copied ✓" : "Alt text"}
+            </button>
           </div>
           <button
             type="button"
-            disabled
-            title={PHASE4_EXPORT}
+            disabled={exportsDisabled}
+            title={exportTitle}
+            onClick={copyPost}
+            className="hover-border"
             style={{
-              background: "none",
-              border: "1px solid var(--color-border)",
-              color: "var(--color-muted)",
-              borderRadius: 6,
-              padding: 7,
-              fontSize: 12,
-              fontFamily: "inherit",
-              cursor: "not-allowed",
-              opacity: 0.65,
+              ...ghostStyle,
+              width: "100%",
+              ...(copied === "post" ? { color: "var(--color-teal)" } : {}),
+              ...(exportsDisabled ? { cursor: "not-allowed", opacity: 0.65 } : {}),
             }}
           >
-            Copy post draft
+            {copied === "post" ? "Copied ✓" : "Copy post draft"}
           </button>
+          <a href={`/api/runs/${encodeURIComponent(runId)}/bundle`} className="hover-border" style={ghostStyle}>
+            Download run bundle{" "}
+            <span style={{ ...mono, fontSize: 10, color: "var(--color-faint)" }}>.zip</span>
+          </a>
           <span style={{ fontSize: 10.5, color: "var(--color-faint)", lineHeight: 1.5 }}>
             Publish read-only permalink — <span style={mono}>soon</span>
           </span>
@@ -340,18 +521,21 @@ export function ShareStudio({
           overflow: "auto",
         }}
       >
-        {template === "new-model-scorecard" ? (
-          <ShareCard
-            rows={rows}
-            content={{ title, takeaway, date, methodology, footnote, runLink, showRepoLink }}
-            theme={theme}
-            aspect={aspect}
-          />
+        {isShareCardTemplate(template) ? (
+          <div ref={stageRef} style={{ display: "flex", maxWidth: "100%" }}>
+            <ShareCard
+              template={template}
+              rows={rows}
+              content={content}
+              theme={theme}
+              aspect={aspect}
+            />
+          </div>
         ) : (
           <div className="panel" style={{ width: "min(420px, 100%)" }}>
             <EmptyState
               title={`${TEMPLATE_LABELS[template]} — template design pending`}
-              hint="Phase 4 ships Cost vs Quality and Surprise Failure next"
+              hint="Scorecard, Cost vs Quality, and Surprise Failure export today; seven more land later"
             />
           </div>
         )}

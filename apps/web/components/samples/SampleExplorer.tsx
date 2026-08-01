@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { RunManifest } from "@model-lab/schemas";
+import type { HumanAnnotation, RunManifest } from "@model-lab/schemas";
 import { ReproStrip } from "@/components/shell/ReproStrip";
 import { EmptyState, ModelDot } from "@/components/ui/primitives";
 import { pad2, seconds, usd } from "@/lib/format";
@@ -72,12 +72,15 @@ export function SampleExplorer({
   taskLabel,
   challengePrompt,
   manifest,
+  annotations,
 }: {
   runId: string;
   rows: SampleRowData[];
   taskLabel: string;
   challengePrompt: string;
   manifest: RunManifest;
+  /** Append-only human audit trail for the whole run. */
+  annotations: HumanAnnotation[];
 }) {
   // Prototype default selection: gpt-5.2-mini · sample 3/3 (globalIndex 6).
   const [selectedIndex, setSelectedIndex] = useState(6);
@@ -330,6 +333,7 @@ export function SampleExplorer({
           challengePrompt={challengePrompt}
           promptHash={manifest.promptHash}
           samplesPerModel={manifest.samplesPerModel}
+          annotations={annotations}
         />
       </div>
     </main>

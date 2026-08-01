@@ -1,18 +1,52 @@
+import { ShareTemplate } from "@model-lab/schemas";
 import { TopBar } from "@/components/shell/TopBar";
 import { ShareStudio } from "@/components/share/ShareStudio";
 import type { ShareCardRow } from "@/components/share/ShareCard";
 import { fixtures, modelColor, modelIdOf } from "@/lib/data";
+import { DEMO_RUN_ID, getRunView } from "@/lib/server/loaders";
 import { usd } from "@/lib/format";
 
-/** Default editorial copy — user-editable card content, not run metrics. */
-const DEFAULT_TITLE = "One prompt. Four models. One raycaster.";
-const DEFAULT_TAKEAWAY = "The best-looking build was not the most correct one.";
+/** Reads the persistence store — must render per request. */
+export const dynamic = "force-dynamic";
 
-export default async function Page({ params }: { params: Promise<{ runId: string }> }) {
+/** Default editorial copy — user-editable card content, not run metrics. */
+const DEMO_TITLE = "One prompt. Four models. One raycaster.";
+const DEMO_TAKEAWAY = "The best-looking build was not the most correct one.";
+
+export default async function Page({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ runId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { runId } = await params;
-  const run = fixtures.runCompleted;
-  const config = fixtures.runConfiguration;
-  const models = fixtures.getRunModels("completed");
+  const sp = await searchParams;
+  const rawTemplate = Array.isArray(sp["template"]) ? sp["template"][0] : sp["template"];
+  const parsedTemplate = ShareTemplate.safeParse(rawTemplate);
+
+  const view = await getRunView(runId);
+  const run = view.run;
+  const config = view.configuration;
+  const models = view.runModels;
+
+  const defaultTitle =
+    runId === DEMO_RUN_ID
+      ? DEMO_TITLE
+      : `One prompt. ${run.modelCount} model${run.modelCount === 1 ? "" : "s"}. ${view.packName}.`;
+  const defaultTakeaway =
+    runId === DEMO_RUN_ID
+      ? DEMO_TAKEAWAY
+      : "Same brief, identical configuration — here is how they compare.";
+
+  /* Error excerpt for a failing model: first failed check of its failed sample. */
+  const failureNoteFor = (endpointId: string): string | null => {
+    const failed = view.samples.find(
+      (s) => s.endpointId === endpointId && s.status === "failed",
+    );
+    const check = failed?.scorerTrace.find((c) => c.status === "failed");
+    return check?.note ?? null;
+  };
 
   const rows: ShareCardRow[] = models.map((rm) => {
     // Asterisk when the visual mean covers fewer samples than configured.
@@ -36,6 +70,13 @@ export default async function Page({ params }: { params: Promise<{ runId: string
             ? "warn"
             : "partial",
       cost: usd(rm.costUsd),
+      visualValue: rm.visualScore?.value ?? null,
+      visualN: rm.visualScore?.n ?? null,
+      costUsd: rm.costUsd,
+      latencyMs: rm.totalLatencyMs,
+      sampleCount: config.samplesPerModel,
+      failedSamples: rm.failedSampleCount,
+      failureNote: rm.failedSampleCount > 0 ? failureNoteFor(rm.endpointId) : null,
     };
   });
 
@@ -57,7 +98,7 @@ export default async function Page({ params }: { params: Promise<{ runId: string
   const judge = config.scorers.find((s) => s.type === "llm-judge" && s.enabled);
   const scorerParts: string[] = [];
   if (config.scorers.some((s) => s.type === "browser" && s.enabled)) {
-    scorerParts.push(`browser(${fixtures.CHECK_NAMES.length})`);
+    scorerParts.push(`browser(${view.checksTotal})`);
   }
   if (human) scorerParts.push(`human rubric ${human.rubricVersion ?? ""}`.trimEnd());
   if (judge) scorerParts.push(`judge${judge.orderSwapped ? " (order-swapped)" : ""}`);
@@ -74,13 +115,16 @@ export default async function Page({ params }: { params: Promise<{ runId: string
       <TopBar title={`Share Studio — ${runId}`} />
       <main style={{ flex: 1, display: "flex", flexWrap: "wrap", minHeight: 0 }}>
         <ShareStudio
+          runId={runId}
+          manifest={view.manifest}
           rows={rows}
-          defaultTitle={DEFAULT_TITLE}
-          defaultTakeaway={DEFAULT_TAKEAWAY}
-          date={fixtures.runManifest.date}
+          defaultTitle={defaultTitle}
+          defaultTakeaway={defaultTakeaway}
+          date={view.manifest.date}
           methodology={methodology}
           footnote={footnote}
           runLink={`${run.id} · ${fixtures.workspaceSettings.repoUrl}`}
+          initialTemplate={parsedTemplate.success ? parsedTemplate.data : undefined}
         />
       </main>
     </>

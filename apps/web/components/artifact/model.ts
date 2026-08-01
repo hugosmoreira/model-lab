@@ -1,9 +1,12 @@
 /**
  * View-model builders for the Build Arena grid and Artifact Viewer.
- * Every display string is derived from fixtures here; components only render.
+ * Phase 3: pure functions over run data supplied by the server loaders
+ * (`getRunView`) — fixture demo and store-backed runs flow through the same
+ * builders. This module stays CLIENT-SAFE (ArtifactViewer imports it): no
+ * store/loader imports, schemas types only.
  */
-import type { Artifact } from "@model-lab/schemas";
-import { endpointProviderLabel, fixtures, modelColor, modelIdOf } from "@/lib/data";
+import type { Artifact, Run, RunConfiguration, RunModel } from "@model-lab/schemas";
+import { endpointProviderLabel, modelColor, modelIdOf } from "@/lib/data";
 import { seconds, usd } from "@/lib/format";
 
 /** Endpoint ids contain "/" — swap to "~" for URL segments. */
@@ -20,6 +23,16 @@ export function decodeEndpointId(segment: string): string {
     // malformed escape — keep the raw segment
   }
   return s.replace(/~/g, "/");
+}
+
+/** Everything the builders need — structurally satisfied by loaders' RunView. */
+export interface RunArtifactData {
+  run: Run;
+  configuration: RunConfiguration;
+  runModels: RunModel[];
+  artifacts: Artifact[];
+  challengePrompt: string;
+  packName: string;
 }
 
 export interface BuildVM {
@@ -48,7 +61,7 @@ export interface BuildVM {
   railMeta: string;
   /** "1/3" */
   sampleIndexLabel: string;
-  /** "1/3 (best)" | "2/3 (failed)" */
+  /** "1/3 (best)" | "2/3 (failed)" | "2/3 (stored)" */
   sampleLabel: string;
   /** "42" | "unseeded" */
   seedLabel: string;
@@ -63,11 +76,27 @@ export interface BuildVM {
   sortTests: number;
 }
 
-export function getBuilds(): BuildVM[] {
-  const cfg = fixtures.runConfiguration;
-  const models = fixtures.getRunModels("completed");
+/** One build per endpoint: the best-of sample, else the first render-ok, else the first (failed) artifact. */
+function bestArtifactPerEndpoint(artifacts: Artifact[]): Artifact[] {
+  const byEndpoint = new Map<string, Artifact[]>();
+  for (const a of artifacts) {
+    const list = byEndpoint.get(a.endpointId) ?? [];
+    list.push(a);
+    byEndpoint.set(a.endpointId, list);
+  }
+  const picked: Artifact[] = [];
+  for (const list of byEndpoint.values()) {
+    const best = list.find((a) => a.isBestOfModel) ?? list.find((a) => a.renderOk) ?? list[0];
+    if (best) picked.push(best);
+  }
+  return picked;
+}
 
-  return fixtures.artifacts.map((a) => {
+export function getBuilds(data: RunArtifactData): BuildVM[] {
+  const cfg = data.configuration;
+  const models = data.runModels;
+
+  return bestArtifactPerEndpoint(data.artifacts).map((a) => {
     const rm = models.find((m) => m.endpointId === a.endpointId);
     const vs = rm?.visualScore ?? null;
     const reducedN = vs != null && vs.n < cfg.samplesPerModel ? ` (n=${vs.n})` : "";
@@ -83,6 +112,7 @@ export function getBuilds(): BuildVM[] {
       a.sandbox.isolatedOrigin ? "sandboxed" : null,
       a.sandbox.networkBlocked ? "network blocked" : null,
     ].filter((p): p is string => p != null);
+    const sampleTag = a.isBestOfModel ? "best" : a.renderOk ? "stored" : "failed";
 
     return {
       endpointId: a.endpointId,
@@ -110,7 +140,7 @@ export function getBuilds(): BuildVM[] {
             : "var(--color-teal)",
       railMeta: a.renderOk ? `${testsLabel} tests · ${costLabel}` : `render failed · ${costLabel}`,
       sampleIndexLabel: `${a.sampleIndex}/${cfg.samplesPerModel}`,
-      sampleLabel: `${a.sampleIndex}/${cfg.samplesPerModel} (${a.isBestOfModel ? "best" : "failed"})`,
+      sampleLabel: `${a.sampleIndex}/${cfg.samplesPerModel} (${sampleTag})`,
       seedLabel: (rm?.unseeded ?? false) || cfg.seed == null ? "unseeded" : String(cfg.seed),
       sandboxChipLabel: sandboxParts.join(" · "),
       sandboxBadgeLabel: [...sandboxParts, `${a.sandbox.execLimitSec}s limit`].join(" · "),
@@ -133,9 +163,8 @@ export interface ArenaData {
   builds: BuildVM[];
 }
 
-export function getArenaData(): ArenaData {
-  const run = fixtures.runCompleted;
-  const cfg = fixtures.runConfiguration;
+export function getArenaData(data: RunArtifactData): ArenaData {
+  const cfg = data.configuration;
   const caption = [
     "Identical prompt",
     `temperature ${cfg.temperature}`,
@@ -144,11 +173,11 @@ export function getArenaData(): ArenaData {
     `sample shown: best of ${cfg.samplesPerModel} per model`,
   ].join(" · ");
   return {
-    runId: run.id,
-    packVersion: run.pack.version,
-    prompt: fixtures.challengePrompt,
+    runId: data.run.id,
+    packVersion: data.run.pack.version,
+    prompt: data.challengePrompt,
     caption,
-    builds: getBuilds(),
+    builds: getBuilds(data),
   };
 }
 
@@ -163,16 +192,14 @@ export interface ViewerData {
   builds: BuildVM[];
 }
 
-export function getViewerData(): ViewerData {
-  const run = fixtures.runCompleted;
-  const pack = fixtures.benchmarkPacks.find((p) => p.slug === run.pack.slug);
-  const judge = fixtures.runConfiguration.scorers.find((s) => s.type === "llm-judge");
+export function getViewerData(data: RunArtifactData): ViewerData {
+  const judge = data.configuration.scorers.find((s) => s.type === "llm-judge");
   return {
-    runId: run.id,
-    promptHash: run.promptHash,
-    packName: pack?.name ?? run.name,
-    samplesPerModel: run.samplesPerModel,
+    runId: data.run.id,
+    promptHash: data.run.promptHash,
+    packName: data.packName,
+    samplesPerModel: data.run.samplesPerModel,
     judgeHeading: `Judge — labeled${judge?.orderSwapped ? ", order-swapped" : ""}`,
-    builds: getBuilds(),
+    builds: getBuilds(data),
   };
 }

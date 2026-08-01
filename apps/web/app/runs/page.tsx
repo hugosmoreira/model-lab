@@ -7,8 +7,11 @@ import {
   PanelHeader,
   RUN_STATUS_COLORS,
 } from "@/components/ui/primitives";
-import { fixtures } from "@/lib/data";
+import { listAllRuns } from "@/lib/server/loaders";
 import { usd } from "@/lib/format";
+
+/** Reads the persistence store + in-process registry — render per request. */
+export const dynamic = "force-dynamic";
 
 const mono = { fontFamily: "var(--font-mono)" } as const;
 
@@ -27,8 +30,8 @@ const COLUMN_LABEL = {
   color: "var(--color-faint)",
 } as const;
 
-export default function RunsIndex() {
-  const { recentRuns } = fixtures;
+export default async function RunsIndex() {
+  const recentRuns = await listAllRuns();
 
   return (
     <>
@@ -48,7 +51,7 @@ export default function RunsIndex() {
         <Panel>
           <PanelHeader
             title="All runs"
-            caption={`${recentRuns.length} runs · demo data`}
+            caption={`${recentRuns.length} runs · store + demo data`}
             action={
               <Link
                 href="/runs/new"
@@ -86,7 +89,11 @@ export default function RunsIndex() {
               {recentRuns.map((r) => (
                 <Link
                   key={r.id}
-                  href={r.status === "running" ? `/runs/${r.id}/live` : `/runs/${r.id}/results`}
+                  href={
+                    r.status === "running" || r.status === "queued"
+                      ? `/runs/${r.id}/live`
+                      : `/runs/${r.id}/results`
+                  }
                   className="hover-row"
                   style={{
                     ...ROW_GRID,

@@ -1,14 +1,19 @@
 import { TopBar } from "@/components/shell/TopBar";
 import { SampleExplorer } from "@/components/samples/SampleExplorer";
 import type { SampleRowData } from "@/components/samples/shared";
-import { endpointProviderLabel, fixtures, getEndpoint, modelColor, modelIdOf } from "@/lib/data";
+import { endpointProviderLabel, getEndpoint, modelColor, modelIdOf } from "@/lib/data";
+import { getRunView } from "@/lib/server/loaders";
+
+/** Reads the persistence store — must render per request. */
+export const dynamic = "force-dynamic";
 
 export default async function Page({ params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
-  const { samples, challengePrompt, runManifest, runCompleted } = fixtures;
+  const view = await getRunView(runId);
+  const { samples, challengePrompt, manifest, run, annotations } = view;
 
   // "raycaster" — task word of the benchmark pack slug ("raycaster-oneshot").
-  const taskLabel = runCompleted.pack.slug.split("-")[0] ?? runCompleted.pack.slug;
+  const taskLabel = run.pack.slug.split("-")[0] ?? run.pack.slug;
 
   const rows: SampleRowData[] = samples.map((sample) => {
     const ep = getEndpoint(sample.endpointId);
@@ -30,7 +35,8 @@ export default async function Page({ params }: { params: Promise<{ runId: string
         rows={rows}
         taskLabel={taskLabel}
         challengePrompt={challengePrompt}
-        manifest={runManifest}
+        manifest={manifest}
+        annotations={annotations}
       />
     </>
   );

@@ -126,6 +126,7 @@ function FailFrame({
 
 function ScreenshotPane({ build, widthPx }: { build: BuildVM; widthPx: number | null }) {
   const capture = build.artifact.checks.find((c) => c.name === "screenshot.captured");
+  const screenshotSrc = build.artifact.screenshotRef;
   return (
     <div
       style={{
@@ -151,8 +152,23 @@ function ScreenshotPane({ build, widthPx }: { build: BuildVM; widthPx: number | 
           margin: "0 auto",
         }}
       >
-        {build.renderOk ? (
-          /* Phase 2: swap the placeholder scene for the stored capture (artifact.screenshotRef) */
+        {screenshotSrc != null ? (
+          /* Stored capture served by /api/runs/[runId]/screenshots/[...path] */
+          // eslint-disable-next-line @next/next/no-img-element -- dynamic run capture, no static import
+          <img
+            src={screenshotSrc}
+            alt={`${build.name} — stored capture, sample ${build.sampleIndexLabel}`}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              display: "block",
+            }}
+          />
+        ) : build.renderOk ? (
+          /* No stored capture (fixture demo) — placeholder scene */
           <ScenePlaceholder color={build.color} seedKey={build.endpointId} variant="stage" />
         ) : (
           <FailureTrace
@@ -164,7 +180,9 @@ function ScreenshotPane({ build, widthPx }: { build: BuildVM; widthPx: number | 
         )}
       </div>
       <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)", textAlign: "center" }}>
-        stored capture · {capture?.note || "no capture"} — real screenshots in Phase 2
+        {screenshotSrc != null
+          ? `stored capture · ${capture?.note || "browser check capture"}`
+          : `stored capture unavailable · ${capture?.note || "no capture"} — placeholder shown`}
       </span>
     </div>
   );

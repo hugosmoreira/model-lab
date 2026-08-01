@@ -1,0 +1,22 @@
+[
+  {
+    "endpointId": "anthropic/claude-sonnet-4-6",
+    "meanScore": 10,
+    "scoredSamples": 2,
+    "failedSampleCount": 0,
+    "testsPassed": 12,
+    "testsTotal": 12,
+    "tokensOut": 1264,
+    "costUsd": 0.0192
+  },
+  {
+    "endpointId": "openai/gpt-5.2-mini",
+    "meanScore": 10,
+    "scoredSamples": 2,
+    "failedSampleCount": 0,
+    "testsPassed": 12,
+    "testsTotal": 12,
+    "tokensOut": 1255,
+    "costUsd": 0.0031
+  }
+]

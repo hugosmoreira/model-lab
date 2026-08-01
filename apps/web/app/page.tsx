@@ -18,7 +18,11 @@ import {
   modelIdOf,
   shortNameOf,
 } from "@/lib/data";
+import { listAllRuns } from "@/lib/server/loaders";
 import { hhmm, usd } from "@/lib/format";
+
+/** Recent runs read the store + registry — render per request. */
+export const dynamic = "force-dynamic";
 
 const mono = { fontFamily: "var(--font-mono)" } as const;
 
@@ -68,10 +72,9 @@ function KpiCard({
   );
 }
 
-export default function MissionControl() {
+export default async function MissionControl() {
   const {
     workspaceStats: stats,
-    recentRuns,
     notableFinding,
     recentExports,
     activityFeed,
@@ -79,6 +82,9 @@ export default function MissionControl() {
     providers,
     artifacts,
   } = fixtures;
+  /* Phase 3: the ONLY store-backed panel — freshly created runs appear here.
+     Everything else on Mission Control stays fixture-driven. */
+  const recentRuns = await listAllRuns();
   const runModels = fixtures.getRunModels("live");
   const completedModels = fixtures.getRunModels("completed");
 
@@ -268,7 +274,11 @@ export default function MissionControl() {
                 {recentRuns.map((r) => (
                   <Link
                     key={r.id}
-                    href={r.status === "running" ? `/runs/${r.id}/live` : `/runs/${r.id}/results`}
+                    href={
+                      r.status === "running" || r.status === "queued"
+                        ? `/runs/${r.id}/live`
+                        : `/runs/${r.id}/results`
+                    }
                     className="hover-row"
                     style={{
                       display: "grid",

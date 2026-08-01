@@ -38,7 +38,7 @@
  *    render-failure path stays exercised.
  */
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import type {
   Artifact,
   ModelEndpoint,
@@ -404,7 +404,12 @@ async function persistFinalSnapshot(
       renderOk: stored.renderOk,
       isBestOfModel: false,
       source: artifactSource(fsRoot, stored.path),
-      screenshotRef: stored.screenshotPath,
+      // absolute runner path → data-root-relative ("screenshots/8f3a/…") so the
+      // web app can serve it via /api/runs/[runId]/screenshots/[...path]
+      screenshotRef:
+        stored.screenshotPath !== null
+          ? relative(fsRoot, stored.screenshotPath).split("\\").join("/")
+          : null,
       consoleLines: stored.consoleLines,
       checks: stored.checks,
       judgeCommentary: null,

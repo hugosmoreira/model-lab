@@ -1,8 +1,11 @@
+"use client";
+
 import Link from "next/link";
-import type { ReactNode } from "react";
-import type { BrowserTestResult } from "@model-lab/schemas";
+import { useRouter } from "next/navigation";
+import { useState, type ReactNode } from "react";
+import type { BrowserTestResult, HumanAnnotation } from "@model-lab/schemas";
 import { EmptyState, ModelDot, SectionLabel } from "@/components/ui/primitives";
-import { tokensK, ttft } from "@/lib/format";
+import { hhmmss, tokensK, ttft } from "@/lib/format";
 import { encodeEndpointId, isFailed, scoreText, type SampleRowData } from "./shared";
 
 const mono = { fontFamily: "var(--font-mono)" } as const;
@@ -60,6 +63,87 @@ function Section({
   );
 }
 
+/** Small client form: POSTs an annotation, then refreshes the server data. */
+function AddNoteForm({
+  runId,
+  endpointId,
+  sampleIndex,
+}: {
+  runId: string;
+  endpointId: string;
+  sampleIndex: number;
+}) {
+  const router = useRouter();
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    const trimmed = note.trim();
+    if (trimmed === "" || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/annotations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpointId, sampleIndex, note: trimmed }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setNote("");
+      router.refresh();
+    } catch {
+      setError("Note could not be saved — annotations need a store-backed run.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+      <textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="Add note — appended to the audit trail, never mutates scores"
+        rows={2}
+        aria-label="Add annotation note"
+        style={{
+          resize: "vertical",
+          background: "var(--color-inset)",
+          border: "1px solid var(--color-border)",
+          borderRadius: 6,
+          padding: "7px 9px",
+          fontSize: 12,
+          fontFamily: "inherit",
+          color: "var(--color-text)",
+          minHeight: 40,
+        }}
+      />
+      <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <button
+          type="button"
+          onClick={() => void submit()}
+          disabled={busy || note.trim() === ""}
+          className={busy || note.trim() === "" ? undefined : "hover-amber-border"}
+          style={{
+            background: "var(--color-raised)",
+            border: "1px solid var(--color-border)",
+            borderRadius: 6,
+            padding: "5px 12px",
+            fontSize: 12,
+            fontFamily: "inherit",
+            color: busy || note.trim() === "" ? "var(--color-disabled)" : "var(--color-text-secondary)",
+            cursor: busy || note.trim() === "" ? "not-allowed" : "pointer",
+          }}
+        >
+          {busy ? "Saving…" : "Add note"}
+        </button>
+        {error && <span style={{ fontSize: 11, color: "var(--color-red)" }}>{error}</span>}
+      </span>
+    </div>
+  );
+}
+
 export function SampleDetail({
   runId,
   row,
@@ -67,6 +151,7 @@ export function SampleDetail({
   challengePrompt,
   promptHash,
   samplesPerModel,
+  annotations,
 }: {
   runId: string;
   row: SampleRowData | null;
@@ -74,6 +159,8 @@ export function SampleDetail({
   challengePrompt: string;
   promptHash: string;
   samplesPerModel: number;
+  /** Append-only human audit trail for the whole run. */
+  annotations: HumanAnnotation[];
 }) {
   return (
     <aside
@@ -208,6 +295,60 @@ export function SampleDetail({
                   >
                     {s.humanNote ?? "No override — score as recorded."}
                   </div>
+
+                  {/* Append-only annotations for THIS sample */}
+                  {(() => {
+                    const own = annotations.filter(
+                      (a) => a.endpointId === s.endpointId && a.sampleIndex === s.sampleIndex,
+                    );
+                    if (own.length === 0) return null;
+                    return (
+                      <div
+                        style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}
+                      >
+                        {own.map((a, i) => (
+                          <div
+                            key={`${a.at}-${i}`}
+                            style={{
+                              background: "var(--color-inset-alt)",
+                              border: "1px solid var(--color-border-subtle)",
+                              borderRadius: 6,
+                              padding: "8px 10px",
+                            }}
+                          >
+                            <p
+                              style={{
+                                margin: 0,
+                                fontSize: 12.5,
+                                lineHeight: 1.5,
+                                color: "var(--color-text-secondary)",
+                                overflowWrap: "anywhere",
+                              }}
+                            >
+                              {a.note}
+                            </p>
+                            <span
+                              style={{
+                                ...mono,
+                                fontSize: 10.5,
+                                color: "var(--color-faint)",
+                                display: "block",
+                                marginTop: 4,
+                              }}
+                            >
+                              {a.author} · {a.at.slice(0, 10)} {hhmmss(a.at)}
+                              {a.scoreOverride != null
+                                ? ` · override ${a.scoreOverride.toFixed(1)} (recorded score untouched)`
+                                : ""}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
+                  <AddNoteForm runId={runId} endpointId={s.endpointId} sampleIndex={s.sampleIndex} />
+
                   <span
                     style={{
                       fontSize: 11,
@@ -216,7 +357,8 @@ export function SampleDetail({
                       marginTop: 4,
                     }}
                   >
-                    Audit: 0 overrides · all scores as recorded
+                    Audit: {annotations.length} annotation{annotations.length === 1 ? "" : "s"} ·
+                    overrides never mutate recorded scores
                   </span>
                 </Section>
 
