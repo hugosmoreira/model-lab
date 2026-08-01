@@ -30,6 +30,7 @@ import type {
 } from "@model-lab/schemas";
 import * as fx from "@model-lab/schemas/fixtures";
 import { getStore, type RunStore } from "@model-lab/store";
+import { humanVisualByEndpoint, latestOverrideBySample, sampleKey } from "@/lib/human-score";
 import { listRuns as listRegistryRuns } from "@/lib/live/run-registry";
 
 export const DEMO_RUN_ID = "run_8f3ac21e";
@@ -119,6 +120,101 @@ function warnCountsFrom(
     }
   }
   return counts;
+}
+
+/**
+ * FIXED CONTRACT (scoring phase): the store package gains
+ * `listJudgePairs(runId)` (ordered by pairIndex). Typed structurally so this
+ * app also typechecks against a store build that predates the method — an
+ * absent method degrades to "no pairs" (judge stays null).
+ */
+async function judgePairsFrom(store: RunStore, runId: string): Promise<JudgePairResult[]> {
+  const reads = store as RunStore & {
+    listJudgePairs?: (runId: string) => Promise<JudgePairResult[]>;
+  };
+  if (typeof reads.listJudgePairs !== "function") return [];
+  return reads.listJudgePairs(runId).catch((): JudgePairResult[] => []);
+}
+
+interface RubricView {
+  /** Brief-adherence grade (0–10, one decimal) per endpoint. */
+  scores: Record<string, number>;
+  /** Judge commentary per endpoint (feeds Artifact inspector when unset). */
+  commentary: Record<string, string>;
+}
+
+/**
+ * `judge.vote` events with payload kind:"rubric" → per-endpoint brief scores
+ * ({kind, endpointId, score, commentary}). Events arrive in id order; the last
+ * rubric event per endpoint wins.
+ */
+function rubricFrom(
+  events: ReadonlyArray<{ type: string; endpointId: string | null; payload: Record<string, unknown> }>,
+): RubricView {
+  const scores: Record<string, number> = {};
+  const commentary: Record<string, string> = {};
+  for (const ev of events) {
+    if (ev.type !== "judge.vote") continue;
+    const p = ev.payload;
+    if (p["kind"] !== "rubric") continue;
+    const endpointId = typeof p["endpointId"] === "string" ? p["endpointId"] : ev.endpointId;
+    if (endpointId == null || endpointId === "") continue;
+    const score = p["score"];
+    if (typeof score === "number" && Number.isFinite(score)) {
+      scores[endpointId] = Math.round(Math.min(10, Math.max(0, score)) * 10) / 10;
+    }
+    const note = p["commentary"];
+    if (typeof note === "string" && note !== "") commentary[endpointId] = note;
+  }
+  return { scores, commentary };
+}
+
+/**
+ * W–T–L matrix (row vs column) from persisted judge pairs. Each real pair is
+ * ONE judgment pair (best build judged in both presentation orders):
+ * - orders agree → one consensus unit per pair, so cells read "1–0–0" style;
+ * - reversed → the two disagreeing order-verdicts are tallied raw (e.g.
+ *   "1–0–1"), flagged ⟲, and excluded from the aggregate verdict — the demo
+ *   convention the WTLMatrix legend documents.
+ * Verdict letters refer to pairing slots: "A" = pairing[0], "B" = pairing[1].
+ */
+function wtlMatrixFrom(pairs: JudgePairResult[]): Record<string, Record<string, WtlCell>> {
+  const matrix: Record<string, Record<string, WtlCell>> = {};
+  const cell = (row: string, col: string): WtlCell => {
+    const r = (matrix[row] ??= {});
+    return (r[col] ??= { w: 0, t: 0, l: 0, reversalFlagged: false });
+  };
+  const tally = (verdict: "A" | "B" | "tie", a: string, b: string): void => {
+    const ab = cell(a, b);
+    const ba = cell(b, a);
+    if (verdict === "tie") {
+      ab.t += 1;
+      ba.t += 1;
+    } else if (verdict === "A") {
+      ab.w += 1;
+      ba.l += 1;
+    } else {
+      ab.l += 1;
+      ba.w += 1;
+    }
+  };
+  for (const p of pairs) {
+    const [a, b] = p.pairing;
+    const verdicts = [p.verdictAB, p.verdictBA].filter(
+      (v): v is "A" | "B" | "tie" => v != null,
+    );
+    const first = verdicts[0];
+    if (first === undefined) continue;
+    if (p.reversed) {
+      for (const v of verdicts) tally(v, a, b);
+      cell(a, b).reversalFlagged = true;
+      cell(b, a).reversalFlagged = true;
+    } else {
+      // both orders agree — one consensus judgment per pair
+      tally(first, a, b);
+    }
+  }
+  return matrix;
 }
 
 /**
@@ -252,35 +348,66 @@ export async function getRunView(runId: string): Promise<RunView> {
   }
 
   const { run, configuration } = stored;
-  const [runModels, samples, rawArtifacts, events, annotations] = await Promise.all([
+  const [runModels, samples, rawArtifacts, events, annotations, judgePairs] = await Promise.all([
     store.listRunModels(runId).catch(() => []),
     store.listSamples(runId).catch(() => []),
     store.listArtifacts(runId).catch(() => []),
     store.listEvents(runId).catch(() => []),
     store.listAnnotations(runId).catch(() => []),
+    judgePairsFrom(store, runId),
   ]);
 
-  const hasJudge = configuration.scorers.some((s) => s.type === "llm-judge" && s.enabled);
   const pack = fx.benchmarkPacks.find((p) => p.slug === run.pack.slug);
   const checksTotal =
     runModels.reduce((max, rm) => Math.max(max, rm.testsTotal ?? 0), 0) ||
     pack?.browserCheckCount ||
     12;
 
+  // Judge view — persisted pairs + rubric grades from judge.vote events.
+  // No pairs recorded → judge stays null and the pages render EmptyStates.
+  const rubric = rubricFrom(events);
+  const judge: RunJudgeView | null =
+    judgePairs.length > 0
+      ? { wtlMatrix: wtlMatrixFrom(judgePairs), judgePairs, briefScores: rubric.scores }
+      : null;
+  const judgeReversals = judgePairs.filter((p) => p.reversed).length;
+
+  // Human visual — derived from scored annotations (latest per sample wins).
+  // Overrides the VIEW only; recorded scores in the store stay untouched.
+  const humanVisual = humanVisualByEndpoint(annotations);
+  const scoredSamples = latestOverrideBySample(annotations);
+  const runModelsView = runModels.map((rm) => {
+    const hv = humanVisual.get(rm.endpointId);
+    return hv !== undefined ? { ...rm, visualScore: hv } : rm;
+  });
+  const samplesView = samples.map((s) =>
+    scoredSamples.has(sampleKey(s.endpointId, s.sampleIndex))
+      ? { ...s, humanReviewed: true, primaryScorer: "human" as const }
+      : s,
+  );
+
+  // Judge rubric commentary fills the Artifact inspector when the artifact
+  // itself carries none.
+  const artifacts = enrichArtifacts(runId, samples, rawArtifacts).map((a) => {
+    const note = rubric.commentary[a.endpointId];
+    return a.judgeCommentary == null && note != null ? { ...a, judgeCommentary: note } : a;
+  });
+
   return {
     source: "store",
-    run,
+    // Reversal count is derived from the persisted pairs (evidence-first).
+    run: judgePairs.length > 0 ? { ...run, judgeReversalCount: judgeReversals } : run,
     configuration,
-    runModels,
-    samples,
-    artifacts: enrichArtifacts(runId, samples, rawArtifacts),
+    runModels: runModelsView,
+    samples: samplesView,
+    artifacts,
     manifest: manifestFor(run, configuration),
     challengePrompt: promptFor(run.pack.slug, run.promptHash),
     packName: pack?.name ?? run.name,
     checksTotal,
     latencyRanges: latencyRangesFrom(samples),
     checkWarnCounts: warnCountsFrom(events),
-    judge: hasJudge ? { wtlMatrix: {}, judgePairs: [], briefScores: {} } : null,
+    judge,
     annotations,
   };
 }

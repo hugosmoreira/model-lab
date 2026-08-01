@@ -63,7 +63,10 @@ function Section({
   );
 }
 
-/** Small client form: POSTs an annotation, then refreshes the server data. */
+/**
+ * Small client form: POSTs an annotation (optionally carrying a visual score
+ * override, 0–10 in 0.5 steps), then refreshes the server data.
+ */
 function AddNoteForm({
   runId,
   endpointId,
@@ -75,22 +78,32 @@ function AddNoteForm({
 }) {
   const router = useRouter();
   const [note, setNote] = useState("");
+  const [withScore, setWithScore] = useState(false);
+  const [score, setScore] = useState(7.5);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // A score-only save is valid — the note defaults to "visual rating".
+  const canSubmit = !busy && (note.trim() !== "" || withScore);
+
   async function submit() {
-    const trimmed = note.trim();
-    if (trimmed === "" || busy) return;
+    if (!canSubmit) return;
     setBusy(true);
     setError(null);
     try {
       const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/annotations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ endpointId, sampleIndex, note: trimmed }),
+        body: JSON.stringify({
+          endpointId,
+          sampleIndex,
+          note: note.trim() === "" ? "visual rating" : note.trim(),
+          ...(withScore ? { scoreOverride: score } : {}),
+        }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setNote("");
+      setWithScore(false);
       router.refresh();
     } catch {
       setError("Note could not be saved — annotations need a store-backed run.");
@@ -119,12 +132,56 @@ function AddNoteForm({
           minHeight: 40,
         }}
       />
+      <label
+        style={{
+          display: "flex",
+          gap: 7,
+          alignItems: "center",
+          fontSize: 12,
+          color: "var(--color-muted)",
+          cursor: "pointer",
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={withScore}
+          onChange={(e) => setWithScore(e.target.checked)}
+          style={{ accentColor: "var(--color-amber)" }}
+        />
+        attach visual score (0–10)
+      </label>
+      {withScore && (
+        <span style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <input
+            type="range"
+            min={0}
+            max={10}
+            step={0.5}
+            value={score}
+            onChange={(e) => setScore(Number(e.target.value))}
+            aria-label="Visual score override, 0 to 10"
+            style={{ flex: 1, minWidth: 0, accentColor: "var(--color-amber)" }}
+          />
+          <span
+            aria-hidden
+            style={{
+              ...mono,
+              fontSize: 14,
+              color: "var(--color-amber)",
+              minWidth: 44,
+              textAlign: "right",
+            }}
+          >
+            {score.toFixed(1)}
+          </span>
+        </span>
+      )}
       <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <button
           type="button"
           onClick={() => void submit()}
-          disabled={busy || note.trim() === ""}
-          className={busy || note.trim() === "" ? undefined : "hover-amber-border"}
+          disabled={!canSubmit}
+          className={canSubmit ? "hover-amber-border" : undefined}
           style={{
             background: "var(--color-raised)",
             border: "1px solid var(--color-border)",
@@ -132,13 +189,15 @@ function AddNoteForm({
             padding: "5px 12px",
             fontSize: 12,
             fontFamily: "inherit",
-            color: busy || note.trim() === "" ? "var(--color-disabled)" : "var(--color-text-secondary)",
-            cursor: busy || note.trim() === "" ? "not-allowed" : "pointer",
+            color: canSubmit ? "var(--color-text-secondary)" : "var(--color-disabled)",
+            cursor: canSubmit ? "pointer" : "not-allowed",
           }}
         >
-          {busy ? "Saving…" : "Add note"}
+          {busy ? "Saving…" : withScore ? "Add note + score" : "Add note"}
         </button>
-        {error && <span style={{ fontSize: 11, color: "var(--color-red)" }}>{error}</span>}
+        <span role="status" aria-live="polite" style={{ fontSize: 11, color: "var(--color-red)" }}>
+          {error ?? ""}
+        </span>
       </span>
     </div>
   );
@@ -337,9 +396,17 @@ export function SampleDetail({
                               }}
                             >
                               {a.author} · {a.at.slice(0, 10)} {hhmmss(a.at)}
-                              {a.scoreOverride != null
-                                ? ` · override ${a.scoreOverride.toFixed(1)} (recorded score untouched)`
-                                : ""}
+                              {a.scoreOverride != null ? (
+                                <>
+                                  {" · "}
+                                  <span style={{ color: "var(--color-amber)" }}>
+                                    score {a.scoreOverride.toFixed(1)}
+                                  </span>{" "}
+                                  (recorded score untouched)
+                                </>
+                              ) : (
+                                ""
+                              )}
                             </span>
                           </div>
                         ))}

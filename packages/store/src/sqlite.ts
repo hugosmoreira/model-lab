@@ -24,6 +24,7 @@ import {
   Artifact,
   BenchmarkPack,
   HumanAnnotation,
+  JudgePairResult,
   ModelDefinition,
   ModelEndpoint,
   PairwiseVote,
@@ -125,6 +126,12 @@ interface VoteRow {
   run_id: string; pair_index: number; endpoint_a: string; endpoint_b: string;
   criterion: string; order_swapped: number; vote: string | null;
   confidence: string; voted_at: string | null; final: number;
+}
+
+interface JudgePairRow {
+  run_id: string; pair_index: number; endpoint_a: string; endpoint_b: string;
+  verdict_ab: string | null; verdict_ba: string | null; reversed: number;
+  excluded_from_tally: number; commentary: string | null;
 }
 
 interface ProviderRow {
@@ -670,6 +677,37 @@ export class SqliteStore implements RunStore {
         pairing: [r.endpoint_a, r.endpoint_b], criterion: r.criterion,
         orderSwapped: nb(r.order_swapped), vote: r.vote,
         confidence: r.confidence, votedAt: r.voted_at, final: nb(r.final),
+      }),
+    );
+  }
+
+  // -- LLM-judge pairwise verdicts ------------------------------------------
+
+  async insertJudgePair(p: JudgePairResult): Promise<void> {
+    this.db
+      .prepare(
+        `insert or replace into judge_pairs (
+           run_id, pair_index, endpoint_a, endpoint_b, verdict_ab, verdict_ba,
+           reversed, excluded_from_tally, commentary
+         ) values (?,?,?,?,?,?,?,?,?)`,
+      )
+      .run(
+        p.runId, p.pairIndex, p.pairing[0], p.pairing[1], p.verdictAB,
+        p.verdictBA, b(p.reversed), b(p.excludedFromTally), p.commentary,
+      );
+  }
+
+  async listJudgePairs(runId: string): Promise<JudgePairResult[]> {
+    return this.many<JudgePairRow>(
+      "select * from judge_pairs where run_id = ? order by pair_index asc",
+      runId,
+    ).map((r) =>
+      JudgePairResult.parse({
+        runId: r.run_id, pairIndex: r.pair_index,
+        pairing: [r.endpoint_a, r.endpoint_b],
+        verdictAB: r.verdict_ab, verdictBA: r.verdict_ba,
+        reversed: nb(r.reversed), excludedFromTally: nb(r.excluded_from_tally),
+        commentary: r.commentary,
       }),
     );
   }

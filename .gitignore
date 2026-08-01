@@ -6,7 +6,6 @@ out/
 .env
 .env.local
 .env*.local
-artifacts/
 *.db
 *.db-journal
 .DS_Store

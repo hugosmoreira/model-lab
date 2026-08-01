@@ -9,6 +9,7 @@
 import type {
   BrowserTestResult,
   ConsoleLine,
+  JudgePairResult,
   Run,
   RunEvent,
   RunMode,
@@ -59,6 +60,16 @@ export interface PackConfig {
   tasks?: Task[];
 }
 
+/**
+ * LLM-as-judge configuration. Absent = no judging. Judge calls go through the
+ * anthropic provider; token usage is charged into the run cost at these prices.
+ */
+export interface JudgeConfig {
+  model: string; // e.g. "claude-sonnet-4-6"
+  priceInPerMtokUsd: number;
+  priceOutPerMtokUsd: number;
+}
+
 export interface RunnerConfig {
   runId: string; // "run_8f3ac21e"
   name: string;
@@ -74,6 +85,8 @@ export interface RunnerConfig {
   transportRetries: number; // per-sample transport retries (generation retries: none)
   /** mock provider only: force one (endpoint, sample) to emit a broken artifact */
   failSample?: { endpointId: string; sampleIndex: number };
+  /** build-arena only: LLM-judge phase after all samples complete */
+  judge?: JudgeConfig;
 }
 
 /** Streaming chunks every provider adapter emits: deltas, then one usage. */
@@ -169,6 +182,8 @@ export interface StoredArtifact {
   screenshotPath: string | null; // absolute path or null
   consoleLines: ConsoleLine[];
   checks: BrowserTestResult[];
+  /** LLM-judge rubric commentary (judge phase; persists to artifacts.judge_commentary) */
+  judgeCommentary?: string | null;
 }
 
 export interface StoredRunResults {
@@ -177,6 +192,9 @@ export interface StoredRunResults {
   samples: SampleResult[];
   artifacts: StoredArtifact[];
   config: RunnerConfig;
+  /** LLM-judge pairwise verdicts (empty when the run was not judged; may be
+   *  absent in snapshots written before the judge phase existed) */
+  judgePairs: JudgePairResult[];
 }
 
 export interface BundleResult {

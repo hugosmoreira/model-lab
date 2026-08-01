@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import type { BrowserTestResult, ConsoleLine } from "@model-lab/schemas";
+import type { BrowserTestResult, ConsoleLine, HumanAnnotation } from "@model-lab/schemas";
 import { ModelDot, SectionLabel } from "@/components/ui/primitives";
 import { ArtifactSandbox } from "./ArtifactSandbox";
 import { FailureTrace, ScenePlaceholder } from "./ScenePlaceholder";
+import { RateBuildPanel } from "./RateBuildPanel";
 import { encodeEndpointId, type BuildVM, type ViewerData } from "./model";
 
 const mono = { fontFamily: "var(--font-mono)" } as const;
@@ -273,9 +274,12 @@ function ConsolePane({ lines }: { lines: ConsoleLine[] }) {
 export function ArtifactViewer({
   data,
   initialEndpointId,
+  annotations,
 }: {
   data: ViewerData;
   initialEndpointId: string;
+  /** Append-only human audit trail for the run — feeds the rating panel. */
+  annotations: HumanAnnotation[];
 }) {
   const initialIdx = Math.max(
     0,
@@ -656,6 +660,22 @@ export function ArtifactViewer({
             <StatCard label="BROWSER TESTS" value={build.testsLabel} color={build.testsColor} />
             <StatCard label="COST" value={build.costLabel} />
             <StatCard label="LATENCY" value={build.latencyLabel} />
+          </div>
+          <div
+            style={{
+              borderTop: "1px solid var(--color-border-subtle)",
+              borderBottom: "1px solid var(--color-border-subtle)",
+              padding: "12px 0",
+            }}
+          >
+            {/* key: reset slider/note/feedback when switching builds */}
+            <RateBuildPanel
+              key={`${build.endpointId}:${build.artifact.sampleIndex}`}
+              runId={data.runId}
+              endpointId={build.endpointId}
+              sampleIndex={build.artifact.sampleIndex}
+              annotations={annotations}
+            />
           </div>
           <div>
             <SectionLabel>{data.judgeHeading}</SectionLabel>

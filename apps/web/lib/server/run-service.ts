@@ -46,6 +46,7 @@ import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import type {
   Artifact,
+  JudgePairResult,
   ModelEndpoint,
   Run,
   RunConfiguration,
@@ -310,6 +311,28 @@ function toVerifiedPackConfig(packSlug: string): PackConfig {
   };
 }
 
+/** Judge defaults: Sonnet 4.6 at $3/$15 per Mtok (env-overridable model). */
+const DEFAULT_JUDGE_MODEL = "claude-sonnet-4-6";
+const DEFAULT_JUDGE_PRICE_IN = 3;
+const DEFAULT_JUDGE_PRICE_OUT = 15;
+
+/**
+ * LLM-judge gate: build-arena runs only, judge calls need ANTHROPIC_API_KEY,
+ * opt-out via MODEL_LAB_JUDGE=0. A forced all-mock run (MODEL_LAB_MOCK_PROVIDERS=1)
+ * never judges — a mock flag must never spend money or hit a network.
+ */
+function resolveJudgeConfig(mode: RunMode): RunnerConfig["judge"] {
+  if (mode !== "build-arena") return undefined;
+  if ((process.env["ANTHROPIC_API_KEY"] ?? "") === "") return undefined;
+  if ((process.env["MODEL_LAB_JUDGE"] ?? "").trim() === "0") return undefined;
+  if ((process.env["MODEL_LAB_MOCK_PROVIDERS"] ?? "").trim() === "1") return undefined;
+  return {
+    model: process.env["MODEL_LAB_JUDGE_MODEL"] ?? DEFAULT_JUDGE_MODEL,
+    priceInPerMtokUsd: DEFAULT_JUDGE_PRICE_IN,
+    priceOutPerMtokUsd: DEFAULT_JUDGE_PRICE_OUT,
+  };
+}
+
 function newRunId(): string {
   for (let attempt = 0; attempt < 8; attempt++) {
     const bytes = crypto.getRandomValues(new Uint8Array(4));
@@ -433,6 +456,18 @@ function synthesizeConfiguration(cfg: RunnerConfig): RunConfiguration {
               orderSwapped: false,
               enabled: true,
             },
+            // Results' scorer badges show LLM JUDGE when judging is enabled
+            ...(cfg.judge !== undefined
+              ? [
+                  {
+                    type: "llm-judge" as const,
+                    name: `LLM judge — ${cfg.judge.model} · rubric + order-swapped pairs`,
+                    rubricVersion: "v1",
+                    orderSwapped: true,
+                    enabled: true,
+                  },
+                ]
+              : []),
           ],
     configDifferences: cfg.endpoints
       .filter((ep) => cfg.seed !== null && !ep.supportsSeed)
@@ -500,6 +535,7 @@ async function persistFinalSnapshot(
       costSpentUsd: snapshot.run.costSpentUsd,
       completedAt: snapshot.run.completedAt,
       elapsedSec: snapshot.run.elapsedSec,
+      judgeReversalCount: snapshot.run.judgeReversalCount,
     })
     .catch(warnPersist("updateRunStatus:final", store));
   for (const model of snapshot.models) {
@@ -532,7 +568,7 @@ async function persistFinalSnapshot(
           : null,
       consoleLines: stored.consoleLines,
       checks: stored.checks,
-      judgeCommentary: null,
+      judgeCommentary: stored.judgeCommentary ?? null,
       sandbox: {
         isolatedOrigin: true,
         networkBlocked: true,
@@ -543,6 +579,15 @@ async function persistFinalSnapshot(
     await store
       .insertArtifact(artifact)
       .catch(warnPersist(`insertArtifact:${artifact.endpointId}#${artifact.sampleIndex}`, store));
+  }
+  // Judge pair verdicts (build-arena judge phase). Snapshots written before
+  // the judge phase existed have no judgePairs field — treat as empty.
+  const judgePairs: JudgePairResult[] =
+    (snapshot.judgePairs as JudgePairResult[] | undefined) ?? [];
+  for (const pair of judgePairs) {
+    await store
+      .insertJudgePair(pair)
+      .catch(warnPersist(`insertJudgePair:${pair.pairIndex}`, store));
   }
 }
 
@@ -640,6 +685,9 @@ export async function startRun(input: StartRunInput): Promise<{ runId: string }>
     maxBudgetUsd: workspaceSettings.defaultRunBudgetUsd,
     transportRetries: defaultRunConfiguration.retryPolicy.transportRetries,
   };
+  // LLM-judge phase (build-arena + ANTHROPIC_API_KEY + not opted out/mocked)
+  const judge = resolveJudgeConfig(input.mode);
+  if (judge !== undefined) cfg.judge = judge;
   // Verified runs never inject the broken-artifact failSample (no artifacts,
   // no browser checks) — the mock's wrong-answer path covers the 0-score demo.
   // Only a MOCKED qwen-ish endpoint qualifies: never sabotage a real run.

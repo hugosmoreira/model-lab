@@ -172,6 +172,14 @@ export default async function ResultsPage({
   const judgeScorer = runConfiguration.scorers.find((s) => s.type === "llm-judge");
   const checksTotal = view.checksTotal;
 
+  // Scored annotations make a run human-scored even without a configured
+  // human scorer — visual ratings arrive post-run via the audit trail.
+  const hasHumanRatings = view.annotations.some((a) => a.scoreOverride != null);
+  if (hasHumanRatings && humanScorer == null) {
+    scorerBadges.push({ name: "HUMAN (visual ratings)", color: "var(--color-amber)" });
+  }
+  const humanScored = humanScorer != null || (hasHumanRatings && !isVerified);
+
   /* ---------- category bars (all values computed from the run's own data) ---------- */
   // Efficiency = 1 − (0.5·costNorm + 0.5·latencyNorm), each normalized 0–1
   // against the most expensive / slowest model in the run. Higher = cheaper + faster.
@@ -238,12 +246,20 @@ export default async function ResultsPage({
     ...(hasVisual
       ? [
           {
-            name: isVerified ? "Task accuracy" : "Visual quality",
+            // Honest naming: "Visual quality" only when a human actually rated;
+            // browser-derived sample means are labeled as such.
+            name: isVerified
+              ? "Task accuracy"
+              : humanScorer != null || hasHumanRatings
+                ? "Visual quality"
+                : "Sample score",
             scorer: isVerified
               ? "objective · mean score"
               : humanScorer
                 ? `human rubric ${humanScorer.rubricVersion ?? ""}`.trim()
-                : "mean sample score",
+                : hasHumanRatings
+                  ? "human visual ratings"
+                  : "browser-derived · check ratio",
             bars: runModels.map((rm) => ({
               key: rm.endpointId,
               color: modelColor(rm.endpointId),
@@ -508,7 +524,7 @@ export default async function ResultsPage({
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>Cost vs quality</span>
                   <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>
-                    {humanScorer
+                    {humanScored
                       ? "visual, human-scored"
                       : isVerified
                         ? "objective · mean score"
@@ -578,9 +594,12 @@ export default async function ResultsPage({
                 <>
                   <WTLMatrix rows={matrixRows} matrix={judge.wtlMatrix} />
                   <span style={{ fontSize: 11, color: "var(--color-faint)", display: "block", marginTop: 8 }}>
-                    Read as row vs column: W–T–L over {judge.judgePairs.length} pairs, n={n} samples × 2
-                    orders per pair. ⟲ = verdict reversed when answer order was swapped — the flagged pair
-                    is excluded from the aggregate verdict; cells show raw tallies.
+                    Read as row vs column: W–T–L over {judge.judgePairs.length} pairs,{" "}
+                    {view.source === "store"
+                      ? "best build judged in both presentation orders per pair"
+                      : `n=${n} samples × 2 orders per pair`}
+                    . ⟲ = verdict reversed when answer order was swapped — the flagged pair is excluded
+                    from the aggregate verdict; cells show raw tallies.
                   </span>
                 </>
               ) : (

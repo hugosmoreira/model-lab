@@ -7,6 +7,7 @@ import type {
   Artifact,
   BenchmarkPack,
   HumanAnnotation,
+  JudgePairResult,
   ModelDefinition,
   ModelEndpoint,
   PairwiseVote,
@@ -43,6 +44,7 @@ interface RunRecord {
   events: StoredRunEvent[];
   annotations: HumanAnnotation[];
   votes: Map<number, PairwiseVote>;
+  judgePairs: Map<number, JudgePairResult>;
 }
 
 export class MemoryStore implements RunStore {
@@ -81,6 +83,7 @@ export class MemoryStore implements RunStore {
       events: [],
       annotations: [],
       votes: new Map(),
+      judgePairs: new Map(),
     });
   }
 
@@ -187,6 +190,20 @@ export class MemoryStore implements RunStore {
     const rec = this.runs.get(runId);
     if (!rec) return [];
     const all = [...rec.votes.values()].map((v) => structuredClone(v));
+    all.sort((a, b) => a.pairIndex - b.pairIndex);
+    return all;
+  }
+
+  // -- LLM-judge pairwise verdicts ------------------------------------------
+
+  async insertJudgePair(p: JudgePairResult): Promise<void> {
+    this.mustGet(p.runId).judgePairs.set(p.pairIndex, structuredClone(p));
+  }
+
+  async listJudgePairs(runId: string): Promise<JudgePairResult[]> {
+    const rec = this.runs.get(runId);
+    if (!rec) return [];
+    const all = [...rec.judgePairs.values()].map((p) => structuredClone(p));
     all.sort((a, b) => a.pairIndex - b.pairIndex);
     return all;
   }

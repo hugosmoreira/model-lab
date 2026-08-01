@@ -17,6 +17,7 @@ import {
   Artifact,
   BenchmarkPack,
   HumanAnnotation,
+  JudgePairResult,
   ModelDefinition,
   ModelEndpoint,
   PairwiseVote,
@@ -98,6 +99,12 @@ interface VoteRow {
   run_id: string; pair_index: number; endpoint_a: string; endpoint_b: string;
   criterion: string; order_swapped: boolean; vote: string | null;
   confidence: string; voted_at: string | null; final: boolean;
+}
+
+interface JudgePairRow {
+  run_id: string; pair_index: number; endpoint_a: string; endpoint_b: string;
+  verdict_ab: string | null; verdict_ba: string | null; reversed: boolean;
+  excluded_from_tally: boolean; commentary: string | null;
 }
 
 interface ProviderRow {
@@ -364,6 +371,42 @@ export class SupabaseStore implements RunStore {
         pairing: [r.endpoint_a, r.endpoint_b], criterion: r.criterion,
         orderSwapped: r.order_swapped, vote: r.vote, confidence: r.confidence,
         votedAt: r.voted_at, final: r.final,
+      }),
+    );
+  }
+
+  // -- LLM-judge pairwise verdicts ------------------------------------------
+
+  async insertJudgePair(p: JudgePairResult): Promise<void> {
+    const { error } = await this.client.from("judge_pairs").upsert(
+      {
+        run_id: p.runId,
+        pair_index: p.pairIndex,
+        endpoint_a: p.pairing[0],
+        endpoint_b: p.pairing[1],
+        verdict_ab: p.verdictAB,
+        verdict_ba: p.verdictBA,
+        reversed: p.reversed,
+        excluded_from_tally: p.excludedFromTally,
+        commentary: p.commentary,
+      },
+      { onConflict: "run_id,pair_index" },
+    );
+    this.must(error, "insertJudgePair");
+  }
+
+  async listJudgePairs(runId: string): Promise<JudgePairResult[]> {
+    const { data, error } = await this.client
+      .from("judge_pairs").select("*").eq("run_id", runId)
+      .order("pair_index", { ascending: true });
+    this.must(error, "listJudgePairs");
+    return ((data ?? []) as JudgePairRow[]).map((r) =>
+      JudgePairResult.parse({
+        runId: r.run_id, pairIndex: r.pair_index,
+        pairing: [r.endpoint_a, r.endpoint_b],
+        verdictAB: r.verdict_ab, verdictBA: r.verdict_ba,
+        reversed: r.reversed, excludedFromTally: r.excluded_from_tally,
+        commentary: r.commentary,
       }),
     );
   }

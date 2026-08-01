@@ -13,6 +13,25 @@ export {
 export { startRun, extractArtifactHtml, MAX_ARTIFACT_BYTES } from "./run";
 export type { StartRunOptions, ArtifactExtraction } from "./run";
 export {
+  runJudgePhase,
+  extractJsonObject,
+  parseRubricVerdict,
+  parsePairVerdict,
+  normalizeSwappedVerdict,
+  JUDGE_MAX_TOKENS,
+  JUDGE_TEMPERATURE,
+  JUDGE_MAX_HTML_CHARS,
+  RENDER_FAILED_SCORE_CAP,
+} from "./judge";
+export type {
+  JudgeEmit,
+  JudgePhaseOptions,
+  JudgePhaseResult,
+  PairVerdict,
+  PairWinner,
+  RubricVerdict,
+} from "./judge";
+export {
   scoreObjective,
   stripAnswerFences,
   normalizeAnswer,

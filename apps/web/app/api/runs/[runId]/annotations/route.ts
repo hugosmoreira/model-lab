@@ -17,7 +17,16 @@ const AnnotationRequest = z.object({
   endpointId: z.string().min(1),
   sampleIndex: z.number().int().min(1),
   note: z.string().min(1).max(4000),
-  scoreOverride: z.number().min(0).max(10).nullable().optional(),
+  scoreOverride: z
+    .number()
+    .min(0)
+    .max(10)
+    // one decimal max (8.5 ok, 8.55 rejected); epsilon absorbs IEEE noise (8.3×10)
+    .refine((v) => Math.abs(v * 10 - Math.round(v * 10)) < 1e-6, {
+      message: "scoreOverride must be 0–10 with at most one decimal place",
+    })
+    .nullable()
+    .optional(),
 });
 
 export async function POST(
@@ -45,7 +54,11 @@ export async function POST(
     endpointId: parsed.data.endpointId,
     sampleIndex: parsed.data.sampleIndex,
     note: parsed.data.note,
-    scoreOverride: parsed.data.scoreOverride ?? null,
+    // persist an exact one-decimal value (strip IEEE noise like 8.299999…)
+    scoreOverride:
+      parsed.data.scoreOverride != null
+        ? Math.round(parsed.data.scoreOverride * 10) / 10
+        : null,
     author: "operator",
     at: new Date().toISOString(),
   };

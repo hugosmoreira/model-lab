@@ -19,6 +19,7 @@ import type {
   Artifact,
   BenchmarkPack,
   HumanAnnotation,
+  JudgePairResult,
   ModelDefinition,
   ModelEndpoint,
   PairwiseVote,
@@ -142,6 +143,12 @@ export interface RunStore {
   upsertVote(v: PairwiseVote): Promise<void>;
   /** Votes ordered by pairIndex. */
   listVotes(runId: string): Promise<PairwiseVote[]>;
+
+  // -- LLM-judge pairwise verdicts ------------------------------------------
+  /** UPSERT on (runId, pairIndex) — a re-run of the judge phase replaces. */
+  insertJudgePair(p: JudgePairResult): Promise<void>;
+  /** Judge pair results ordered by pairIndex. */
+  listJudgePairs(runId: string): Promise<JudgePairResult[]>;
 
   // -- registry reads -------------------------------------------------------
   listProviders(): Promise<Provider[]>;

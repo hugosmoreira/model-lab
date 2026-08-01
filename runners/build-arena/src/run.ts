@@ -20,6 +20,7 @@
  */
 import type {
   BrowserTestResult,
+  JudgePairResult,
   Run,
   RunEvent,
   RunEventLevel,
@@ -37,6 +38,7 @@ import {
 } from "./checks/browser-checks";
 import { scoreObjective } from "./checks/objective";
 import { EventBus } from "./event-bus";
+import { runJudgePhase } from "./judge";
 import { createProvider } from "./providers";
 import { errorMessage } from "./providers/util";
 import { FsRunStore } from "./store-fs";
@@ -161,6 +163,10 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
   const samples: SampleResult[] = [];
   const artifacts: StoredArtifact[] = [];
   const modelStates = new Map<string, ModelState>();
+  /** LLM-judge phase output (build-arena + config.judge only) */
+  let judgePairs: JudgePairResult[] = [];
+  let judgeReversalCount = 0;
+  let judgeRan = false;
 
   let pauseGate: Promise<void> | null = null;
   let pauseResolve: (() => void) | null = null;
@@ -275,7 +281,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       gitCommit: null,
       compositeWeighting: { browser: 50, visual: 35, efficiency: 15 },
       verdict: null,
-      judgeReversalCount: 0,
+      judgeReversalCount,
     };
     try {
       store.saveSnapshot(cfg.runId, {
@@ -284,6 +290,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
         samples: [...samples],
         artifacts: [...artifacts],
         config: cfg,
+        judgePairs: [...judgePairs],
       });
     } catch {
       // snapshot persistence is best-effort
@@ -812,6 +819,37 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     await Promise.all(workers);
     if (usingDefaultChecks && !verified) await closeBrowserChecks().catch(() => undefined);
 
+    // -- LLM-judge phase: after all samples, before run.completed -----------
+    // Gated: build-arena mode only, config.judge set, run not cancelled or
+    // budget-stopped. Judge errors NEVER kill the run (check.warn + skip).
+    if (cfg.mode === "build-arena" && cfg.judge !== undefined && !stopRequested()) {
+      judgeRan = true;
+      try {
+        const judged = await runJudgePhase({
+          cfg,
+          judge: cfg.judge,
+          artifacts,
+          samples,
+          artifactRoot: store.root,
+          emit,
+          getSpentUsd: () => spentUsd,
+          addSpendUsd: (usd) => {
+            spentUsd += usd;
+          },
+          shouldStop: stopRequested,
+          signal: abort.signal,
+        });
+        judgePairs = judged.judgePairs;
+        judgeReversalCount = judged.reversalCount;
+      } catch (err) {
+        emit("check.warn", {
+          level: "warn",
+          message: `judge phase failed: ${errorMessage(err)} — run continues unjudged`,
+          payload: { judgePhase: "fatal" },
+        });
+      }
+    }
+
     const status: RunOutcome["status"] = cancelled
       ? "cancelled"
       : budgetStopped
@@ -825,7 +863,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     } else if (status === "completed") {
       emit("run.completed", {
         level: "success",
-        message: `${samplesDone} samples · $${spentUsd.toFixed(2)}${samplesFailed > 0 ? ` · ${samplesFailed} sample fail preserved` : ""}`,
+        message: `${samplesDone} samples · $${spentUsd.toFixed(2)}${samplesFailed > 0 ? ` · ${samplesFailed} sample fail preserved` : ""}${judgeRan ? ` · ${judgePairs.length} judge pairs · ${judgeReversalCount} reversal(s)` : ""}`,
       });
     }
     // run.partial was already emitted at the moment of the budget stop
