@@ -326,7 +326,7 @@ export default function MissionControl() {
                 {artifacts.map((a) => (
                   <Link
                     key={a.endpointId}
-                    href={`/runs/${a.runId}/artifacts/${encodeURIComponent(a.endpointId)}`}
+                    href={`/runs/${a.runId}/artifacts/${a.endpointId.replace(/\//g, "~")}`}
                     style={{
                       position: "relative",
                       height: 88,

@@ -51,6 +51,18 @@ export const wtlMatrix: Record<string, Record<string, WtlCell>> = {
   },
 };
 
+/**
+ * Judge rubric scores per model (0–10, rubric v2, averaged over both
+ * presentation orders) — the "Brief adherence" category on Results. This is a
+ * rubric grade, NOT a win-rate; the W–T–L matrix carries the pairwise record.
+ */
+export const judgeBriefScores: Record<string, number> = {
+  [S]: 9.0,
+  [G]: 8.8,
+  [M]: 7.6,
+  [Q]: 6.4,
+};
+
 /** Head-to-Head session state: user is on pair 5 of 6, 4 votes cast. */
 export const pairwiseSession: {
   currentPairIndex: number;
