@@ -88,6 +88,21 @@ export const benchmarkPacks: BenchmarkPack[] = [
     category: null, license: "MIT", prompt: null, lastRunAt: null,
   },
   {
+    // First eval pack on purpose: Verified Benchmark mode defaults to it, and it
+    // is the one eval pack with a native task list (benchmark-packs/<slug>/pack.json).
+    slug: "structured-json-mini", name: "Structured JSON Mini", version: "v1.0", kind: "eval",
+    source: "official",
+    description: "Five invoice-style sentences — extract the requested field as one fenced JSON object.",
+    taskCount: 5, browserCheckCount: null, evalScorer: "OBJECTIVE",
+    scorersSummary: "OBJECTIVE",
+    estCostPerModelUsd: 0.01, estOutputTokensPerModel: 1_000,
+    category: "structured output", license: "MIT",
+    prompt:
+      "Five invoice-style extraction tasks — each sample sends one task prompt and expects a " +
+      "single fenced JSON object; a named field is compared against the expected value.",
+    lastRunAt: null,
+  },
+  {
     slug: "structured-json-extraction", name: "Structured JSON extraction", version: "v2.4", kind: "eval",
     source: "official",
     description: "Schema-constrained extraction from messy prose.",

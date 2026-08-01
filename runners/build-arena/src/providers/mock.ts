@@ -5,8 +5,14 @@
  * deterministic per (model, sampleIndex). With injectFailure it emits an
  * artifact with a deliberate null-canvas bug (id mismatch: #view vs #screen)
  * to exercise the sample.failed path.
+ *
+ * Verified mode (req.task present): echoes the task's expected answer in a
+ * scorer-appropriate shape — exact-match verbatim, contains with prose around
+ * it, json-field as a fenced JSON object. With req.answerWrong (the executor
+ * sets it for the FIRST endpoint's LAST task) it answers deterministically
+ * wrong to exercise the 0-score path.
  */
-import type { GenerateRequest, Provider, ProviderChunk } from "../types";
+import type { GenerateRequest, Provider, ProviderChunk, Task } from "../types";
 import { approxTokens, sleep } from "./util";
 
 export interface MockProviderOptions {
@@ -97,6 +103,47 @@ requestAnimationFrame(frame);
 </html>`;
 }
 
+/**
+ * Deterministic wrong-but-plausible value: numbers drift by +1; strings become
+ * a decoy that never CONTAINS the expected answer (so `contains` fails too).
+ */
+export function mockWrongValue(expected: string): string {
+  const n = Number(expected);
+  if (expected.trim() !== "" && Number.isFinite(n)) return String(n + 1);
+  return "unverified-answer";
+}
+
+/** Build {"a":{"b":value}} from dot-path "a.b" (numeric strings → numbers). */
+function nestedFromPath(path: string, value: string): Record<string, unknown> {
+  const n = Number(value);
+  const coerced: unknown = value.trim() !== "" && Number.isFinite(n) ? n : value;
+  const segments = path.split(".").filter((s) => s !== "");
+  const root: Record<string, unknown> = {};
+  let cursor = root;
+  segments.forEach((segment, i) => {
+    if (i === segments.length - 1) {
+      cursor[segment] = coerced;
+    } else {
+      const next: Record<string, unknown> = {};
+      cursor[segment] = next;
+      cursor = next;
+    }
+  });
+  return root;
+}
+
+/** Deterministic mock answer for a verified task (wrong when asked to be). */
+export function buildMockVerifiedAnswer(task: Task, answerWrong: boolean): string {
+  if (task.scorer === "json-field" && task.jsonField !== undefined) {
+    const value = answerWrong ? mockWrongValue(task.jsonField.expected) : task.jsonField.expected;
+    return "```json\n" + JSON.stringify(nestedFromPath(task.jsonField.path, value), null, 2) + "\n```";
+  }
+  const expected = task.expected ?? "";
+  const answer = answerWrong ? mockWrongValue(expected) : expected;
+  // contains: realistic prose around the answer; exact-match: verbatim echo
+  return task.scorer === "contains" ? `Answer: ${answer}` : answer;
+}
+
 export class MockProvider implements Provider {
   readonly kind = "mock" as const;
   private readonly chunkDelayMs: number;
@@ -108,16 +155,17 @@ export class MockProvider implements Provider {
   }
 
   async *generate(req: GenerateRequest): AsyncGenerator<ProviderChunk, void, void> {
-    const html = buildMockRaycasterHtml(
-      req.model,
-      req.sampleIndex ?? 1,
-      req.injectFailure === true,
-    );
-    const chunkSize = Math.max(1, Math.ceil(html.length / this.chunkCount));
-    for (let i = 0; i < html.length; i += chunkSize) {
+    // verified-task path: short deterministic answer, ~12 chunks (~0.5s)
+    const text =
+      req.task !== undefined
+        ? buildMockVerifiedAnswer(req.task, req.answerWrong === true)
+        : buildMockRaycasterHtml(req.model, req.sampleIndex ?? 1, req.injectFailure === true);
+    const chunks = req.task !== undefined ? Math.min(12, this.chunkCount) : this.chunkCount;
+    const chunkSize = Math.max(1, Math.ceil(text.length / chunks));
+    for (let i = 0; i < text.length; i += chunkSize) {
       await sleep(this.chunkDelayMs, req.signal);
-      yield { type: "delta", text: html.slice(i, i + chunkSize) };
+      yield { type: "delta", text: text.slice(i, i + chunkSize) };
     }
-    yield { type: "usage", tokensIn: approxTokens(req.prompt), tokensOut: approxTokens(html) };
+    yield { type: "usage", tokensIn: approxTokens(req.prompt), tokensOut: approxTokens(text) };
   }
 }

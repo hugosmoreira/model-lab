@@ -23,13 +23,20 @@ HTML files, immutable raw model outputs, screenshots, and run bundles.
 
 ## 4. Environment variables
 
-Create `apps/web/.env.local` (gitignored) with:
+Put these in the workspace-root `.env` **or** `apps/web/.env.local` (both are
+gitignored and both are loaded; the apps/web file wins on conflicts):
 
 ```bash
 SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=<service-role-key>   # server-only, never NEXT_PUBLIC_
-MODEL_LAB_STORE=supabase                        # "memory" (default) | "supabase"
+SUPABASE_SERVICE_ROLE_KEY=<secret-key>          # server-only, never NEXT_PUBLIC_
+MODEL_LAB_STORE=supabase                        # "memory" (default) | "sqlite" | "supabase"
 ```
+
+Key naming note: on newer Supabase projects the API keys page shows a
+**publishable** key (`sb_publishable_…`) and a **secret** key (`sb_secret_…`).
+Use the **secret** key as `SUPABASE_SERVICE_ROLE_KEY` (on older projects this
+is the `service_role` JWT). The publishable/anon key is useless to Model Lab —
+the schema is RLS deny-by-default and the browser never talks to Supabase.
 
 Provider keys (Phase 2 runner) also live here, server-side only:
 

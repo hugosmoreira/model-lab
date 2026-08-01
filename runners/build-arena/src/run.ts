@@ -12,6 +12,11 @@
  *    file, ≤2MB — violation → sample.failed(reason "contract")
  *  - full RunEvent stream persisted to events.jsonl; run.json snapshots after
  *    every sample
+ *  - verified mode (Phase 5): per endpoint iterate the pack's TASK list
+ *    (sampleIndex = task index, samplesPerModel=1 per task in the MVP), skip
+ *    artifact extraction and browser checks entirely, and score objectively
+ *    (exact-match / contains / json-field → binary 10/0). Unevaluable output
+ *    → sample.failed(reason "contract"). Events/persistence flow unchanged.
  */
 import type {
   BrowserTestResult,
@@ -30,6 +35,7 @@ import {
   runBrowserChecks,
   type BrowserChecksOutcome,
 } from "./checks/browser-checks";
+import { scoreObjective } from "./checks/objective";
 import { EventBus } from "./event-bus";
 import { createProvider } from "./providers";
 import { errorMessage } from "./providers/util";
@@ -43,6 +49,7 @@ import {
   type RunOutcome,
   type RunnerConfig,
   type StoredArtifact,
+  type Task,
 } from "./types";
 
 export const MAX_ARTIFACT_BYTES = 2 * 1024 * 1024;
@@ -138,7 +145,11 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
   const startedAtMs = Date.now();
   const startedAtIso = new Date(startedAtMs).toISOString();
   const fingerprint = computeFingerprint(cfg);
-  const totalPlanned = cfg.endpoints.length * cfg.samplesPerModel;
+  /** Verified runs iterate the task list; sampleIndex = 1-based task index. */
+  const verified = cfg.mode === "verified";
+  const tasks: Task[] = verified ? cfg.pack.tasks ?? [] : [];
+  const samplesPerEndpoint = verified ? tasks.length : cfg.samplesPerModel;
+  const totalPlanned = cfg.endpoints.length * samplesPerEndpoint;
   const hash = promptHash(cfg.pack.prompt);
 
   let cancelled = false;
@@ -221,7 +232,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       endpointId: ep.id,
       status: st.status,
       failedSampleCount: st.failedSampleCount,
-      progressPct: Math.round((st.samplesFinished / cfg.samplesPerModel) * 100),
+      progressPct: Math.round((st.samplesFinished / Math.max(1, samplesPerEndpoint)) * 100),
       currentTask: null,
       tokensOut: st.tokensOut,
       ttftMs: st.ttftMs,
@@ -251,7 +262,8 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       status,
       pack: { slug: cfg.pack.slug, version: cfg.pack.version },
       promptHash: hash,
-      samplesPerModel: cfg.samplesPerModel,
+      // verified runs: per-model sample count = task count (1 sample per task)
+      samplesPerModel: samplesPerEndpoint,
       modelCount: cfg.endpoints.length,
       budgetCeilingUsd: cfg.maxBudgetUsd,
       costSpentUsd: round4(spentUsd),
@@ -289,6 +301,8 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     ep: EndpointConfig,
     sampleIndex: number,
     injectFailure: boolean,
+    task?: Task,
+    answerWrong?: boolean,
   ): Promise<GenResult> => {
     const started = Date.now();
     let text = "";
@@ -296,7 +310,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     let tokensIn = 0;
     let tokensOut = 0;
     const req: GenerateRequest = {
-      prompt: cfg.pack.prompt,
+      prompt: task !== undefined ? task.prompt : cfg.pack.prompt,
       model: ep.model,
       temperature: cfg.temperature,
       maxTokens: cfg.maxOutputTokens,
@@ -304,6 +318,8 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       sampleIndex,
     };
     if (injectFailure) req.injectFailure = true;
+    if (task !== undefined) req.task = task;
+    if (answerWrong === true) req.answerWrong = true;
     if (cfg.seed !== null && ep.supportsSeed) req.seed = cfg.seed;
     for await (const chunk of provider.generate(req)) {
       if (chunk.type === "delta") {
@@ -338,7 +354,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       globalIndex: samples.length + 1,
       status: "failed",
       score: { failed: true },
-      primaryScorer: "browser",
+      primaryScorer: verified ? "objective" : "browser",
       costUsd: round4(costUsd),
       latencyMs: gen?.latencyMs ?? null,
       ttftMs: gen?.ttftMs ?? null,
@@ -405,7 +421,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     emit("sample.started", {
       endpointId: ep.id,
       sampleIndex: s,
-      message: `${s}/${cfg.samplesPerModel} · retry policy: none (first-shot)`,
+      message: `${s}/${samplesPerEndpoint} · retry policy: none (first-shot)`,
     });
     const injectFailure =
       cfg.failSample !== undefined &&
@@ -598,6 +614,127 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     finishSample();
   };
 
+  /**
+   * Verified mode: one sample = one task. No artifact extraction, no browser
+   * checks — the raw output is scored objectively (binary 10/0) with a
+   * one-entry scorer trace. Unevaluable output → sample.failed("contract").
+   */
+  const runVerifiedSample = async (
+    provider: Provider,
+    ep: EndpointConfig,
+    st: ModelState,
+    s: number,
+    task: Task,
+    answerWrong: boolean,
+  ): Promise<void> => {
+    emit("sample.started", {
+      endpointId: ep.id,
+      sampleIndex: s,
+      message: `${s}/${samplesPerEndpoint} · task ${task.id} · ${task.scorer}`,
+    });
+
+    // -- generation with transport retry --------------------------------
+    let gen: GenResult | null = null;
+    let transportError = "";
+    const maxAttempts = 1 + Math.max(0, cfg.transportRetries);
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        gen = await streamOnce(provider, ep, s, false, task, answerWrong);
+        break;
+      } catch (err) {
+        if (stopRequested()) return; // aborted by cancel/budget — not a sample failure
+        transportError = errorMessage(err);
+        if (attempt < maxAttempts) st.retries += 1;
+      }
+    }
+    if (gen === null) {
+      recordFailure(ep, st, s, "transport", `sample ${s}: transport failure — ${transportError}`, null, [], 0, false);
+      st.samplesFinished += 1;
+      finishSample();
+      return;
+    }
+
+    // -- cost + usage ---------------------------------------------------
+    const cost = tokenCost(ep, gen.tokensIn, gen.tokensOut);
+    spentUsd += cost;
+    st.costUsd += cost;
+    st.tokensOut += gen.tokensOut;
+    if (st.ttftMs === null) st.ttftMs = gen.ttftMs;
+    st.latencies.push(gen.latencyMs);
+    const toksPerSec =
+      gen.latencyMs > 0 ? Math.round(gen.tokensOut / (gen.latencyMs / 1000)) : gen.tokensOut;
+    emit("token.usage", {
+      endpointId: ep.id,
+      sampleIndex: s,
+      message: `${(gen.tokensOut / 1000).toFixed(1)}k out · ${toksPerSec} tok/s`,
+      payload: { tokensIn: gen.tokensIn, tokensOut: gen.tokensOut, toksPerSec, ttftMs: gen.ttftMs },
+    });
+
+    // -- immutable raw output ------------------------------------------
+    try {
+      store.writeRaw(cfg.runId, ep.id, s, gen.text);
+    } catch {
+      // raw persistence failure never kills the sample
+    }
+
+    // -- objective scoring ---------------------------------------------
+    st.status = "scoring";
+    const outcome = scoreObjective(task, gen.text);
+    if (!outcome.ok) {
+      recordFailure(
+        ep, st, s, "contract",
+        `sample ${s}: contract violation — ${outcome.violation}`,
+        gen, [outcome.trace], cost, false,
+      );
+    } else {
+      // tasks passed / task total (RunModel "TESTS n/m" display)
+      st.testsTotal = samplesPerEndpoint;
+      st.bestPassed = (st.bestPassed ?? 0) + (outcome.passed ? 1 : 0);
+      st.scores.push(outcome.score);
+      samplesScored += 1;
+      samples.push({
+        runId: cfg.runId,
+        endpointId: ep.id,
+        sampleIndex: s,
+        globalIndex: samples.length + 1,
+        status: "scored",
+        score: { value: outcome.score },
+        primaryScorer: "objective",
+        costUsd: round4(cost),
+        latencyMs: gen.latencyMs,
+        ttftMs: gen.ttftMs,
+        seed: cfg.seed !== null && ep.supportsSeed ? cfg.seed : null,
+        hasArtifact: false,
+        tokensOut: gen.tokensOut,
+        rawExcerpt: gen.text.slice(0, 400),
+        scorerTrace: [outcome.trace],
+        judgeReversed: false,
+        humanReviewed: false,
+        humanNote: null,
+      });
+      emit(outcome.passed ? "check.passed" : "check.failed", {
+        endpointId: ep.id,
+        sampleIndex: s,
+        level: outcome.passed ? "success" : "error",
+        message: `${outcome.trace.name} — ${outcome.trace.note}`,
+        payload: {
+          check: outcome.trace.name,
+          status: outcome.trace.status,
+          durationMs: outcome.trace.durationMs,
+        },
+      });
+      emit("sample.scored", {
+        endpointId: ep.id,
+        sampleIndex: s,
+        level: outcome.passed ? "success" : "warn",
+        message: `task ${task.id} · objective score ${outcome.score.toFixed(1)}`,
+      });
+    }
+    st.status = "generating";
+    st.samplesFinished += 1;
+    finishSample();
+  };
+
   const runEndpoint = async (ep: EndpointConfig): Promise<void> => {
     const st = stateFor(ep);
     let provider: Provider;
@@ -617,10 +754,18 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       endpointId: ep.id,
       message: `${ep.modelId} · ${ep.providerId} · ${kindLabel(ep)}${unseeded(ep) ? " · unseeded" : ""}`,
     });
-    for (let s = 1; s <= cfg.samplesPerModel; s++) {
+    // mock demo path: the FIRST endpoint answers its LAST task wrong (0-score)
+    const firstEndpoint = cfg.endpoints[0]?.id === ep.id;
+    for (let s = 1; s <= samplesPerEndpoint; s++) {
       if (pauseGate !== null) await pauseGate;
       if (stopRequested()) return;
-      await runSample(provider, ep, st, s);
+      if (verified) {
+        const task = tasks[s - 1];
+        if (task === undefined) continue; // defensive — validation prevents this
+        await runVerifiedSample(provider, ep, st, s, task, firstEndpoint && s === tasks.length);
+      } else {
+        await runSample(provider, ep, st, s);
+      }
     }
     st.status = "completed";
     const scored = st.samplesFinished - st.failedSampleCount;
@@ -629,14 +774,16 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       level: st.failedSampleCount > 0 ? "warn" : "success",
       message:
         st.failedSampleCount > 0
-          ? `${scored}/${cfg.samplesPerModel} scored · ${st.failedSampleCount} fail preserved`
-          : `${cfg.samplesPerModel}/${cfg.samplesPerModel} samples · $${st.costUsd.toFixed(2)}`,
+          ? `${scored}/${samplesPerEndpoint} scored · ${st.failedSampleCount} fail preserved`
+          : `${samplesPerEndpoint}/${samplesPerEndpoint} samples · $${st.costUsd.toFixed(2)}`,
     });
   };
 
   const main = async (): Promise<RunOutcome> => {
     emit("run.started", {
-      message: `${cfg.runId} · ${cfg.endpoints.length} models · n=${cfg.samplesPerModel} · budget $${cfg.maxBudgetUsd.toFixed(2)}`,
+      message: verified
+        ? `${cfg.runId} · ${cfg.endpoints.length} models · ${tasks.length} tasks · budget $${cfg.maxBudgetUsd.toFixed(2)}`
+        : `${cfg.runId} · ${cfg.endpoints.length} models · n=${cfg.samplesPerModel} · budget $${cfg.maxBudgetUsd.toFixed(2)}`,
       payload: { fingerprint },
     });
     for (const ep of cfg.endpoints) {
@@ -663,7 +810,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       );
     }
     await Promise.all(workers);
-    if (usingDefaultChecks) await closeBrowserChecks().catch(() => undefined);
+    if (usingDefaultChecks && !verified) await closeBrowserChecks().catch(() => undefined);
 
     const status: RunOutcome["status"] = cancelled
       ? "cancelled"

@@ -70,6 +70,7 @@ import {
   type StoredRunResults,
 } from "@model-lab/build-arena-runner";
 import { registerRun, type RunRecord } from "@/lib/live/run-registry";
+import { loadPackFromDisk, tasksForPack } from "@/lib/server/packs";
 
 /** Input contract — matches the wizard's POST /api/runs body (agent A). */
 export interface StartRunInput {
@@ -256,6 +257,34 @@ function toPackConfig(packSlug: string): PackConfig {
   };
 }
 
+/**
+ * Verified mode: the pack must exist natively on disk with an objective task
+ * list (benchmark-packs/<slug>/pack.json). The runner iterates these tasks —
+ * one sample per task — and scores each with the task's objective scorer.
+ */
+function toVerifiedPackConfig(packSlug: string): PackConfig {
+  const disk = loadPackFromDisk(packSlug);
+  if (disk === null) {
+    throw new RunServiceError(
+      `Benchmark pack "${packSlug}" has no native pack.json — verified mode needs benchmark-packs/<slug>/pack.json`,
+    );
+  }
+  const tasks = tasksForPack(disk);
+  if (tasks.length === 0) {
+    throw new RunServiceError(
+      `Benchmark pack "${packSlug}" defines no tasks — verified mode requires at least one`,
+    );
+  }
+  return {
+    slug: disk.slug,
+    version: disk.version,
+    // promptHash covers every task prompt, so the fingerprint pins the task list
+    prompt: tasks.map((t) => `[${t.id}] ${t.prompt}`).join("\n"),
+    browserCheckCount: 0,
+    tasks,
+  };
+}
+
 function newRunId(): string {
   for (let attempt = 0; attempt < 8; attempt++) {
     const bytes = crypto.getRandomValues(new Uint8Array(4));
@@ -286,7 +315,9 @@ function synthesizeRun(cfg: RunnerConfig, startedAt: string): Run {
     status: "running",
     pack: { slug: cfg.pack.slug, version: cfg.pack.version },
     promptHash: promptHash(cfg.pack.prompt),
-    samplesPerModel: cfg.samplesPerModel,
+    // verified runs: per-model sample count = task count (1 sample per task)
+    samplesPerModel:
+      cfg.mode === "verified" ? cfg.pack.tasks?.length ?? cfg.samplesPerModel : cfg.samplesPerModel,
     modelCount: cfg.endpoints.length,
     budgetCeilingUsd: cfg.maxBudgetUsd,
     costSpentUsd: 0,
@@ -314,15 +345,26 @@ function synthesizeConfiguration(cfg: RunnerConfig): RunConfiguration {
     toolAccess: false,
     artifactNetworkPolicy: "blocked",
     saveReasoningMetadata: true,
-    scorers: [
-      {
-        type: "browser",
-        name: `Browser checks — ${cfg.pack.browserCheckCount} assertions`,
-        rubricVersion: null,
-        orderSwapped: false,
-        enabled: true,
-      },
-    ],
+    scorers:
+      cfg.mode === "verified"
+        ? [
+            {
+              type: "objective",
+              name: `Objective scorer — ${cfg.pack.tasks?.length ?? 0} tasks`,
+              rubricVersion: null,
+              orderSwapped: false,
+              enabled: true,
+            },
+          ]
+        : [
+            {
+              type: "browser",
+              name: `Browser checks — ${cfg.pack.browserCheckCount} assertions`,
+              rubricVersion: null,
+              orderSwapped: false,
+              enabled: true,
+            },
+          ],
     configDifferences: cfg.endpoints
       .filter((ep) => cfg.seed !== null && !ep.supportsSeed)
       .map(
@@ -493,7 +535,8 @@ export async function startRun(input: StartRunInput): Promise<{ runId: string }>
     if (ep === undefined) throw new RunServiceError(`Unknown model endpoint: ${id}`);
     return ep;
   });
-  const pack = toPackConfig(input.packSlug);
+  const verified = input.mode === "verified";
+  const pack = verified ? toVerifiedPackConfig(input.packSlug) : toPackConfig(input.packSlug);
   const mock = resolveMockMode(selected);
   const endpoints = selected.map((ep) => toEndpointConfig(ep, mock));
   const runId = newRunId();
@@ -508,7 +551,8 @@ export async function startRun(input: StartRunInput): Promise<{ runId: string }>
     mode: input.mode,
     pack,
     endpoints,
-    samplesPerModel: input.samplesPerModel,
+    // verified MVP: 1 sample per task — the runner iterates the task list
+    samplesPerModel: verified ? 1 : input.samplesPerModel,
     temperature: defaultRunConfiguration.temperature,
     maxOutputTokens: defaultRunConfiguration.maxOutputTokens,
     seed: defaultRunConfiguration.seed,
@@ -516,7 +560,9 @@ export async function startRun(input: StartRunInput): Promise<{ runId: string }>
     maxBudgetUsd: workspaceSettings.defaultRunBudgetUsd,
     transportRetries: defaultRunConfiguration.retryPolicy.transportRetries,
   };
-  if (mock && input.samplesPerModel >= 2) {
+  // Verified runs never inject the broken-artifact failSample (no artifacts,
+  // no browser checks) — the mock's wrong-answer path covers the 0-score demo.
+  if (!verified && mock && input.samplesPerModel >= 2) {
     const qwenish = endpoints.find(
       (ep) => ep.id.includes("qwen") || ep.modelId.includes("qwen"),
     );

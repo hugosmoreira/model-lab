@@ -120,6 +120,10 @@ export default async function ResultsPage({
   const statsFor = (endpointId: string): SampleStats =>
     stats.get(endpointId) ?? { failed: 0, total: n, min: null, max: null };
 
+  /* Verified runs have no artifacts/browser checks — objective scores only. */
+  const isVerified = run.mode === "verified";
+  const hasArtifacts = view.artifacts.length > 0;
+
   /**
    * Brief adherence (0–10): the judge's RUBRIC score per model (averaged over
    * both presentation orders) — a graded assessment of how well the artifact
@@ -143,6 +147,8 @@ export default async function ResultsPage({
     .filter((s) => s.enabled)
     .map((s) => {
       switch (s.type) {
+        case "objective":
+          return { name: "OBJECTIVE", color: "var(--color-model-gpt)" };
         case "browser":
           return { name: "BROWSER / TEST", color: "var(--color-teal)" };
         case "human":
@@ -175,11 +181,14 @@ export default async function ResultsPage({
     1 - (0.5 * (rm.costUsd / maxCost) + 0.5 * ((rm.totalLatencyMs ?? maxLat) / maxLat));
 
   const hasVisual = runModels.some((rm) => rm.visualScore != null);
+  const hasBrowserScorer = runConfiguration.scorers.some(
+    (s) => s.type === "browser" && s.enabled,
+  );
 
   const categories: CategoryRow[] = [
     {
       name: "Run success",
-      scorer: "browser scorer",
+      scorer: hasBrowserScorer ? "browser scorer" : "objective scorer",
       bars: runModels.map((rm) => {
         const st = statsFor(rm.endpointId);
         const ok = st.total - st.failed;
@@ -198,34 +207,43 @@ export default async function ResultsPage({
         };
       }),
     },
-    {
-      name: "Browser tests",
-      scorer: `browser scorer · ${checksTotal} checks`,
-      bars: runModels.map((rm) => {
-        const passed = rm.testsPassed;
-        const total = rm.testsTotal ?? checksTotal;
-        return {
-          key: rm.endpointId,
-          color: modelColor(rm.endpointId),
-          pct: passed != null && total > 0 ? (passed / total) * 100 : 0,
-          label:
-            passed != null ? (
-              `${passed}/${total}`
-            ) : (
-              <span style={{ color: "var(--color-faint)" }}>—</span>
-            ),
-        };
-      }),
-    },
+    // Browser tests exist only for arena runs — verified runs have no checks;
+    // their pass/fail story is the "Task accuracy" row below.
+    ...(isVerified
+      ? []
+      : [
+          {
+            name: "Browser tests",
+            scorer: `browser scorer · ${checksTotal} checks`,
+            bars: runModels.map((rm) => {
+              const passed = rm.testsPassed;
+              const total = rm.testsTotal ?? checksTotal;
+              return {
+                key: rm.endpointId,
+                color: modelColor(rm.endpointId),
+                pct: passed != null && total > 0 ? (passed / total) * 100 : 0,
+                label:
+                  passed != null ? (
+                    `${passed}/${total}`
+                  ) : (
+                    <span style={{ color: "var(--color-faint)" }}>—</span>
+                  ),
+              };
+            }),
+          } satisfies CategoryRow,
+        ]),
     // Visual quality renders only when a visual score exists for this run
-    // (fixture: human rubric; store runs: mean per-sample score).
+    // (fixture: human rubric; store runs: mean per-sample score). Verified
+    // runs relabel it "Task accuracy" — the mean objective score (10/0 basis).
     ...(hasVisual
       ? [
           {
-            name: "Visual quality",
-            scorer: humanScorer
-              ? `human rubric ${humanScorer.rubricVersion ?? ""}`.trim()
-              : "mean sample score",
+            name: isVerified ? "Task accuracy" : "Visual quality",
+            scorer: isVerified
+              ? "objective · mean score"
+              : humanScorer
+                ? `human rubric ${humanScorer.rubricVersion ?? ""}`.trim()
+                : "mean sample score",
             bars: runModels.map((rm) => ({
               key: rm.endpointId,
               color: modelColor(rm.endpointId),
@@ -312,7 +330,7 @@ export default async function ResultsPage({
     const warns = warnCounts[rm.endpointId] ?? 0;
     const detail =
       st.failed > 0
-        ? `${st.failed} render fail`
+        ? `${st.failed} ${isVerified ? "task fail" : "render fail"}`
         : warns > 0
           ? `${warns} warn`
           : `${rm.retries} retries`;
@@ -373,9 +391,12 @@ export default async function ResultsPage({
             <Link href={`/runs/${runId}/samples`} className="hover-border" style={secondaryLink}>
               Explore Samples
             </Link>
-            <Link href={`/runs/${runId}/artifacts`} className="hover-border" style={secondaryLink}>
-              View Artifacts
-            </Link>
+            {/* Runs without artifacts (verified mode) get no artifact links. */}
+            {hasArtifacts && (
+              <Link href={`/runs/${runId}/artifacts`} className="hover-border" style={secondaryLink}>
+                View Artifacts
+              </Link>
+            )}
             <Link
               href={`/share/${runId}`}
               className="btn-primary"
@@ -487,7 +508,12 @@ export default async function ResultsPage({
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>Cost vs quality</span>
                   <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>
-                    {humanScorer ? "visual, human-scored" : "mean sample score"} · n={n}/model
+                    {humanScorer
+                      ? "visual, human-scored"
+                      : isVerified
+                        ? "objective · mean score"
+                        : "mean sample score"}{" "}
+                    · n={n}/model
                   </span>
                 </div>
                 <CostQualityScatter points={scatterPoints} showPareto footnote={scatterFootnote} />
@@ -601,7 +627,9 @@ export default async function ResultsPage({
                     }}
                   >
                     <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                      <span style={{ color: "var(--color-faint)", fontSize: 10 }}>VISUAL</span>
+                      <span style={{ color: "var(--color-faint)", fontSize: 10 }}>
+                        {isVerified ? "SCORE" : "VISUAL"}
+                      </span>
                       <span>
                         {rm.visualScore != null ? (
                           `${rm.visualScore.value.toFixed(1)}/10${rm.visualScore.n < n ? ` (n=${rm.visualScore.n})` : ""}`
@@ -636,13 +664,15 @@ export default async function ResultsPage({
                     </span>
                   </div>
                   <div style={{ display: "flex", gap: 10, marginTop: 10, fontSize: 12 }}>
-                    <Link
-                      href={`/runs/${runId}/artifacts/${encodeEndpointId(rm.endpointId)}`}
-                      className="hover-amber"
-                      style={{ color: "var(--color-amber)" }}
-                    >
-                      Artifact →
-                    </Link>
+                    {hasArtifacts && (
+                      <Link
+                        href={`/runs/${runId}/artifacts/${encodeEndpointId(rm.endpointId)}`}
+                        className="hover-amber"
+                        style={{ color: "var(--color-amber)" }}
+                      >
+                        Artifact →
+                      </Link>
+                    )}
                     <Link
                       href={`/runs/${runId}/samples`}
                       className="hover-text"

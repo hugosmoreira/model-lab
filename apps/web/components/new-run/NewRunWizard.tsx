@@ -27,6 +27,7 @@ import {
   priceLabel,
   tokenRange,
   totalCostRange,
+  VERIFIED_EST_OUTPUT_TOKENS_PER_TASK,
 } from "./estimate";
 
 const mono = { fontFamily: "var(--font-mono)" } as const;
@@ -85,6 +86,8 @@ const SCORER_DESCS: Record<string, string> = {
     "0–10 visual quality on fidelity, polish and brief adherence. Scored by you after the run.",
   "llm-judge":
     "Anonymized outputs judged in both A/B and B/A order; verdict reversals recorded. Never labeled ground truth.",
+  objective:
+    "Deterministic assertions per task — exact-match, contains, or JSON-field equality. Binary 10/0 per sample; no browser, human, or judge in the loop.",
 };
 
 const STEP_NAMES = [
@@ -166,15 +169,22 @@ export function NewRunWizard() {
   const pack = fixtures.benchmarkPacks.find((p) => p.slug === state.packSlug);
   const arenaPacks = fixtures.benchmarkPacks.filter((p) => p.kind === "build-arena");
   const evalPacks = fixtures.benchmarkPacks.filter((p) => p.kind === "eval");
+  const isVerified = state.mode === "verified";
+  const taskCount = pack?.taskCount ?? 0;
 
   /* Selection, in canonical fixture order regardless of click order. */
   const selectedEndpoints = fixtures.endpoints.filter((ep) => state.selected.includes(ep.id));
   const n = selectedEndpoints.length;
-  const samples = cfg.samplesPerModel;
-  const calls = n * samples;
+  /* Verified MVP: 1 sample per task — the runner iterates the pack's tasks. */
+  const samples = isVerified ? 1 : cfg.samplesPerModel;
+  const callsPerModel = isVerified ? taskCount : samples;
+  const calls = n * callsPerModel;
 
-  /* Cost estimate (documented formula in ./estimate.ts). */
-  const estOut = pack?.estOutputTokensPerModel ?? 0;
+  /* Cost estimate (documented formula in ./estimate.ts).
+     Verified mode: per-model output = taskCount × ~200 tokens/task. */
+  const estOut = isVerified
+    ? taskCount * VERIFIED_EST_OUTPUT_TOKENS_PER_TASK
+    : pack?.estOutputTokensPerModel ?? 0;
   const cost = totalCostRange(selectedEndpoints, samples, estOut);
   const tok = tokenRange(n, samples, estOut);
   const costLabel = `${usd(cost.low)}–${usd(cost.high)}`;
@@ -234,14 +244,16 @@ export function NewRunWizard() {
         ? [`${sandbox.execLimitSec}s execution limit`, `output size cap ${sandbox.sizeLimitMb}MB`]
         : []),
     ].join(" · ") + ".";
-  const scorersSummary = enabledScorers
-    .map((s) => {
-      if (s.type === "browser") return `browser(${pack?.browserCheckCount ?? "?"})`;
-      if (s.type === "human") return `human rubric ${s.rubricVersion ?? ""}`.trim();
-      if (s.type === "llm-judge") return `judge${s.orderSwapped ? " (order-swapped)" : ""}`;
-      return s.type;
-    })
-    .join(" + ");
+  const scorersSummary = isVerified
+    ? `OBJECTIVE(${taskCount} tasks)`
+    : enabledScorers
+        .map((s) => {
+          if (s.type === "browser") return `browser(${pack?.browserCheckCount ?? "?"})`;
+          if (s.type === "human") return `human rubric ${s.rubricVersion ?? ""}`.trim();
+          if (s.type === "llm-judge") return `judge${s.orderSwapped ? " (order-swapped)" : ""}`;
+          return s.type;
+        })
+        .join(" + ");
 
   /* Review rows. */
   const modelReviewLabel = (ep: ModelEndpoint): string => {
@@ -252,7 +264,12 @@ export function NewRunWizard() {
     { k: "Mode", v: `${state.mode}${cfg.retryPolicy.generation === "none" ? " · first-shot" : ""}` },
     { k: "Pack", v: pack ? `${pack.slug} ${pack.version} (${pack.source})` : "none selected" },
     { k: "Models", v: n > 0 ? selectedEndpoints.map(modelReviewLabel).join(" · ") : "none selected" },
-    { k: "Expected calls", v: `${calls} (${n} models × ${samples} samples)` },
+    {
+      k: "Expected calls",
+      v: isVerified
+        ? `${calls} (${n} models × ${taskCount} tasks)`
+        : `${calls} (${n} models × ${samples} samples)`,
+    },
     { k: "Est. tokens", v: n > 0 ? `${kTokens(tok.low)} – ${kTokens(tok.high)}` : "—" },
     {
       k: "Est. cost",
@@ -268,7 +285,7 @@ export function NewRunWizard() {
     pack ? `${pack.name} ${pack.version}` : "none selected",
     `${n} selected`,
     "locked",
-    `${enabledScorers.length + 1} scorers`, // +1 always-on safeguard row
+    `${(isVerified ? 1 : enabledScorers.length) + 1} scorers`, // +1 always-on safeguard row
     costLabel,
   ];
 
@@ -323,7 +340,16 @@ export function NewRunWizard() {
         }),
       });
       if (!res.ok) {
-        throw new Error(`Run creation failed (HTTP ${res.status}).`);
+        // Surface the API's reason when it sent one (e.g. verified mode
+        // rejecting an eval pack that has no native task list on disk).
+        let detail: string | null = null;
+        try {
+          const data = (await res.json()) as { error?: unknown };
+          if (typeof data.error === "string" && data.error !== "") detail = data.error;
+        } catch {
+          // non-JSON error body — fall through to the generic message
+        }
+        throw new Error(detail ?? `Run creation failed (HTTP ${res.status}).`);
       }
       const parsed = CreateRunResponse.safeParse(await res.json());
       if (!parsed.success) {
@@ -459,12 +485,24 @@ export function NewRunWizard() {
               {RUN_TYPE_ORDER.map((modeId) => {
                 const t = RUN_TYPES[modeId];
                 const sel = state.mode === modeId;
+                /* Switching mode keeps the pack only if its kind still fits:
+                   verified runs eval packs, every other mode runs arena packs. */
+                const kindFor = modeId === "verified" ? "eval" : "build-arena";
+                const selectMode = () => {
+                  const current = fixtures.benchmarkPacks.find((p) => p.slug === state.packSlug);
+                  if (current?.kind === kindFor) {
+                    set({ mode: modeId });
+                    return;
+                  }
+                  const fallback = fixtures.benchmarkPacks.find((p) => p.kind === kindFor);
+                  set({ mode: modeId, ...(fallback ? { packSlug: fallback.slug } : {}) });
+                };
                 return (
                   <button
                     key={modeId}
                     type="button"
                     aria-pressed={sel}
-                    onClick={() => set({ mode: modeId })}
+                    onClick={selectMode}
                     className={sel ? undefined : "hover-border"}
                     style={{
                       display: "flex",
@@ -510,22 +548,35 @@ export function NewRunWizard() {
         )}
 
         {/* -------- Step 2 · Challenge pack -------- */}
+        {/* Verified mode inverts the lists: eval packs are selectable, arena
+            packs are greyed with a mode tag (and vice versa in every other mode). */}
         {state.step === 2 && (
           <>
             <h2 style={{ margin: "0 0 4px", fontSize: 18 }}>Challenge pack</h2>
             <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--color-muted)" }}>
-              Build Arena packs return one self-contained HTML artifact per model.
+              {isVerified
+                ? "Eval packs run a fixed task list scored by deterministic objective assertions."
+                : "Build Arena packs return one self-contained HTML artifact per model."}
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 760 }}>
-              {arenaPacks.map((p) => {
+              {(isVerified ? evalPacks : arenaPacks).map((p) => {
                 const sel = state.packSlug === p.slug;
-                const metaParts = [
-                  `${p.taskCount} task${p.taskCount === 1 ? "" : "s"}`,
-                  ...(p.browserCheckCount != null ? [`${p.browserCheckCount} browser checks`] : []),
-                  ...(p.estOutputTokensPerModel != null
-                    ? [`est. ~${kTokens(p.estOutputTokensPerModel)} output tokens/model`]
-                    : []),
-                ];
+                const metaParts =
+                  p.kind === "eval"
+                    ? [
+                        `${p.taskCount} task${p.taskCount === 1 ? "" : "s"}`,
+                        p.evalScorer ?? p.scorersSummary,
+                        `est. ~${kTokens(p.taskCount * VERIFIED_EST_OUTPUT_TOKENS_PER_TASK)} output tokens/model`,
+                      ]
+                    : [
+                        `${p.taskCount} task${p.taskCount === 1 ? "" : "s"}`,
+                        ...(p.browserCheckCount != null
+                          ? [`${p.browserCheckCount} browser checks`]
+                          : []),
+                        ...(p.estOutputTokensPerModel != null
+                          ? [`est. ~${kTokens(p.estOutputTokensPerModel)} output tokens/model`]
+                          : []),
+                      ];
                 return (
                   <button
                     key={p.slug}
@@ -578,8 +629,12 @@ export function NewRunWizard() {
                 marginTop: 22,
               }}
             >
-              <span className="section-label">Eval packs — run in Verified Benchmark mode</span>
-              {evalPacks.map((p) => (
+              <span className="section-label">
+                {isVerified
+                  ? "Build Arena packs — run in Build Arena mode"
+                  : "Eval packs — run in Verified Benchmark mode"}
+              </span>
+              {(isVerified ? arenaPacks : evalPacks).map((p) => (
                 <div
                   key={p.slug}
                   style={{
@@ -600,12 +655,13 @@ export function NewRunWizard() {
                       {p.version} · {p.source}
                     </span>
                     <span style={{ ...mono, marginLeft: "auto", fontSize: 10.5, color: "var(--color-faint)" }}>
-                      verified mode
+                      {isVerified ? "build arena mode" : "verified mode"}
                     </span>
                   </span>
                   <span style={{ fontSize: 12, color: "var(--color-faint)" }}>{p.description}</span>
                   <span style={{ ...mono, fontSize: 11, color: "var(--color-disabled)" }}>
-                    {p.taskCount} tasks · {p.evalScorer ?? p.scorersSummary}
+                    {p.taskCount} task{p.taskCount === 1 ? "" : "s"} ·{" "}
+                    {p.evalScorer ?? p.scorersSummary}
                     {p.category ? ` · ${p.category}` : ""}
                   </span>
                 </div>
@@ -884,14 +940,30 @@ export function NewRunWizard() {
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 680 }}>
               {[
-                ...cfg.scorers.map((s) => ({
-                  key: s.type,
-                  badge: SCORER_BADGES[s.type] ?? { label: s.type.toUpperCase(), color: "var(--color-muted)" },
-                  name: s.name,
-                  desc: SCORER_DESCS[s.type] ?? "",
-                  stateLabel: s.enabled ? "enabled" : "off",
-                  stateColor: s.enabled ? "var(--color-teal)" : "var(--color-faint)",
-                })),
+                /* Verified mode scores with the single objective scorer — the
+                   browser/human/judge stack belongs to Build Arena runs. */
+                ...(isVerified
+                  ? [
+                      {
+                        key: "objective",
+                        badge: SCORER_BADGES["objective"] ?? {
+                          label: "OBJECTIVE",
+                          color: "var(--color-model-gpt)",
+                        },
+                        name: `Objective scorer — ${taskCount} task${taskCount === 1 ? "" : "s"}`,
+                        desc: SCORER_DESCS["objective"] ?? "",
+                        stateLabel: "enabled",
+                        stateColor: "var(--color-teal)",
+                      },
+                    ]
+                  : cfg.scorers.map((s) => ({
+                      key: s.type,
+                      badge: SCORER_BADGES[s.type] ?? { label: s.type.toUpperCase(), color: "var(--color-muted)" },
+                      name: s.name,
+                      desc: SCORER_DESCS[s.type] ?? "",
+                      stateLabel: s.enabled ? "enabled" : "off",
+                      stateColor: s.enabled ? "var(--color-teal)" : "var(--color-faint)",
+                    }))),
                 {
                   key: "safeguard",
                   badge: { label: "SAFEGUARD", color: "var(--color-model-neutral)" },
@@ -1086,8 +1158,10 @@ export function NewRunWizard() {
             <span style={mono}>{n}</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "var(--color-muted)" }}>Samples / model</span>
-            <span style={mono}>{samples}</span>
+            <span style={{ color: "var(--color-muted)" }}>
+              {isVerified ? "Tasks / model" : "Samples / model"}
+            </span>
+            <span style={mono}>{isVerified ? taskCount : samples}</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ color: "var(--color-muted)" }}>Expected calls</span>
@@ -1126,7 +1200,9 @@ export function NewRunWizard() {
           </span>
         )}
         <span style={{ fontSize: 11, color: "var(--color-faint)", lineHeight: 1.5 }}>
-          Formula: samples × (2k prompt tokens + pack est. output ±20%) × $/Mtok · local models $0.
+          {isVerified
+            ? "Formula: 2k prompt tokens + tasks × ~200 output tokens (±20%) × $/Mtok · local models $0."
+            : "Formula: samples × (2k prompt tokens + pack est. output ±20%) × $/Mtok · local models $0."}
         </span>
         <div
           style={{

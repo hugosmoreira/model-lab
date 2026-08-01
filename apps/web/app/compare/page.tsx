@@ -1,58 +1,30 @@
 import { TopBar } from "@/components/shell/TopBar";
-import { HeadToHeadClient, type H2HSide } from "@/components/compare/HeadToHeadClient";
-import { HistoryPanel, type HistoryRow } from "@/components/compare/HistoryPanel";
-import { fixtures, getEndpoint, modelColor, modelIdOf, shortNameOf } from "@/lib/data";
+import { HeadToHeadClient } from "@/components/compare/HeadToHeadClient";
+import { DEMO_RUN_ID, getRunView } from "@/lib/server/loaders";
+import { buildPairQueue } from "@/lib/server/pairs";
 
-export default function HeadToHeadPage() {
-  const { pairwiseSession: session, judgePairs, artifacts } = fixtures;
+/** Reads the persistence store (pair queue + votes) — render per request. */
+export const dynamic = "force-dynamic";
 
-  const current = session.votes.find((v) => v.pairIndex === session.currentPairIndex);
-  if (!current) throw new Error(`No pairwise vote entry for pair ${session.currentPairIndex}`);
-  const judgePair = judgePairs.find((p) => p.pairIndex === session.currentPairIndex);
-  if (!judgePair) throw new Error(`No judge result for pair ${session.currentPairIndex}`);
+/**
+ * Head-to-Head (Phase 6): ?run= selects the run (default: the demo run —
+ * unknown ids also resolve to the demo scenario, mirroring getRunView).
+ * The server builds the merged pair queue (canonical C(n,2) pairs + persisted
+ * votes + judge results); the client drives the blind vote → reveal → next
+ * flow against POST /api/runs/[runId]/votes.
+ */
+export default async function HeadToHeadPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
+  const raw = sp["run"];
+  const requested = (Array.isArray(raw) ? raw[0] : raw)?.trim();
+  const runId = requested != null && requested !== "" ? requested : DEMO_RUN_ID;
 
-  const votesCast = session.votes.filter((v) => v.final).length;
-  const [aEndpointId, bEndpointId] = current.pairing;
-
-  const side = (slot: "A" | "B", endpointId: string): H2HSide => {
-    const artifact = artifacts.find((art) => art.endpointId === endpointId);
-    return {
-      slot,
-      endpointId,
-      modelId: modelIdOf(endpointId),
-      providerId: getEndpoint(endpointId).providerId,
-      color: modelColor(endpointId),
-      artifactMeta: artifact
-        ? `${artifact.filename} · ${artifact.sizeKb}kb${artifact.renderOk ? "" : " · render fail"}`
-        : null,
-    };
-  };
-
-  const voteByPair = new Map(session.votes.map((v) => [v.pairIndex, v] as const));
-  const rows: HistoryRow[] = judgePairs.map((p) => {
-    const userVote = voteByPair.get(p.pairIndex);
-    const base = {
-      pairIndex: p.pairIndex,
-      index: `${p.pairIndex}/${current.pairTotal}`,
-      pairing: `${shortNameOf(p.pairing[0])} vs ${shortNameOf(p.pairing[1])}`,
-    };
-    if (p.reversed) {
-      return { ...base, result: "REVERSED on swap ⟲", resultColor: "var(--color-amber)", order: "flagged" };
-    }
-    if (!userVote?.final) {
-      return { ...base, result: "pending your vote", resultColor: "var(--color-faint)", order: "—" };
-    }
-    if (p.verdictAB == null || p.verdictBA == null) {
-      return { ...base, result: "judge verdict pending", resultColor: "var(--color-faint)", order: "—" };
-    }
-    const label = p.verdictAB === "tie" ? "Tie" : `${p.verdictAB} wins`;
-    return {
-      ...base,
-      result: `${label} · both orders`,
-      resultColor: "var(--color-teal)",
-      order: "A/B + B/A",
-    };
-  });
+  const view = await getRunView(runId);
+  const queue = await buildPairQueue(view);
 
   return (
     <>
@@ -69,26 +41,7 @@ export default function HeadToHeadPage() {
           width: "100%",
         }}
       >
-        <HeadToHeadClient
-          runId={current.runId}
-          criterion={session.criterion}
-          pairIndex={current.pairIndex}
-          pairTotal={current.pairTotal}
-          orderSwapped={current.orderSwapped}
-          votesCast={votesCast}
-          judgeAgreement={session.judgeAgreement}
-          judgeConflictWarning={session.judgeConflictWarning}
-          initialConfidence={current.confidence}
-          sides={[side("A", aEndpointId), side("B", bEndpointId)]}
-          judge={{
-            verdictAB: judgePair.verdictAB,
-            verdictBA: judgePair.verdictBA,
-            reversed: judgePair.reversed,
-            excludedFromTally: judgePair.excludedFromTally,
-            commentary: judgePair.commentary,
-          }}
-        />
-        <HistoryPanel rows={rows} runId={current.runId} />
+        <HeadToHeadClient key={queue.runId} initial={queue} />
       </main>
     </>
   );

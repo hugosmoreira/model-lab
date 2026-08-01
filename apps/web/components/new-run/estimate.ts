@@ -13,6 +13,13 @@ import type { ModelEndpoint } from "@model-lab/schemas";
 /** Prompt-side token estimate per call (pack prompt + harness overhead). */
 export const EST_INPUT_TOKENS_PER_CALL = 2000;
 
+/**
+ * Verified Benchmark mode: estimated output tokens per objective task (short
+ * answers). Per-model output estimate = taskCount × this constant — mirrors
+ * EST_OUTPUT_TOKENS_PER_TASK_VERIFIED in the runner adapter.
+ */
+export const VERIFIED_EST_OUTPUT_TOKENS_PER_TASK = 200;
+
 /** Output-token uncertainty applied to the pack's estOutputTokensPerModel. */
 export const OUTPUT_TOKEN_VARIANCE = 0.2;
 

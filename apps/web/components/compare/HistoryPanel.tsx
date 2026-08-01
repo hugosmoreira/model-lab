@@ -6,13 +6,17 @@ export interface HistoryRow {
   index: string;
   /** "gpt-5.2-mini vs gemini-3-fl" (short names) */
   pairing: string;
-  result: string;
-  /** CSS color (design token var) for the result cell */
-  resultColor: string;
-  order: string;
+  /** "you: A wins · high" | "pending your vote" | "skipped / invalid" */
+  yourVote: string;
+  /** CSS color (design token var) for the your-vote cell */
+  yourVoteColor: string;
+  /** "judge: A wins · both orders" | "REVERSED on swap ⟲" | "hidden until you vote" | "—" */
+  judge: string;
+  /** CSS color (design token var) for the judge cell */
+  judgeColor: string;
 }
 
-/** Aggregate voting-history panel (server-rendered, pure fixture data). */
+/** Aggregate voting-history panel over the merged pair queue (presentational). */
 export function HistoryPanel({ rows, runId }: { rows: HistoryRow[]; runId: string }) {
   return (
     <Panel style={{ padding: "14px 18px" }}>
@@ -28,7 +32,7 @@ export function HistoryPanel({ rows, runId }: { rows: HistoryRow[]; runId: strin
             key={r.pairIndex}
             style={{
               display: "grid",
-              gridTemplateColumns: "56px minmax(0,1fr) minmax(0,1fr) minmax(90px,130px)",
+              gridTemplateColumns: "56px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)",
               gap: 12,
               alignItems: "center",
               fontFamily: "var(--font-mono)",
@@ -42,15 +46,24 @@ export function HistoryPanel({ rows, runId }: { rows: HistoryRow[]; runId: strin
             </span>
             <span
               style={{
-                color: r.resultColor,
+                color: r.yourVoteColor,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
               }}
             >
-              {r.result}
+              {r.yourVote}
             </span>
-            <span style={{ color: "var(--color-faint)" }}>{r.order}</span>
+            <span
+              style={{
+                color: r.judgeColor,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {r.judge}
+            </span>
           </div>
         ))}
       </div>

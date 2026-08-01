@@ -35,11 +35,28 @@ export interface EndpointConfig {
   baseUrl?: string;
 }
 
+/** Objective scorer kinds for verified-benchmark tasks. */
+export type TaskScorer = "exact-match" | "contains" | "json-field";
+
+/** One objective task in a verified-benchmark (eval) pack. */
+export interface Task {
+  id: string;
+  /** sent verbatim as the user prompt for this task's sample */
+  prompt: string;
+  /** exact-match / contains expectation */
+  expected?: string;
+  scorer: TaskScorer;
+  /** json-field expectation: dot-path into the parsed JSON output */
+  jsonField?: { path: string; expected: string };
+}
+
 export interface PackConfig {
   slug: string; // "raycaster-oneshot"
   version: string; // "v1.3"
   prompt: string; // the challenge text sent verbatim as the user prompt
-  browserCheckCount: number; // 12
+  browserCheckCount: number; // 12 (0 for verified/eval packs)
+  /** verified mode: objective task list — ignored in build-arena mode */
+  tasks?: Task[];
 }
 
 export interface RunnerConfig {
@@ -76,6 +93,10 @@ export interface GenerateRequest {
   sampleIndex?: number;
   /** mock failure path: emit the null-canvas-bug artifact */
   injectFailure?: boolean;
+  /** verified mode: the task backing this sample (the mock echoes its expectation) */
+  task?: Task;
+  /** mock determinism: verified mode — emit a deliberately wrong answer */
+  answerWrong?: boolean;
 }
 
 export interface Provider {

@@ -4,9 +4,22 @@
  */
 export * from "./types";
 export { EventBus } from "./event-bus";
-export { BuildArenaAdapter, createBuildArenaAdapter, EST_OUTPUT_TOKENS_PER_MODEL } from "./adapter";
+export {
+  BuildArenaAdapter,
+  createBuildArenaAdapter,
+  EST_OUTPUT_TOKENS_PER_MODEL,
+  EST_OUTPUT_TOKENS_PER_TASK_VERIFIED,
+} from "./adapter";
 export { startRun, extractArtifactHtml, MAX_ARTIFACT_BYTES } from "./run";
 export type { StartRunOptions, ArtifactExtraction } from "./run";
+export {
+  scoreObjective,
+  stripAnswerFences,
+  normalizeAnswer,
+  valueAtPath,
+  MAX_TRACE_NOTE_CHARS,
+} from "./checks/objective";
+export type { ObjectiveOutcome } from "./checks/objective";
 export {
   createProvider,
   AnthropicProvider,
@@ -14,6 +27,8 @@ export {
   OllamaProvider,
   MockProvider,
   buildMockRaycasterHtml,
+  buildMockVerifiedAnswer,
+  mockWrongValue,
   resolveOpenAiCompatible,
   DEFAULT_OLLAMA_BASE_URL,
   scrubSecrets,

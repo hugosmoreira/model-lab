@@ -1,0 +1,455 @@
+{
+  "run": {
+    "id": "run_c25aa715",
+    "fingerprint": "fp_04b154b0f25f",
+    "name": "Verified E2E",
+    "mode": "verified",
+    "status": "completed",
+    "pack": {
+      "slug": "structured-json-mini",
+      "version": "v1.0"
+    },
+    "promptHash": "d466e204",
+    "samplesPerModel": 5,
+    "modelCount": 2,
+    "budgetCeilingUsd": 2,
+    "costSpentUsd": 0.0019,
+    "estCostRangeUsd": null,
+    "startedAt": "2026-08-01T13:19:28.660Z",
+    "completedAt": "2026-08-01T13:19:31.030Z",
+    "elapsedSec": 2,
+    "runnerVersion": "build-arena-runner v0.1.0",
+    "gitCommit": null,
+    "compositeWeighting": {
+      "browser": 50,
+      "visual": 35,
+      "efficiency": 15
+    },
+    "verdict": null,
+    "judgeReversalCount": 0
+  },
+  "models": [
+    {
+      "runId": "run_c25aa715",
+      "endpointId": "anthropic/claude-sonnet-4-6",
+      "status": "completed",
+      "failedSampleCount": 0,
+      "progressPct": 100,
+      "currentTask": null,
+      "tokensOut": 49,
+      "ttftMs": 41,
+      "totalLatencyMs": 471,
+      "costUsd": 0.0016,
+      "visualScore": {
+        "value": 8,
+        "n": 5
+      },
+      "testsPassed": 4,
+      "testsTotal": 5,
+      "retries": 0,
+      "unseeded": false,
+      "flag": null
+    },
+    {
+      "runId": "run_c25aa715",
+      "endpointId": "openai/gpt-5.2-mini",
+      "status": "completed",
+      "failedSampleCount": 0,
+      "progressPct": 100,
+      "currentTask": null,
+      "tokensOut": 48,
+      "ttftMs": 40,
+      "totalLatencyMs": 464,
+      "costUsd": 0.0003,
+      "visualScore": {
+        "value": 10,
+        "n": 5
+      },
+      "testsPassed": 5,
+      "testsTotal": 5,
+      "retries": 0,
+      "unseeded": false,
+      "flag": "all tests pass"
+    }
+  ],
+  "samples": [
+    {
+      "runId": "run_c25aa715",
+      "endpointId": "anthropic/claude-sonnet-4-6",
+      "sampleIndex": 1,
+      "globalIndex": 1,
+      "status": "scored",
+      "score": {
+        "value": 10
+      },
+      "primaryScorer": "objective",
+      "costUsd": 0.0003,
+      "latencyMs": 486,
+      "ttftMs": 41,
+      "seed": 42,
+      "hasArtifact": false,
+      "tokensOut": 12,
+      "rawExcerpt": "```json\n{\n  \"vendor\": \"Northwind Traders\"\n}\n```",
+      "scorerTrace": [
+        {
+          "name": "objective.json-field",
+          "status": "passed",
+          "note": "expected \"Northwind Traders\" · got \"Northwind Traders\"",
+          "durationMs": 0
+        }
+      ],
+      "judgeReversed": false,
+      "humanReviewed": false,
+      "humanNote": null
+    },
+    {
+      "runId": "run_c25aa715",
+      "endpointId": "openai/gpt-5.2-mini",
+      "sampleIndex": 1,
+      "globalIndex": 2,
+      "status": "scored",
+      "score": {
+        "value": 10
+      },
+      "primaryScorer": "objective",
+      "costUsd": 0.0001,
+      "latencyMs": 489,
+      "ttftMs": 40,
+      "seed": 42,
+      "hasArtifact": false,
+      "tokensOut": 12,
+      "rawExcerpt": "```json\n{\n  \"vendor\": \"Northwind Traders\"\n}\n```",
+      "scorerTrace": [
+        {
+          "name": "objective.json-field",
+          "status": "passed",
+          "note": "expected \"Northwind Traders\" · got \"Northwind Traders\"",
+          "durationMs": 0
+        }
+      ],
+      "judgeReversed": false,
+      "humanReviewed": false,
+      "humanNote": null
+    },
+    {
+      "runId": "run_c25aa715",
+      "endpointId": "anthropic/claude-sonnet-4-6",
+      "sampleIndex": 2,
+      "globalIndex": 3,
+      "status": "scored",
+      "score": {
+        "value": 10
+      },
+      "primaryScorer": "objective",
+      "costUsd": 0.0003,
+      "latencyMs": 486,
+      "ttftMs": 39,
+      "seed": 42,
+      "hasArtifact": false,
+      "tokensOut": 9,
+      "rawExcerpt": "```json\n{\n  \"total\": 1208.99\n}\n```",
+      "scorerTrace": [
+        {
+          "name": "objective.json-field",
+          "status": "passed",
+          "note": "expected \"1208.99\" · got \"1208.99\"",
+          "durationMs": 0
+        }
+      ],
+      "judgeReversed": false,
+      "humanReviewed": false,
+      "humanNote": null
+    },
+    {
+      "runId": "run_c25aa715",
+      "endpointId": "openai/gpt-5.2-mini",
+      "sampleIndex": 2,
+      "globalIndex": 4,
+      "status": "scored",
+      "score": {
+        "value": 10
+      },
+      "primaryScorer": "objective",
+      "costUsd": 0.0001,
+      "latencyMs": 487,
+      "ttftMs": 41,
+      "seed": 42,
+      "hasArtifact": false,
+      "tokensOut": 9,
+      "rawExcerpt": "```json\n{\n  \"total\": 1208.99\n}\n```",
+      "scorerTrace": [
+        {
+          "name": "objective.json-field",
+          "status": "passed",
+          "note": "expected \"1208.99\" · got \"1208.99\"",
+          "durationMs": 0
+        }
+      ],
+      "judgeReversed": false,
+      "humanReviewed": false,
+      "humanNote": null
+    },
+    {
+      "runId": "run_c25aa715",
+      "endpointId": "anthropic/claude-sonnet-4-6",
+      "sampleIndex": 3,
+      "globalIndex": 5,
+      "status": "scored",
+      "score": {
+        "value": 10
+      },
+      "primaryScorer": "objective",
+      "costUsd": 0.0003,
+      "latencyMs": 486,
+      "ttftMs": 42,
+      "seed": 42,
+      "hasArtifact": false,
+      "tokensOut": 9,
+      "rawExcerpt": "```json\n{\n  \"currency\": \"EUR\"\n}\n```",
+      "scorerTrace": [
+        {
+          "name": "objective.json-field",
+          "status": "passed",
+          "note": "expected \"EUR\" · got \"EUR\"",
+          "durationMs": 0
+        }
+      ],
+      "judgeReversed": false,
+      "humanReviewed": false,
+      "humanNote": null
+    },
+    {
+      "runId": "run_c25aa715",
+      "endpointId": "openai/gpt-5.2-mini",
+      "sampleIndex": 3,
+      "globalIndex": 6,
+      "status": "scored",
+      "score": {
+        "value": 10
+      },
+      "primaryScorer": "objective",
+      "costUsd": 0.0001,
+      "latencyMs": 487,
+      "ttftMs": 39,
+      "seed": 42,
+      "hasArtifact": false,
+      "tokensOut": 9,
+      "rawExcerpt": "```json\n{\n  \"currency\": \"EUR\"\n}\n```",
+      "scorerTrace": [
+        {
+          "name": "objective.json-field",
+          "status": "passed",
+          "note": "expected \"EUR\" · got \"EUR\"",
+          "durationMs": 0
+        }
+      ],
+      "judgeReversed": false,
+      "humanReviewed": false,
+      "humanNote": null
+    },
+    {
+      "runId": "run_c25aa715",
+      "endpointId": "anthropic/claude-sonnet-4-6",
+      "sampleIndex": 4,
+      "globalIndex": 7,
+      "status": "scored",
+      "score": {
+        "value": 10
+      },
+      "primaryScorer": "objective",
+      "costUsd": 0.0003,
+      "latencyMs": 448,
+      "ttftMs": 41,
+      "seed": 42,
+      "hasArtifact": false,
+      "tokensOut": 8,
+      "rawExcerpt": "```json\n{\n  \"quantity\": 24\n}\n```",
+      "scorerTrace": [
+        {
+          "name": "objective.json-field",
+          "status": "passed",
+          "note": "expected \"24\" · got \"24\"",
+          "durationMs": 0
+        }
+      ],
+      "judgeReversed": false,
+      "humanReviewed": false,
+      "humanNote": null
+    },
+    {
+      "runId": "run_c25aa715",
+      "endpointId": "openai/gpt-5.2-mini",
+      "sampleIndex": 4,
+      "globalIndex": 8,
+      "status": "scored",
+      "score": {
+        "value": 10
+      },
+      "primaryScorer": "objective",
+      "costUsd": 0.0001,
+      "latencyMs": 447,
+      "ttftMs": 41,
+      "seed": 42,
+      "hasArtifact": false,
+      "tokensOut": 8,
+      "rawExcerpt": "```json\n{\n  \"quantity\": 24\n}\n```",
+      "scorerTrace": [
+        {
+          "name": "objective.json-field",
+          "status": "passed",
+          "note": "expected \"24\" · got \"24\"",
+          "durationMs": 0
+        }
+      ],
+      "judgeReversed": false,
+      "humanReviewed": false,
+      "humanNote": null
+    },
+    {
+      "runId": "run_c25aa715",
+      "endpointId": "openai/gpt-5.2-mini",
+      "sampleIndex": 5,
+      "globalIndex": 9,
+      "status": "scored",
+      "score": {
+        "value": 10
+      },
+      "primaryScorer": "objective",
+      "costUsd": 0.0001,
+      "latencyMs": 410,
+      "ttftMs": 42,
+      "seed": 42,
+      "hasArtifact": false,
+      "tokensOut": 10,
+      "rawExcerpt": "```json\n{\n  \"due\": \"2026-09-01\"\n}\n```",
+      "scorerTrace": [
+        {
+          "name": "objective.json-field",
+          "status": "passed",
+          "note": "expected \"2026-09-01\" · got \"2026-09-01\"",
+          "durationMs": 0
+        }
+      ],
+      "judgeReversed": false,
+      "humanReviewed": false,
+      "humanNote": null
+    },
+    {
+      "runId": "run_c25aa715",
+      "endpointId": "anthropic/claude-sonnet-4-6",
+      "sampleIndex": 5,
+      "globalIndex": 10,
+      "status": "scored",
+      "score": {
+        "value": 0
+      },
+      "primaryScorer": "objective",
+      "costUsd": 0.0003,
+      "latencyMs": 447,
+      "ttftMs": 43,
+      "seed": 42,
+      "hasArtifact": false,
+      "tokensOut": 11,
+      "rawExcerpt": "```json\n{\n  \"due\": \"unverified-answer\"\n}\n```",
+      "scorerTrace": [
+        {
+          "name": "objective.json-field",
+          "status": "failed",
+          "note": "expected \"2026-09-01\" · got \"unverified-answer\"",
+          "durationMs": 0
+        }
+      ],
+      "judgeReversed": false,
+      "humanReviewed": false,
+      "humanNote": null
+    }
+  ],
+  "artifacts": [],
+  "config": {
+    "runId": "run_c25aa715",
+    "name": "Verified E2E",
+    "mode": "verified",
+    "pack": {
+      "slug": "structured-json-mini",
+      "version": "v1.0",
+      "prompt": "[invoice-vendor] Extract data from the sentence below and return ONLY a fenced JSON object of the shape {\"vendor\": string, \"total\": number}. Sentence: \"Invoice INV-2041 from Northwind Traders totals $412.50, due August 15.\"\n[invoice-total] Extract data from the sentence below and return ONLY a fenced JSON object of the shape {\"vendor\": string, \"total\": number} — total as a plain number, no currency symbol or thousands separators. Sentence: \"Acme Supply Co. billed $1,208.99 on invoice A-77 for warehouse racking.\"\n[receipt-currency] Extract data from the sentence below and return ONLY a fenced JSON object of the shape {\"merchant\": string, \"currency\": string} — currency as its 3-letter ISO code. Sentence: \"Receipt: Cafe Lumen, Lisbon — 14.20 EUR paid by card on 3 May.\"\n[po-quantity] Extract data from the sentence below and return ONLY a fenced JSON object of the shape {\"item\": string, \"quantity\": number}. Sentence: \"Purchase order PO-118: 24 ergonomic chairs for the Berlin office at 149 each.\"\n[invoice-due-date] Extract data from the sentence below and return ONLY a fenced JSON object of the shape {\"invoice\": string, \"due\": string} — due as an ISO date (YYYY-MM-DD). Sentence: \"Please settle invoice 2026-091 by 2026-09-01 to avoid late fees.\"",
+      "browserCheckCount": 0,
+      "tasks": [
+        {
+          "id": "invoice-vendor",
+          "prompt": "Extract data from the sentence below and return ONLY a fenced JSON object of the shape {\"vendor\": string, \"total\": number}. Sentence: \"Invoice INV-2041 from Northwind Traders totals $412.50, due August 15.\"",
+          "scorer": "json-field",
+          "jsonField": {
+            "path": "vendor",
+            "expected": "Northwind Traders"
+          }
+        },
+        {
+          "id": "invoice-total",
+          "prompt": "Extract data from the sentence below and return ONLY a fenced JSON object of the shape {\"vendor\": string, \"total\": number} — total as a plain number, no currency symbol or thousands separators. Sentence: \"Acme Supply Co. billed $1,208.99 on invoice A-77 for warehouse racking.\"",
+          "scorer": "json-field",
+          "jsonField": {
+            "path": "total",
+            "expected": "1208.99"
+          }
+        },
+        {
+          "id": "receipt-currency",
+          "prompt": "Extract data from the sentence below and return ONLY a fenced JSON object of the shape {\"merchant\": string, \"currency\": string} — currency as its 3-letter ISO code. Sentence: \"Receipt: Cafe Lumen, Lisbon — 14.20 EUR paid by card on 3 May.\"",
+          "scorer": "json-field",
+          "jsonField": {
+            "path": "currency",
+            "expected": "EUR"
+          }
+        },
+        {
+          "id": "po-quantity",
+          "prompt": "Extract data from the sentence below and return ONLY a fenced JSON object of the shape {\"item\": string, \"quantity\": number}. Sentence: \"Purchase order PO-118: 24 ergonomic chairs for the Berlin office at 149 each.\"",
+          "scorer": "json-field",
+          "jsonField": {
+            "path": "quantity",
+            "expected": "24"
+          }
+        },
+        {
+          "id": "invoice-due-date",
+          "prompt": "Extract data from the sentence below and return ONLY a fenced JSON object of the shape {\"invoice\": string, \"due\": string} — due as an ISO date (YYYY-MM-DD). Sentence: \"Please settle invoice 2026-091 by 2026-09-01 to avoid late fees.\"",
+          "scorer": "json-field",
+          "jsonField": {
+            "path": "due",
+            "expected": "2026-09-01"
+          }
+        }
+      ]
+    },
+    "endpoints": [
+      {
+        "id": "anthropic/claude-sonnet-4-6",
+        "providerId": "anthropic",
+        "modelId": "claude-sonnet-4-6",
+        "baseKind": "mock",
+        "model": "claude-sonnet-4-6",
+        "priceInPerMtokUsd": 3,
+        "priceOutPerMtokUsd": 15,
+        "supportsSeed": true
+      },
+      {
+        "id": "openai/gpt-5.2-mini",
+        "providerId": "openai",
+        "modelId": "gpt-5.2-mini",
+        "baseKind": "mock",
+        "model": "gpt-5.2-mini",
+        "priceInPerMtokUsd": 0.6,
+        "priceOutPerMtokUsd": 2.4,
+        "supportsSeed": true
+      }
+    ],
+    "samplesPerModel": 1,
+    "temperature": 0.7,
+    "maxOutputTokens": 16000,
+    "seed": 42,
+    "concurrency": 4,
+    "maxBudgetUsd": 2,
+    "transportRetries": 1
+  }
+}

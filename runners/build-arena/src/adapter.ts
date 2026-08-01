@@ -24,6 +24,9 @@ const BASE_KINDS = ["anthropic", "openai-compatible", "ollama", "mock"] as const
 /** Default per-model output estimate (matches the pack's estOutputTokensPerModel). */
 export const EST_OUTPUT_TOKENS_PER_MODEL = 20_000;
 
+/** Verified mode: estimated output tokens per objective task (short answers). */
+export const EST_OUTPUT_TOKENS_PER_TASK_VERIFIED = 200;
+
 export class BuildArenaAdapter implements RunnerAdapter {
   private readonly store: FsRunStore;
 
@@ -104,8 +107,30 @@ export class BuildArenaAdapter implements RunnerAdapter {
     }
     if (cfg.name.trim() === "") warn("name", "run name is empty");
     if (cfg.pack.prompt.trim() === "") error("pack.prompt", "challenge prompt must not be empty");
-    if (cfg.pack.browserCheckCount !== 12) {
+    const verified = cfg.mode === "verified";
+    if (!verified && cfg.pack.browserCheckCount !== 12) {
       warn("pack.browserCheckCount", `expected 12 checks, got ${cfg.pack.browserCheckCount}`);
+    }
+    if (verified) {
+      const tasks = cfg.pack.tasks ?? [];
+      if (tasks.length === 0) error("pack.tasks", "verified mode requires at least one task");
+      const seenTasks = new Set<string>();
+      tasks.forEach((task, i) => {
+        const field = `pack.tasks[${i}]`;
+        if (task.id.trim() === "") error(field, "task id must not be empty");
+        else if (seenTasks.has(task.id)) error(field, `duplicate task id "${task.id}"`);
+        seenTasks.add(task.id);
+        if (task.prompt.trim() === "") error(field, "task prompt must not be empty");
+        if (task.scorer === "json-field") {
+          if (task.jsonField === undefined) {
+            error(field, "json-field task needs a jsonField {path, expected} expectation");
+          }
+        } else if (task.expected === undefined || task.expected.trim() === "") {
+          error(field, `${task.scorer} task needs an expected answer`);
+        }
+      });
+    } else if (cfg.pack.tasks !== undefined && cfg.pack.tasks.length > 0) {
+      warn("pack.tasks", "task list is ignored outside verified mode");
     }
     if (cfg.endpoints.length === 0) error("endpoints", "at least one endpoint is required");
     if (cfg.endpoints.length > 8) warn("endpoints", `${cfg.endpoints.length} endpoints is a large run`);
@@ -131,7 +156,7 @@ export class BuildArenaAdapter implements RunnerAdapter {
     if (cfg.samplesPerModel > 10) warn("samplesPerModel", "more than 10 samples per model");
     if (cfg.temperature < 0 || cfg.temperature > 2) error("temperature", "must be within [0, 2]");
     if (cfg.maxOutputTokens <= 0) error("maxOutputTokens", "must be > 0");
-    else if (cfg.maxOutputTokens < 4_000) {
+    else if (!verified && cfg.maxOutputTokens < 4_000) {
       warn("maxOutputTokens", "under 4k tokens the raycaster artifact may truncate");
     }
     if (cfg.concurrency < 1) error("concurrency", "must be ≥ 1");
@@ -145,17 +170,23 @@ export class BuildArenaAdapter implements RunnerAdapter {
   }
 
   estimateRun(cfg: RunnerConfig): RunEstimate {
-    const totalSamples = cfg.endpoints.length * cfg.samplesPerModel;
-    const estTokensInPerSample = Math.ceil(cfg.pack.prompt.length / 4) + 64;
-    const estOutputTokensPerModel = Math.min(
-      EST_OUTPUT_TOKENS_PER_MODEL,
-      cfg.maxOutputTokens * cfg.samplesPerModel,
-    );
+    const verified = cfg.mode === "verified";
+    const tasks = cfg.pack.tasks ?? [];
+    const samplesPerEndpoint = verified ? tasks.length : cfg.samplesPerModel;
+    const totalSamples = cfg.endpoints.length * samplesPerEndpoint;
+    // verified: mean task prompt length; arena: the single challenge prompt
+    const estTokensInPerSample =
+      verified && tasks.length > 0
+        ? Math.ceil(tasks.reduce((acc, t) => acc + t.prompt.length, 0) / tasks.length / 4) + 64
+        : Math.ceil(cfg.pack.prompt.length / 4) + 64;
+    const estOutputTokensPerModel = verified
+      ? tasks.length * EST_OUTPUT_TOKENS_PER_TASK_VERIFIED
+      : Math.min(EST_OUTPUT_TOKENS_PER_MODEL, cfg.maxOutputTokens * cfg.samplesPerModel);
     const perEndpoint = cfg.endpoints.map((ep) => {
       const priceIn = ep.priceInPerMtokUsd ?? 0;
       const priceOut = ep.priceOutPerMtokUsd ?? 0;
       const estCostUsd =
-        (estTokensInPerSample * cfg.samplesPerModel * priceIn +
+        (estTokensInPerSample * samplesPerEndpoint * priceIn +
           estOutputTokensPerModel * priceOut) /
         1_000_000;
       return { endpointId: ep.id, estCostUsd: Math.round(estCostUsd * 10_000) / 10_000 };
@@ -170,7 +201,8 @@ export class BuildArenaAdapter implements RunnerAdapter {
       estOutputTokensPerModel,
       perEndpoint,
       estCostRangeUsd: [low, high],
-      estDurationSec: waves * cfg.samplesPerModel * 45, // ~45s per sample incl. checks
+      // arena ~45s/sample incl. checks; verified ~10s/task (no browser)
+      estDurationSec: waves * samplesPerEndpoint * (verified ? 10 : 45),
       withinBudget: high <= cfg.maxBudgetUsd,
     };
   }

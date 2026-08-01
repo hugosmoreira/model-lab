@@ -24,7 +24,7 @@ export function createProvider(endpoint: EndpointConfig): Provider {
 
 export { AnthropicProvider } from "./anthropic";
 export type { AnthropicOptions } from "./anthropic";
-export { MockProvider, buildMockRaycasterHtml } from "./mock";
+export { MockProvider, buildMockRaycasterHtml, buildMockVerifiedAnswer, mockWrongValue } from "./mock";
 export type { MockProviderOptions } from "./mock";
 export { OllamaProvider, DEFAULT_OLLAMA_BASE_URL } from "./ollama";
 export { OpenAiCompatibleProvider, resolveOpenAiCompatible } from "./openai-compatible";

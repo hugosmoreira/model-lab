@@ -1,0 +1,42 @@
+{
+  "slug": "structured-json-mini",
+  "name": "Structured JSON Mini",
+  "version": "v1.0",
+  "kind": "eval",
+  "scorer": "OBJECTIVE",
+  "license": "MIT",
+  "description": "Five invoice-style sentences — extract the requested field and return it as one fenced JSON object.",
+  "estOutputTokensPerTask": 200,
+  "tasks": [
+    {
+      "id": "invoice-vendor",
+      "prompt": "Extract data from the sentence below and return ONLY a fenced JSON object of the shape {\"vendor\": string, \"total\": number}. Sentence: \"Invoice INV-2041 from Northwind Traders totals $412.50, due August 15.\"",
+      "scorer": "json-field",
+      "jsonField": { "path": "vendor", "expected": "Northwind Traders" }
+    },
+    {
+      "id": "invoice-total",
+      "prompt": "Extract data from the sentence below and return ONLY a fenced JSON object of the shape {\"vendor\": string, \"total\": number} — total as a plain number, no currency symbol or thousands separators. Sentence: \"Acme Supply Co. billed $1,208.99 on invoice A-77 for warehouse racking.\"",
+      "scorer": "json-field",
+      "jsonField": { "path": "total", "expected": "1208.99" }
+    },
+    {
+      "id": "receipt-currency",
+      "prompt": "Extract data from the sentence below and return ONLY a fenced JSON object of the shape {\"merchant\": string, \"currency\": string} — currency as its 3-letter ISO code. Sentence: \"Receipt: Cafe Lumen, Lisbon — 14.20 EUR paid by card on 3 May.\"",
+      "scorer": "json-field",
+      "jsonField": { "path": "currency", "expected": "EUR" }
+    },
+    {
+      "id": "po-quantity",
+      "prompt": "Extract data from the sentence below and return ONLY a fenced JSON object of the shape {\"item\": string, \"quantity\": number}. Sentence: \"Purchase order PO-118: 24 ergonomic chairs for the Berlin office at 149 each.\"",
+      "scorer": "json-field",
+      "jsonField": { "path": "quantity", "expected": "24" }
+    },
+    {
+      "id": "invoice-due-date",
+      "prompt": "Extract data from the sentence below and return ONLY a fenced JSON object of the shape {\"invoice\": string, \"due\": string} — due as an ISO date (YYYY-MM-DD). Sentence: \"Please settle invoice 2026-091 by 2026-09-01 to avoid late fees.\"",
+      "scorer": "json-field",
+      "jsonField": { "path": "due", "expected": "2026-09-01" }
+    }
+  ]
+}
