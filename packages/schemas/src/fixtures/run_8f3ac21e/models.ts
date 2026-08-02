@@ -60,10 +60,10 @@ export const providers: Provider[] = [
     credentialStore: "unset", warning: null, localEndpoint: null, localHardware: null,
   },
   {
-    id: "deepseek", name: "DeepSeek", kind: "cloud", status: "disconnected", isLocal: false,
-    healthLatencyMs: null, modelsAvailable: null, modelsLoaded: null,
-    lastTestedAt: null, credentialMasked: "not configured",
-    credentialStore: "unset", warning: null, localEndpoint: null, localHardware: null,
+    id: "deepseek", name: "DeepSeek", kind: "cloud", status: "connected", isLocal: false,
+    healthLatencyMs: null, modelsAvailable: 2, modelsLoaded: null,
+    lastTestedAt: null, credentialMasked: "configured · DEEPSEEK_API_KEY",
+    credentialStore: "env", warning: null, localEndpoint: null, localHardware: null,
   },
 ];
 
@@ -110,14 +110,19 @@ export const modelDefinitions: ModelDefinition[] = [
     capabilities: ["code", "fast", "cheap"], supportsSeed: true,
   },
   {
-    id: "deepseek-chat", family: "DeepSeek V3", shortName: "deepseek-chat",
+    id: "deepseek-v4-flash", family: "DeepSeek V4", shortName: "ds-v4-flash",
     identityColor: "#5aa7d4", contextWindowTokens: 128_000,
-    capabilities: ["code", "cheap"], supportsSeed: false,
+    capabilities: ["code", "cheap", "fast"], supportsSeed: false,
   },
   {
-    id: "deepseek-reasoner", family: "DeepSeek R1", shortName: "deepseek-r1",
+    id: "deepseek-v4-pro", family: "DeepSeek V4", shortName: "ds-v4-pro",
     identityColor: "#5aa7d4", contextWindowTokens: 128_000,
     capabilities: ["code"], supportsSeed: false,
+  },
+  {
+    id: "gemini-3.5-flash", family: "Gemini 3.5", shortName: "gemini-3.5-fl",
+    identityColor: "#a98ae8", contextWindowTokens: 1_000_000,
+    capabilities: ["code", "fast", "cheap"], supportsSeed: false,
   },
   {
     id: "qwen3.5-abliterated", family: "Qwen 3.5", shortName: "qwen3.5-abl",
@@ -202,15 +207,23 @@ export const endpoints: ModelEndpoint[] = [
     runsCount: 0, reliabilityPct: null, avgVisualScore: null, lastTestedAt: null,
   },
   {
-    id: "deepseek/deepseek-chat", modelId: "deepseek-chat", apiModel: null, providerId: "deepseek",
+    id: "deepseek/deepseek-v4-flash", modelId: "deepseek-v4-flash", apiModel: null, providerId: "deepseek",
     deployment: "cloud", quantization: null, hardware: null,
     priceInPerMtokUsd: 0.27, priceOutPerMtokUsd: 1.1, status: "healthy",
     runsCount: 0, reliabilityPct: null, avgVisualScore: null, lastTestedAt: null,
   },
   {
-    id: "deepseek/deepseek-reasoner", modelId: "deepseek-reasoner", apiModel: null, providerId: "deepseek",
+    id: "deepseek/deepseek-v4-pro", modelId: "deepseek-v4-pro", apiModel: null, providerId: "deepseek",
     deployment: "cloud", quantization: null, hardware: null,
     priceInPerMtokUsd: 0.55, priceOutPerMtokUsd: 2.19, status: "healthy",
+    runsCount: 0, reliabilityPct: null, avgVisualScore: null, lastTestedAt: null,
+  },
+  {
+    // Real Gemini endpoint (AI Studio key, OpenAI-compatible surface). The
+    // demo's google/gemini-3-flash stays fixture-only — no such live model id.
+    id: "google/gemini-3.5-flash", modelId: "gemini-3.5-flash", apiModel: null, providerId: "google",
+    deployment: "cloud", quantization: null, hardware: null,
+    priceInPerMtokUsd: 0.3, priceOutPerMtokUsd: 2.5, status: "healthy",
     runsCount: 0, reliabilityPct: null, avgVisualScore: null, lastTestedAt: null,
   },
 ];
