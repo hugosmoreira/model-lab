@@ -183,6 +183,22 @@ const seededStores: WeakSet<RunStore> = (globalStash.__modelLabRegistrySeeded ??
  * Endpoint / pack resolution
  * ------------------------------------------------------------------------- */
 
+/**
+ * Output cap for real runs. The demo fixture's 16k starves reasoning models:
+ * their hidden thinking is billed inside the same budget, so a reasoner can
+ * spend the whole cap thinking and return a truncated file — or nothing at all
+ * (observed on run_0cf7aa08: deepseek 16.0k out / 0 chars, gemini cut mid-line).
+ * 32k leaves room to think AND emit a full single-file artifact; spend is
+ * unaffected for models that stop early, and the budget ceiling still guards it.
+ * Override with MODEL_LAB_MAX_OUTPUT_TOKENS.
+ */
+const DEFAULT_MAX_OUTPUT_TOKENS = 32_000;
+
+export function resolveMaxOutputTokens(): number {
+  const raw = Number.parseInt((process.env["MODEL_LAB_MAX_OUTPUT_TOKENS"] ?? "").trim(), 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_MAX_OUTPUT_TOKENS;
+}
+
 /** Env var that must be present for a real (non-mock) provider call. */
 function requiredKeyEnv(providerId: string): string | null {
   switch (providerId) {
@@ -679,7 +695,7 @@ export async function startRun(input: StartRunInput): Promise<{ runId: string }>
     // verified MVP: 1 sample per task — the runner iterates the task list
     samplesPerModel: verified ? 1 : input.samplesPerModel,
     temperature: defaultRunConfiguration.temperature,
-    maxOutputTokens: defaultRunConfiguration.maxOutputTokens,
+    maxOutputTokens: resolveMaxOutputTokens(),
     seed: defaultRunConfiguration.seed,
     concurrency: workspaceSettings.defaultConcurrency,
     maxBudgetUsd: workspaceSettings.defaultRunBudgetUsd,

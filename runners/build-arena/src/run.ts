@@ -10,6 +10,10 @@
  *    (warn) then run.partial and cancel all remaining sample generation
  *  - artifact contract: strip ``` fences, require <html or <!DOCTYPE, single
  *    file, ≤2MB — violation → sample.failed(reason "contract")
+ *  - TRUNCATION (finish_reason "length") is a harness limit, not a model
+ *    result: it emits its own check.warn and is named in the failure message,
+ *    so a cut-off answer is never reported as a contract violation or as a
+ *    model that shipped a broken document
  *  - full RunEvent stream persisted to events.jsonl; run.json snapshots after
  *    every sample
  *  - verified mode (Phase 5): per endpoint iterate the pack's TASK list
@@ -45,6 +49,7 @@ import { FsRunStore } from "./store-fs";
 import {
   RUNNER_VERSION,
   type EndpointConfig,
+  type FinishReason,
   type GenerateRequest,
   type Provider,
   type RunHandle,
@@ -111,6 +116,29 @@ interface GenResult {
   latencyMs: number;
   tokensIn: number;
   tokensOut: number;
+  /** null when the provider reported none */
+  finishReason: FinishReason | null;
+  /** hidden reasoning tokens billed inside tokensOut */
+  reasoningTokens: number;
+}
+
+/** "16.0k" / "950" — token counts read the same everywhere they surface. */
+function fmtTokens(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+}
+
+/**
+ * A truncated generation is OUR fault, not the model's: the answer was cut off
+ * at the configured cap. Phrase it so a reader never mistakes it for the model
+ * writing a broken document, and name the reasoning spend when that is what
+ * consumed the budget.
+ */
+function truncationNote(gen: GenResult, capTokens: number): string {
+  const reasoning =
+    gen.reasoningTokens > 0
+      ? ` — ${fmtTokens(gen.reasoningTokens)} of it on hidden reasoning`
+      : "";
+  return `output truncated at the ${fmtTokens(capTokens)}-token cap (${fmtTokens(gen.tokensOut)} out${reasoning})`;
 }
 
 interface ModelState {
@@ -316,6 +344,8 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     let ttftMs: number | null = null;
     let tokensIn = 0;
     let tokensOut = 0;
+    let finishReason: FinishReason | null = null;
+    let reasoningTokens = 0;
     const req: GenerateRequest = {
       prompt: task !== undefined ? task.prompt : cfg.pack.prompt,
       model: ep.model,
@@ -335,10 +365,20 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       } else {
         tokensIn = chunk.tokensIn;
         tokensOut = chunk.tokensOut;
+        finishReason = chunk.finishReason ?? null;
+        reasoningTokens = chunk.reasoningTokens ?? 0;
       }
     }
     if (tokensOut === 0 && text.length > 0) tokensOut = Math.ceil(text.length / 4);
-    return { text, ttftMs, latencyMs: Date.now() - started, tokensIn, tokensOut };
+    return {
+      text,
+      ttftMs,
+      latencyMs: Date.now() - started,
+      tokensIn,
+      tokensOut,
+      finishReason,
+      reasoningTokens,
+    };
   };
 
   const recordFailure = (
@@ -465,13 +505,30 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     st.latencies.push(gen.latencyMs);
     const toksPerSec =
       gen.latencyMs > 0 ? Math.round(gen.tokensOut / (gen.latencyMs / 1000)) : gen.tokensOut;
+    const reasoningNote =
+      gen.reasoningTokens > 0 ? ` · ${fmtTokens(gen.reasoningTokens)} reasoning` : "";
     emit("token.usage", {
       endpointId: ep.id,
       sampleIndex: s,
-      message: `${(gen.tokensOut / 1000).toFixed(1)}k out · ${toksPerSec} tok/s`,
+      message: `${(gen.tokensOut / 1000).toFixed(1)}k out · ${toksPerSec} tok/s${reasoningNote}`,
       // ttftMs: request start → first streamed delta (measured in streamOnce)
       payload: { tokensIn: gen.tokensIn, tokensOut: gen.tokensOut, toksPerSec, ttftMs: gen.ttftMs },
     });
+    /**
+     * Truncation is a harness limit, not a model result. Surface it loudly and
+     * separately from the checks so a cut-off build is never read as a model
+     * that wrote a broken document.
+     */
+    const truncated = gen.finishReason === "length";
+    if (truncated) {
+      emit("check.warn", {
+        endpointId: ep.id,
+        sampleIndex: s,
+        level: "warn",
+        message: `${truncationNote(gen, cfg.maxOutputTokens)} — raise maxOutputTokens for a fair comparison`,
+        payload: { truncated: true, reasoningTokens: gen.reasoningTokens },
+      });
+    }
 
     // -- immutable raw output ------------------------------------------
     try {
@@ -483,7 +540,11 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     // -- artifact contract ---------------------------------------------
     const extracted = extractArtifactHtml(gen.text);
     if (!extracted.ok) {
-      recordFailure(ep, st, s, "contract", `sample ${s}: contract violation — ${extracted.violation}`, gen, [], cost, false);
+      // A truncated answer isn't a contract violation — say what actually happened.
+      const why = truncated
+        ? `${truncationNote(gen, cfg.maxOutputTokens)}${gen.text.trim() === "" ? " — no answer text at all" : ""}`
+        : `contract violation — ${extracted.violation}`;
+      recordFailure(ep, st, s, "contract", `sample ${s}: ${why}`, gen, [], cost, false);
       st.samplesFinished += 1;
       finishSample();
       return;
@@ -577,11 +638,10 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     st.status = "scoring";
     if (renderFailed) {
       const firstFail = outcome.checks.find((c) => c.status === "failed");
-      recordFailure(
-        ep, st, s, "render.failed",
-        `sample ${s}: ${firstFail?.note ?? "render failed"}`,
-        gen, outcome.checks, cost, true,
-      );
+      // Truncation explains a render failure; without it the log reads as if
+      // the model shipped a broken raycaster.
+      const detail = `${firstFail?.note ?? "render failed"}${truncated ? ` — ${truncationNote(gen, cfg.maxOutputTokens)}` : ""}`;
+      recordFailure(ep, st, s, "render.failed", `sample ${s}: ${detail}`, gen, outcome.checks, cost, true);
     } else {
       const score = outcome.degraded || total === 0 ? null : round1((passed / total) * 10);
       if (score !== null) st.scores.push(score);
@@ -673,9 +733,21 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     emit("token.usage", {
       endpointId: ep.id,
       sampleIndex: s,
-      message: `${(gen.tokensOut / 1000).toFixed(1)}k out · ${toksPerSec} tok/s`,
+      message: `${(gen.tokensOut / 1000).toFixed(1)}k out · ${toksPerSec} tok/s${
+        gen.reasoningTokens > 0 ? ` · ${fmtTokens(gen.reasoningTokens)} reasoning` : ""
+      }`,
       payload: { tokensIn: gen.tokensIn, tokensOut: gen.tokensOut, toksPerSec, ttftMs: gen.ttftMs },
     });
+    const truncated = gen.finishReason === "length";
+    if (truncated) {
+      emit("check.warn", {
+        endpointId: ep.id,
+        sampleIndex: s,
+        level: "warn",
+        message: `${truncationNote(gen, cfg.maxOutputTokens)} — raise maxOutputTokens for a fair comparison`,
+        payload: { truncated: true, reasoningTokens: gen.reasoningTokens },
+      });
+    }
 
     // -- immutable raw output ------------------------------------------
     try {
@@ -688,11 +760,11 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     st.status = "scoring";
     const outcome = scoreObjective(task, gen.text);
     if (!outcome.ok) {
-      recordFailure(
-        ep, st, s, "contract",
-        `sample ${s}: contract violation — ${outcome.violation}`,
-        gen, [outcome.trace], cost, false,
-      );
+      // Same rule as build-arena: a cut-off answer is reported as truncation.
+      const why = truncated
+        ? truncationNote(gen, cfg.maxOutputTokens)
+        : `contract violation — ${outcome.violation}`;
+      recordFailure(ep, st, s, "contract", `sample ${s}: ${why}`, gen, [outcome.trace], cost, false);
     } else {
       // tasks passed / task total (RunModel "TESTS n/m" display)
       st.testsTotal = samplesPerEndpoint;

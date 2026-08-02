@@ -142,7 +142,12 @@ const CreateRunResponse = z.object({ runId: z.string().min(1) });
 
 /* ------------------------------------------------------------------ */
 
-export function NewRunWizard() {
+/**
+ * `maxOutputTokens` comes from the server because the effective cap is resolved
+ * there (env-overridable) and differs from the demo run's recorded 16k — the
+ * wizard must show the number the run will actually use.
+ */
+export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) {
   const router = useRouter();
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState<string | null>(null);
@@ -292,7 +297,11 @@ export function NewRunWizard() {
   /* Shared generation settings (step 4) — read-only value chips this phase. */
   const params: { name: string; sub: string; val: string }[] = [
     { name: "Temperature", sub: "identical across models", val: String(cfg.temperature) },
-    { name: "Max output tokens", sub: "hard cap per sample", val: groupThousands(cfg.maxOutputTokens) },
+    {
+      name: "Max output tokens",
+      sub: "hard cap per sample · includes hidden reasoning",
+      val: groupThousands(maxOutputTokens ?? cfg.maxOutputTokens),
+    },
     {
       name: "Seed",
       sub: `where supported · ${seedSupportedCount}/${n} models`,

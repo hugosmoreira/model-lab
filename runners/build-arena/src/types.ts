@@ -89,10 +89,25 @@ export interface RunnerConfig {
   judge?: JudgeConfig;
 }
 
+/**
+ * Why a generation stopped. "length" means the provider truncated the answer
+ * at our maxTokens cap — the model was cut off, it did not choose to stop.
+ * Adapters normalize provider spellings (Anthropic "max_tokens" → "length").
+ */
+export type FinishReason = "stop" | "length" | "content_filter" | "other";
+
 /** Streaming chunks every provider adapter emits: deltas, then one usage. */
 export type ProviderChunk =
   | { type: "delta"; text: string }
-  | { type: "usage"; tokensIn: number; tokensOut: number };
+  | {
+      type: "usage";
+      tokensIn: number;
+      tokensOut: number;
+      /** null when the provider reported none */
+      finishReason?: FinishReason | null;
+      /** hidden reasoning tokens billed inside tokensOut (0 when none/unknown) */
+      reasoningTokens?: number;
+    };
 
 export interface GenerateRequest {
   system?: string;

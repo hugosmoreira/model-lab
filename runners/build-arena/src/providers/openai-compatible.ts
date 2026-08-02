@@ -2,8 +2,8 @@
  * OpenAI-compatible /chat/completions streaming adapter.
  * Covers OpenAI, OpenRouter, and any explicit base URL; Ollama subclasses it.
  */
-import type { BaseKind, GenerateRequest, Provider, ProviderChunk } from "../types";
-import { approxTokens, errorMessage, readSse, scrubSecrets } from "./util";
+import type { BaseKind, FinishReason, GenerateRequest, Provider, ProviderChunk } from "../types";
+import { approxTokens, errorMessage, normalizeFinishReason, readSse, scrubSecrets } from "./util";
 
 export interface OpenAiCompatibleOptions {
   baseUrl: string;
@@ -123,6 +123,9 @@ export class OpenAiCompatibleProvider implements Provider {
     let tokensOut = 0;
     let sawUsage = false;
     let textLength = 0;
+    let reasoningLength = 0;
+    let reasoningTokens = 0;
+    let finishReason: FinishReason | null = null;
     for await (const sse of readSse(res.body)) {
       if (sse.data === "[DONE]") break;
       let parsed: unknown;
@@ -143,16 +146,38 @@ export class OpenAiCompatibleProvider implements Provider {
         textLength += delta.length;
         yield { type: "delta", text: delta };
       }
+      /**
+       * Reasoning deltas are NOT answer text — DeepSeek streams them as
+       * `reasoning_content`, OpenRouter as `reasoning`. They are billed inside
+       * completion_tokens and consume the same max_tokens budget, so a model
+       * can spend the entire cap thinking and emit no answer at all. Measure
+       * them so that case is diagnosable instead of looking like an empty reply.
+       */
+      const reasoningDelta: unknown =
+        chunk?.choices?.[0]?.delta?.reasoning_content ?? chunk?.choices?.[0]?.delta?.reasoning;
+      if (typeof reasoningDelta === "string") reasoningLength += reasoningDelta.length;
+      const rawFinish = normalizeFinishReason(chunk?.choices?.[0]?.finish_reason);
+      if (rawFinish !== null) finishReason = rawFinish;
       if (chunk?.usage !== undefined && chunk.usage !== null) {
         tokensIn = Number(chunk.usage.prompt_tokens ?? 0);
+        // Caveat: Google's OpenAI-compatible surface reports VISIBLE completion
+        // tokens only and no reasoning breakdown, so tokensOut (and the cost
+        // derived from it) under-counts thinking on Gemini. finishReason is the
+        // reliable truncation signal there, not the token count.
         tokensOut = Number(chunk.usage.completion_tokens ?? 0);
+        reasoningTokens = Number(chunk.usage.completion_tokens_details?.reasoning_tokens ?? 0);
         sawUsage = true;
       }
     }
     if (!sawUsage) {
       tokensIn = approxTokens(req.prompt);
-      tokensOut = textLength > 0 ? Math.ceil(textLength / 4) : 0;
+      tokensOut =
+        textLength + reasoningLength > 0 ? Math.ceil((textLength + reasoningLength) / 4) : 0;
     }
-    yield { type: "usage", tokensIn, tokensOut };
+    // Providers that stream reasoning but omit the usage breakdown (DeepSeek).
+    if (reasoningTokens === 0 && reasoningLength > 0) {
+      reasoningTokens = Math.min(tokensOut, Math.ceil(reasoningLength / 4));
+    }
+    yield { type: "usage", tokensIn, tokensOut, finishReason, reasoningTokens };
   }
 }

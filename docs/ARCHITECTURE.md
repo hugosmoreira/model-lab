@@ -53,6 +53,25 @@ The OpenAI-compatible adapter adapts its request shape when a server rejects leg
 parameters (e.g. `max_tokens` → `max_completion_tokens`), retrying at most once per
 distinct complaint.
 
+### Truncation is reported as a harness limit, not a model result
+
+Every adapter reports a normalized `finishReason`, and `"length"` means *we* cut the
+answer off at `maxOutputTokens`. Reasoning models make this easy to misread: their
+hidden thinking is billed inside the same output budget, so a reasoner can spend the
+entire cap thinking and return nothing at all. Adapters therefore also measure
+reasoning tokens — from `completion_tokens_details.reasoning_tokens`, or by
+measuring the `reasoning_content` / `reasoning` deltas that DeepSeek and OpenRouter
+stream but never count.
+
+A truncated sample emits its own `check.warn` and names the cap and the reasoning
+spend in the failure message, so it can never be read as a model that violated the
+artifact contract or shipped a broken document. The default cap for real runs is
+32k (`MODEL_LAB_MAX_OUTPUT_TOKENS` overrides it).
+
+Caveat: Google's OpenAI-compatible surface reports visible completion tokens only
+and no reasoning breakdown, so token counts — and the cost derived from them —
+under-count thinking on Gemini. `finishReason` remains reliable there.
+
 ## Scoring
 
 Four sources, always labeled separately — no score type is presented as another:

@@ -2,8 +2,8 @@
  * Anthropic Messages API adapter (raw fetch + SSE, no SDK dependency).
  * Key from env ANTHROPIC_API_KEY; never logged (scrubbed error paths only).
  */
-import type { GenerateRequest, Provider, ProviderChunk } from "../types";
-import { errorMessage, readSse, scrubSecrets } from "./util";
+import type { FinishReason, GenerateRequest, Provider, ProviderChunk } from "../types";
+import { errorMessage, normalizeFinishReason, readSse, scrubSecrets } from "./util";
 
 const DEFAULT_BASE_URL = "https://api.anthropic.com";
 const ANTHROPIC_VERSION = "2023-06-01";
@@ -59,6 +59,7 @@ export class AnthropicProvider implements Provider {
 
     let tokensIn = 0;
     let tokensOut = 0;
+    let finishReason: FinishReason | null = null;
     for await (const sse of readSse(res.body)) {
       let parsed: unknown;
       try {
@@ -77,6 +78,9 @@ export class AnthropicProvider implements Provider {
         }
       } else if (type === "message_delta") {
         tokensOut = Number(msg?.usage?.output_tokens ?? tokensOut);
+        // stop_reason "max_tokens" → our "length": the cap cut the answer off.
+        const stop = normalizeFinishReason(msg?.delta?.stop_reason);
+        if (stop !== null) finishReason = stop;
       } else if (type === "error") {
         throw new Error(
           scrubSecrets(`anthropic stream error: ${JSON.stringify(msg?.error ?? msg).slice(0, 300)}`),
@@ -85,6 +89,6 @@ export class AnthropicProvider implements Provider {
         break;
       }
     }
-    yield { type: "usage", tokensIn, tokensOut };
+    yield { type: "usage", tokensIn, tokensOut, finishReason, reasoningTokens: 0 };
   }
 }

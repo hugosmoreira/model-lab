@@ -3,6 +3,7 @@
  * SECURITY (audit §11 M-3): keys must never appear in logs or error messages —
  * every provider routes error text through scrubSecrets/errorMessage.
  */
+import type { FinishReason } from "../types";
 
 /** Redact anything that looks like a credential from arbitrary text. */
 export function scrubSecrets(text: string): string {
@@ -16,6 +17,20 @@ export function scrubSecrets(text: string): string {
 export function errorMessage(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err);
   return scrubSecrets(raw).slice(0, 300);
+}
+
+/**
+ * Normalize a provider's stop reason to our FinishReason union. Everything
+ * that means "we hit the output cap" collapses to "length" — that distinction
+ * is what separates a truncated answer from a bad one.
+ */
+export function normalizeFinishReason(raw: unknown): FinishReason | null {
+  if (typeof raw !== "string" || raw === "") return null;
+  const value = raw.toLowerCase();
+  if (value === "length" || value === "max_tokens" || value === "model_length") return "length";
+  if (value === "stop" || value === "end_turn" || value === "stop_sequence") return "stop";
+  if (value === "content_filter" || value === "refusal") return "content_filter";
+  return "other";
 }
 
 /** Rough token estimate (~4 chars/token) for providers that omit usage. */
