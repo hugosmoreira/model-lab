@@ -41,6 +41,7 @@ import type {
   GenerateRequest,
   JudgeConfig,
   Provider,
+  RequestImage,
   RunnerConfig,
   StoredArtifact,
 } from "./types";
@@ -51,6 +52,13 @@ export const JUDGE_TEMPERATURE = 0;
 export const RENDER_FAILED_SCORE_CAP = 5.0;
 /** Artifact HTML is truncated to this many chars per slot in judge prompts. */
 export const JUDGE_MAX_HTML_CHARS = 60_000;
+/**
+ * Budget-projection allowance per attached capture. The checks runner captures
+ * at 1280×720, which costs about (1280×720)/750 ≈ 1229 input tokens on
+ * Anthropic; rounded up so the ceiling is never crossed by a projection that
+ * ignored the images. Actual spend always uses the provider's reported usage.
+ */
+export const JUDGE_IMAGE_TOKENS_ESTIMATE = 1_300;
 
 const round1 = (n: number): number => Math.round(n * 10) / 10;
 const round4 = (n: number): number => Math.round(n * 10_000) / 10_000;
@@ -99,6 +107,8 @@ interface JudgedModel {
   html: string;
   /** false = artifact failed to render → rubric-only, capped at 5.0 */
   renderOk: boolean;
+  /** the rendered capture, when one was saved and could be read */
+  capture: RequestImage | null;
 }
 
 /* ------------------------------------------------------------------------- *
@@ -175,7 +185,27 @@ function truncatedHtml(html: string): string {
   return `${html.slice(0, JUDGE_MAX_HTML_CHARS)}\n<!-- [truncated for judging: ${html.length - JUDGE_MAX_HTML_CHARS} chars omitted] -->`;
 }
 
-function rubricPrompt(brief: string, html: string, renderFailed: boolean): string {
+/**
+ * What the judge is told it is looking at. A grade derived from source alone is
+ * a CODE grade and must never be presented as a visual one — so the prompt says
+ * which it is, and the emitted vote records it (`sawRender`).
+ */
+function evidenceNote(sawRender: boolean, plural: boolean): string {
+  return sawRender
+    ? `The image${plural ? "s" : ""} above ${plural ? "are" : "is"} the ACTUAL rendered frame ` +
+        `captured from a headless browser. Judge what you SEE first — whether it looks like the ` +
+        `brief describes — and use the source only to explain what you see.\n`
+    : `NO rendered capture is available for this build, so you are reading SOURCE ONLY. ` +
+        `You cannot assess how it looks. Grade implementation correctness and intent, and do ` +
+        `not speculate about visual quality.\n`;
+}
+
+export function rubricPrompt(
+  brief: string,
+  html: string,
+  renderFailed: boolean,
+  sawRender: boolean,
+): string {
   const renderNote = renderFailed
     ? "\nNOTE: this artifact FAILED to render in a headless browser. Grade the " +
       `code's INTENT only and cap your score at ${RENDER_FAILED_SCORE_CAP.toFixed(1)}.\n`
@@ -183,29 +213,38 @@ function rubricPrompt(brief: string, html: string, renderFailed: boolean): strin
   return (
     "A model was asked to complete this challenge brief:\n\n<brief>\n" +
     brief +
-    "\n</brief>\n\nHere is the FULL HTML source the model produced:\n\n<artifact>\n" +
+    "\n</brief>\n\n" +
+    evidenceNote(sawRender, false) +
+    "\nHere is the FULL HTML source the model produced:\n\n<artifact>\n" +
     truncatedHtml(html) +
     "\n</artifact>\n" +
     renderNote +
-    "\nGrade how well this build adheres to the brief on a 0-10 scale (one " +
-    "decimal place), weighing: playability, textured walls, WASD movement, " +
-    "minimap present, single-file/no-network compliance, and code quality.\n\n" +
+    "\nGrade how well this build fulfills the brief on a 0-10 scale (one " +
+    "decimal place). Weigh whether it actually WORKS as described over whether " +
+    "the code looks tidy — a build that renders the wrong thing scores low no " +
+    "matter how clean its source is.\n\n" +
     'Respond with STRICT JSON only, exactly this shape:\n{"score": <number 0-10, one decimal>, "commentary": "<2-3 sentences>"}'
   );
 }
 
-function pairPrompt(brief: string, htmlA: string, htmlB: string): string {
+function pairPrompt(
+  brief: string,
+  htmlA: string,
+  htmlB: string,
+  sawRender: boolean,
+): string {
   return (
     "Two anonymous builds — Build A and Build B — attempt the same challenge " +
     "brief:\n\n<brief>\n" +
     brief +
-    "\n</brief>\n\nBuild A:\n<build_a>\n" +
+    "\n</brief>\n\n" +
+    evidenceNote(sawRender, true) +
+    "\nBuild A:\n<build_a>\n" +
     truncatedHtml(htmlA) +
     "\n</build_a>\n\nBuild B:\n<build_b>\n" +
     truncatedHtml(htmlB) +
-    "\n</build_b>\n\nWhich build better fulfills the brief? Consider " +
-    "playability, textured walls, WASD movement, minimap, single-file/" +
-    "no-network compliance, and code quality. \"tie\" only when they are " +
+    "\n</build_b>\n\nWhich build better fulfills the brief? Weigh whether each " +
+    'actually WORKS as described over source tidiness. "tie" only when they are ' +
     "genuinely indistinguishable in quality.\n\n" +
     'Respond with STRICT JSON only, exactly this shape:\n{"winner": "A"|"B"|"tie", "reasoning": "<1-2 sentences>"}'
   );
@@ -240,10 +279,12 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
     const estTokensIn = Math.ceil(promptChars / 4) + 200;
     return (estTokensIn * judge.priceInPerMtokUsd + JUDGE_MAX_TOKENS * judge.priceOutPerMtokUsd) / 1_000_000;
   };
-  const budgetAllows = (promptChars: number): boolean => {
+  const budgetAllows = (promptChars: number, imageCount = 0): boolean => {
     if (budgetExhausted) return false;
     if (cfg.maxBudgetUsd <= 0) return true;
-    const projected = options.getSpentUsd() + estimateCallCost(promptChars);
+    const imageCost =
+      (imageCount * JUDGE_IMAGE_TOKENS_ESTIMATE * judge.priceInPerMtokUsd) / 1_000_000;
+    const projected = options.getSpentUsd() + estimateCallCost(promptChars) + imageCost;
     if (projected < cfg.maxBudgetUsd) return true;
     budgetExhausted = true;
     emit("budget.status", {
@@ -259,8 +300,18 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
     return false;
   };
 
+  /**
+   * Vision is opt-out-on-failure, never opt-out-in-silence: if the first call
+   * carrying captures fails, we retry that same call without them, flip this
+   * flag for the rest of the phase, and every vote from then on records
+   * sawRender:false. A judge that could not see must never be reported as one
+   * that did.
+   */
+  let visionEnabled = true;
+  let visionDisabledReason: string | null = null;
+
   /** One judge call: stream, collect text, charge cost, emit budget.status. */
-  const judgeCall = async (prompt: string): Promise<string> => {
+  const judgeCall = async (prompt: string, images: RequestImage[] = []): Promise<string> => {
     const req: GenerateRequest = {
       system: JUDGE_SYSTEM,
       prompt,
@@ -268,6 +319,7 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
       temperature: JUDGE_TEMPERATURE,
       maxTokens: JUDGE_MAX_TOKENS,
     };
+    if (images.length > 0) req.images = images;
     if (options.signal !== undefined) req.signal = options.signal;
     let text = "";
     let tokensIn = 0;
@@ -299,15 +351,44 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
     return text;
   };
 
+  /**
+   * Send with captures; on a provider error (a judge model or server without
+   * vision), fall back to the identical call without them and disable vision
+   * for the remainder of the phase. Returns what the judge actually saw.
+   */
+  const judgeCallSeeing = async (
+    prompt: string,
+    images: RequestImage[],
+  ): Promise<{ text: string; sawRender: boolean }> => {
+    const send = visionEnabled ? images : [];
+    if (send.length === 0) return { text: await judgeCall(prompt), sawRender: false };
+    try {
+      return { text: await judgeCall(prompt, send), sawRender: true };
+    } catch (err) {
+      visionEnabled = false;
+      visionDisabledReason = errorMessage(err);
+      emit("check.warn", {
+        level: "warn",
+        message: `judge: ${judge.model} rejected the rendered capture — grading from source only (${visionDisabledReason})`,
+        payload: { judgeVision: false, reason: visionDisabledReason },
+      });
+      return { text: await judgeCall(prompt), sawRender: false };
+    }
+  };
+
   /** Call → parse; one "JSON only" retry on parse failure; null = give up. */
   const judgeCallParsed = async <T>(
     prompt: string,
     parse: (raw: string) => T | null,
-  ): Promise<T | null> => {
-    const first = parse(await judgeCall(prompt));
-    if (first !== null) return first;
+    images: RequestImage[] = [],
+  ): Promise<{ value: T; sawRender: boolean } | null> => {
+    const first = await judgeCallSeeing(prompt, images);
+    const parsedFirst = parse(first.text);
+    if (parsedFirst !== null) return { value: parsedFirst, sawRender: first.sawRender };
     if (!budgetAllows(prompt.length + JSON_ONLY_REMINDER.length)) return null;
-    return parse(await judgeCall(prompt + JSON_ONLY_REMINDER));
+    const second = await judgeCallSeeing(prompt + JSON_ONLY_REMINDER, images);
+    const parsedSecond = parse(second.text);
+    return parsedSecond !== null ? { value: parsedSecond, sawRender: second.sawRender } : null;
   };
 
   // -- best-of-model artifact selection ------------------------------------
@@ -345,7 +426,24 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
       });
       continue;
     }
-    judged.push({ endpoint, artifact: best, html, renderOk: renderable.length > 0 });
+    /**
+     * The capture the browser checks already saved. Missing or unreadable is
+     * normal (degraded runs, no chromium) and never excludes a model — it just
+     * means this model is graded from source, and says so.
+     */
+    let capture: RequestImage | null = null;
+    if (best.screenshotPath !== null) {
+      try {
+        capture = {
+          mediaType: "image/png",
+          dataBase64: readFileSync(best.screenshotPath).toString("base64"),
+          label: `Rendered frame of ${best.filename}:`,
+        };
+      } catch {
+        capture = null;
+      }
+    }
+    judged.push({ endpoint, artifact: best, html, renderOk: renderable.length > 0, capture });
   }
   if (judged.length === 0) return result;
 
@@ -354,11 +452,12 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
   // -- 1. rubric grading (one call per model) ------------------------------
   for (const model of judged) {
     if (options.shouldStop() || budgetExhausted) break;
-    const prompt = rubricPrompt(brief, model.html, !model.renderOk);
-    if (!budgetAllows(prompt.length)) break;
-    let verdict: RubricVerdict | null = null;
+    const images = model.capture !== null && visionEnabled ? [model.capture] : [];
+    const prompt = rubricPrompt(brief, model.html, !model.renderOk, images.length > 0);
+    if (!budgetAllows(prompt.length, images.length)) break;
+    let verdict: { value: RubricVerdict; sawRender: boolean } | null = null;
     try {
-      verdict = await judgeCallParsed(prompt, parseRubricVerdict);
+      verdict = await judgeCallParsed(prompt, parseRubricVerdict, images);
     } catch (err) {
       emit("check.warn", {
         endpointId: model.endpoint.id,
@@ -379,10 +478,14 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
       }
       continue;
     }
-    let { score, commentary } = verdict;
+    let { score, commentary } = verdict.value;
+    const sawRender = verdict.sawRender;
     if (!model.renderOk) {
       score = Math.min(score, RENDER_FAILED_SCORE_CAP);
       commentary = `[render failed — graded on code intent, capped at ${RENDER_FAILED_SCORE_CAP.toFixed(1)}] ${commentary}`;
+    } else if (!sawRender) {
+      // The reader must be able to tell a looked-at grade from a read grade.
+      commentary = `[graded from source only — no rendered capture seen] ${commentary}`;
     }
     model.artifact.judgeCommentary = commentary; // terminal snapshot persists it
     result.rubricScores.set(model.endpoint.id, score);
@@ -390,8 +493,8 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
       endpointId: model.endpoint.id,
       sampleIndex: model.artifact.sampleIndex,
       level: "success",
-      message: `rubric ${score.toFixed(1)}/10 · ${model.endpoint.modelId} brief adherence`,
-      payload: { kind: "rubric", endpointId: model.endpoint.id, score, commentary },
+      message: `rubric ${score.toFixed(1)}/10 · ${model.endpoint.modelId} · ${sawRender ? "saw rendered frame" : "source only"}`,
+      payload: { kind: "rubric", endpointId: model.endpoint.id, score, commentary, sawRender },
     });
   }
 
@@ -405,15 +508,27 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
       const a = pairable[i];
       const b = pairable[j];
       if (a === undefined || b === undefined) continue;
-      const promptAB = pairPrompt(brief, a.html, b.html);
-      const promptBA = pairPrompt(brief, b.html, a.html);
-      if (!budgetAllows(Math.max(promptAB.length, promptBA.length))) continue;
-      let ab: PairVerdict | null = null;
-      let ba: PairVerdict | null = null;
+      /**
+       * Captures are swapped with their source, so the B/A call sees Build A's
+       * slot filled by b's frame — the order-swap control has to cover the
+       * pixels too, or position bias just moves to the images. Both builds must
+       * have a capture, otherwise the pair is judged from source on both sides
+       * rather than one seen and one imagined.
+       */
+      const bothSeen = a.capture !== null && b.capture !== null && visionEnabled;
+      const slot = (m: JudgedModel, name: string): RequestImage =>
+        ({ ...(m.capture as RequestImage), label: `Rendered frame of Build ${name}:` });
+      const imagesAB = bothSeen ? [slot(a, "A"), slot(b, "B")] : [];
+      const imagesBA = bothSeen ? [slot(b, "A"), slot(a, "B")] : [];
+      const promptAB = pairPrompt(brief, a.html, b.html, bothSeen);
+      const promptBA = pairPrompt(brief, b.html, a.html, bothSeen);
+      if (!budgetAllows(Math.max(promptAB.length, promptBA.length), imagesAB.length)) continue;
+      let ab: { value: PairVerdict; sawRender: boolean } | null = null;
+      let ba: { value: PairVerdict; sawRender: boolean } | null = null;
       try {
-        ab = await judgeCallParsed(promptAB, parsePairVerdict);
-        if (ab !== null && budgetAllows(promptBA.length)) {
-          ba = await judgeCallParsed(promptBA, parsePairVerdict);
+        ab = await judgeCallParsed(promptAB, parsePairVerdict, imagesAB);
+        if (ab !== null && budgetAllows(promptBA.length, imagesBA.length)) {
+          ba = await judgeCallParsed(promptBA, parsePairVerdict, imagesBA);
         }
       } catch (err) {
         emit("check.warn", {
@@ -433,12 +548,17 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
         }
         continue;
       }
-      const verdictAB = ab.winner;
+      const verdictAB = ab.value.winner;
       // The B/A call saw the builds swapped — normalize back to canonical slots.
-      const verdictBA = normalizeSwappedVerdict(ba.winner);
+      const verdictBA = normalizeSwappedVerdict(ba.value.winner);
       const reversed = verdictAB !== verdictBA;
+      // A pair is only "seen" if BOTH directions were: a mixed pair is a
+      // source-only comparison, because the two calls did not see the same thing.
+      const sawRender = ab.sawRender && ba.sawRender;
       if (reversed) result.reversalCount += 1;
-      const commentary = `${ab.reasoning}${reversed ? " [REVERSED on order swap]" : ""}`;
+      const commentary =
+        `${ab.value.reasoning}${reversed ? " [REVERSED on order swap]" : ""}` +
+        `${sawRender ? "" : " [source only — no rendered frames seen]"}`;
       result.judgePairs.push({
         runId: cfg.runId,
         pairIndex,
@@ -451,7 +571,7 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
       });
       emit("judge.vote", {
         level: reversed ? "warn" : "info",
-        message: `pair ${pairIndex}: ${a.endpoint.modelId} vs ${b.endpoint.modelId} → A/B ${verdictAB} · B/A ${verdictBA}${reversed ? " ⟲ REVERSED — excluded from tally" : ""}`,
+        message: `pair ${pairIndex}: ${a.endpoint.modelId} vs ${b.endpoint.modelId} → A/B ${verdictAB} · B/A ${verdictBA}${reversed ? " ⟲ REVERSED — excluded from tally" : ""}${sawRender ? "" : " · source only"}`,
         payload: {
           kind: "pair",
           pairIndex,
@@ -460,6 +580,7 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
           verdictAB,
           verdictBA,
           reversed,
+          sawRender,
         },
       });
     }

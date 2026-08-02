@@ -55,9 +55,25 @@ export class OpenAiCompatibleProvider implements Provider {
       throw new Error(`API key is not set for ${baseUrl} (set the provider *_API_KEY env var)`);
     }
 
-    const messages: Array<{ role: string; content: string }> = [];
+    const messages: Array<{ role: string; content: unknown }> = [];
     if (req.system !== undefined) messages.push({ role: "system", content: req.system });
-    messages.push({ role: "user", content: req.prompt });
+    if ((req.images ?? []).length > 0) {
+      // Multimodal shape: content becomes a parts array. A server that does not
+      // support it answers 400, which surfaces as an error rather than a silent
+      // text-only grade — the caller decides whether to retry without images.
+      const parts: Array<Record<string, unknown>> = [];
+      for (const image of req.images ?? []) {
+        parts.push({ type: "text", text: image.label });
+        parts.push({
+          type: "image_url",
+          image_url: { url: `data:${image.mediaType};base64,${image.dataBase64}` },
+        });
+      }
+      parts.push({ type: "text", text: req.prompt });
+      messages.push({ role: "user", content: parts });
+    } else {
+      messages.push({ role: "user", content: req.prompt });
+    }
 
     const body: Record<string, unknown> = {
       model: req.model,

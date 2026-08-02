@@ -109,12 +109,28 @@ export type ProviderChunk =
       reasoningTokens?: number;
     };
 
+/** A rendered capture attached to a request, for judges that can see. */
+export interface RequestImage {
+  /** "image/png" — the only type the checks runner produces today */
+  mediaType: string;
+  dataBase64: string;
+  /** shown to the model so it knows which build a capture belongs to */
+  label: string;
+}
+
 export interface GenerateRequest {
   system?: string;
   prompt: string;
   model: string;
   temperature: number;
   maxTokens: number;
+  /**
+   * Images precede the prompt text in the assembled message. Providers that
+   * cannot accept them must throw rather than silently drop them — a judge
+   * that believes it saw a screenshot and did not would produce exactly the
+   * mislabeled "visual" score this field exists to eliminate.
+   */
+  images?: RequestImage[];
   seed?: number;
   signal?: AbortSignal;
   /** mock determinism: output varies per (model, sampleIndex) */

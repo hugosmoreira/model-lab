@@ -72,6 +72,30 @@ Caveat: Google's OpenAI-compatible surface reports visible completion tokens onl
 and no reasoning breakdown, so token counts — and the cost derived from them —
 under-count thinking on Gemini. `finishReason` remains reliable there.
 
+### The judge looks at the rendered frame
+
+The browser checks already capture a PNG of every artifact, so the judge is given
+that capture alongside the source, and its prompt says which evidence it holds. A
+grade derived from source alone is a *code* grade and is never presented as a
+visual one: every `judge.vote` carries `sawRender`, and a source-only rubric grade
+is prefixed `[graded from source only — no rendered capture seen]`.
+
+Captures are swapped along with the source in the order-swapped pairwise leg —
+otherwise the position-bias control would cover the text and leave the images
+unswapped. A pair counts as seen only when *both* directions saw both frames.
+
+If the judge model or server rejects an image, the identical call is retried
+without it, vision is disabled for the rest of the phase, and every subsequent
+vote records `sawRender: false`. A judge that could not see is never reported as
+one that did.
+
+Why this matters, from a real run (`run_0cf7aa08`): a local qwen build rendered no
+walls at all — a sky gradient, a floor gradient, and a black minimap — and the 12
+browser checks scored it 11/12, level with a working claude build that also scored
+11/12. Grading the same qwen artifact from source scored it 3.2/10 on inferred
+bugs; grading it with the capture scored it 2.1/10 and cited what was actually
+missing on screen. The checks alone could not tell those two builds apart.
+
 ## Scoring
 
 Four sources, always labeled separately — no score type is presented as another:

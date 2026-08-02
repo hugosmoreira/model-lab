@@ -27,12 +27,27 @@ export class AnthropicProvider implements Provider {
     if (this.apiKey === null || this.apiKey === "") {
       throw new Error("ANTHROPIC_API_KEY is not set (anthropic provider)");
     }
+    /**
+     * Images first, then the text — the order Anthropic recommends, and the
+     * order that makes a labeled capture read as context for the question
+     * rather than an afterthought.
+     */
+    const content: Array<Record<string, unknown>> = [];
+    for (const image of req.images ?? []) {
+      content.push({ type: "text", text: image.label });
+      content.push({
+        type: "image",
+        source: { type: "base64", media_type: image.mediaType, data: image.dataBase64 },
+      });
+    }
+    content.push({ type: "text", text: req.prompt });
+
     const body: Record<string, unknown> = {
       model: req.model,
       max_tokens: req.maxTokens,
       temperature: req.temperature,
       stream: true,
-      messages: [{ role: "user", content: req.prompt }],
+      messages: [{ role: "user", content }],
     };
     if (req.system !== undefined) body["system"] = req.system;
     // The Messages API has no seed parameter; endpoints must set supportsSeed=false.
