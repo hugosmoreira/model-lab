@@ -93,8 +93,7 @@ pnpm workspace: `apps/web` (Next.js 15, App Router — UI + local API + SSE),
 `runners/build-arena` (provider adapters, parallel executor, Playwright checks,
 judge phase, reproducible bundle writer), `benchmark-packs/` (versioned challenge
 definitions). Provider keys never reach the browser; generated code never escapes
-the sandbox. See [`docs/REPO_AUDIT_AND_FRONTEND_PLAN.md`](docs/REPO_AUDIT_AND_FRONTEND_PLAN.md)
-for the full architecture and [`SECURITY.md`](SECURITY.md) for the threat model.
+the sandbox. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full architecture and [`SECURITY.md`](SECURITY.md) for the threat model.
 
 ## Honest limitations
 
