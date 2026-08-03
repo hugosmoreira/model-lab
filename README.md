@@ -16,19 +16,25 @@ reproducible run bundle.
 The screenshot above is `run_f0520023` — one identical raycaster prompt sent to
 Claude (cloud), GPT (cloud), and a 17GB Qwen running locally on an RTX 4090:
 
-| Model | Where | Browser tests | Judge rubric | Pairwise (both orders) | Cost |
+| Model | Where | Capability checks | Judge rubric | Pairwise (both orders) | Cost |
 |---|---|---|---|---|---|
-| claude-sonnet-4-6 | Anthropic API | 11/12 | 7.8/10 | beat both | $0.065 |
-| gpt-5-mini | OpenAI API | **12/12** | **8.4/10** | beat qwen, lost to claude | $0.010 |
-| qwen3.5 (17GB, local) | Ollama · RTX 4090 | 11/12 | 5.2/10 | lost both | $0.00 |
+| claude-sonnet-4-6 | Anthropic API | 4/5 — no minimap | 7.8/10 | beat both | $0.065 |
+| gpt-5-mini | OpenAI API | **5/5** | **8.4/10** | beat qwen, lost to claude | $0.010 |
+| qwen3.5 (17GB, local) | Ollama · RTX 4090 | 4/5 — WASD moved nothing | 5.2/10 | lost both | $0.00 |
 
-Total: **$0.32** including 9 judge calls, 2m47s. The methodology surfaced a real
-tension: the judge's rubric scored gpt-5-mini highest, yet picked Claude's build in
-direct comparison — in *both* presentation orders. That's the kind of evidence a
-single leaderboard number hides.
+Browser scoring counts the five capability checks only — a failed gate zeroes the score
+outright, and diagnostics never score ([methodology](docs/ARCHITECTURE.md#scoring)).
+
+Total: **$0.32** including 9 judge calls, 2m47s. All three builds cleared every gate, so
+the two 4/5 rows tie on count but not on build: claude shipped no minimap, qwen's WASD
+moved nothing, and in the wall region claude's frame measured 49.7% edge pixels to qwen's
+2.3%. The methodology also surfaced a real tension: the judge's rubric scored gpt-5-mini
+highest, yet picked Claude's build in direct comparison — in *both* presentation orders.
+That's the kind of evidence a single leaderboard number hides.
 
 The complete run bundle (manifest, per-sample results, artifacts, screenshots,
-judge verdicts) is committed at [`docs/example-run/run_f0520023`](docs/example-run/run_f0520023).
+judge verdicts) is committed at [`docs/example-run/run_f0520023`](docs/example-run/run_f0520023),
+which records the run as it was measured at the time, under the check set then in use.
 
 ## How it works
 
@@ -39,7 +45,7 @@ silently ignored. A hard budget ceiling stops runaway spend.
 
 **Inspect it.** Each generated single-file HTML artifact runs inside a locked-down
 sandbox (`allow-scripts` only, CSP `default-src 'none'`, network blocked) while 12
-Playwright checks probe it for real: does the canvas render, does WASD move the player,
+Playwright checks across three categories probe it for real: does the canvas render, does WASD move the player,
 does it survive a resize, is the HUD readable. Failures are preserved as evidence —
 one failed model never halts a run.
 
