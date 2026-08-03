@@ -96,15 +96,32 @@ browser checks scored it 11/12, level with a working claude build that also scor
 bugs; grading it with the capture scored it 2.1/10 and cited what was actually
 missing on screen. The checks alone could not tell those two builds apart.
 
+The checks can now. `canvas.renders`, `minimap.present`, and `textures.applied`
+measure the captured frame's pixels rather than the DOM, and a raycaster frame has
+to show vertical structure — column-to-column variation across the middle band —
+which a smooth two-stop gradient has none of. That same qwen artifact now fails the
+`canvas.renders` gate with "no vertical structure — gradient only", which zeroes its
+headline score; the judge's capture-based grade is corroboration, no longer the only
+thing that noticed.
+
 ## Scoring
 
 Four sources, always labeled separately — no score type is presented as another:
 
-- **Objective / browser** — 12 named Playwright checks per artifact
-  (`html.parses`, `page.loads`, `console.clean`, `canvas.renders`, `interaction.wasd`,
-  `interaction.mouse`, `minimap.present`, `screenshot.captured`, `textures.applied`,
-  `fps.stable`, `resize.handled`, `a11y.contrast`). Verified mode swaps these for
-  objective task scorers (exact-match, contains, JSON-field).
+- **Objective / browser** — 12 named Playwright checks per artifact, in three
+  categories that answer different questions and are never averaged together:
+
+  | category | checks | how it scores |
+  | --- | --- | --- |
+  | **gate** | `html.parses`, `page.loads`, `console.clean`, `canvas.renders` | correctness precondition — one failed gate means the artifact is broken, so the headline score is 0 and the reason names the gate |
+  | **capability** | `interaction.wasd`, `interaction.mouse`, `minimap.present`, `textures.applied`, `resize.handled` | did the model build what the brief asked for — **this is the headline score**, capability passed / capability total |
+  | **diagnostic** | `screenshot.captured`, `fps.stable`, `a11y.contrast` | reported, never scored |
+
+  Diagnostics do not score because they measure the harness rather than the build:
+  `screenshot.captured` says Playwright wrote a PNG, `fps.stable` says this machine's
+  compositor kept up, and `a11y.contrast` samples DOM chrome rather than the 3D view —
+  a model can neither earn nor lose them by building well. Verified mode swaps the
+  whole set for objective task scorers (exact-match, contains, JSON-field).
 - **LLM judge** — per-model rubric grading plus pairwise comparison of anonymized
   builds judged in *both* presentation orders. A verdict that flips under order-swap
   is flagged ⟲ and excluded from the aggregate tally. Judge spend counts against the

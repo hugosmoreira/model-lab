@@ -13,7 +13,7 @@ export interface CategoryBarDatum {
 
 export interface CategoryRow {
   name: string;
-  /** scorer sublabel, mono ("browser scorer · 12 checks") */
+  /** scorer sublabel, mono ("browser scorer · 5 capability checks of 12") */
   scorer: string;
   /** one bar per model, canonical run order */
   bars: CategoryBarDatum[];

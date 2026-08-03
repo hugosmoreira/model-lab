@@ -5,10 +5,14 @@ import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import type { BrowserTestResult, HumanAnnotation } from "@model-lab/schemas";
 import { EmptyState, ModelDot, SectionLabel } from "@/components/ui/primitives";
+import { CATEGORY_META, categoryOf } from "@/lib/checks";
 import { hhmmss, tokensK, ttft } from "@/lib/format";
 import { encodeEndpointId, isFailed, scoreText, type SampleRowData } from "./shared";
 
 const mono = { fontFamily: "var(--font-mono)" } as const;
+
+/** Legend for the per-line category tags. */
+const TRACE_CAPTION = "cap = scored · gate = precondition · diag = harness";
 
 /** Check-status glyphs: ✓ pass / ✗ fail / – skipped (all carry the note text). */
 const TRACE_MARKS: Record<BrowserTestResult["status"], { mark: string; color: string }> = {
@@ -296,16 +300,29 @@ export function SampleDetail({
                   <CodeBlock>{s.rawExcerpt}</CodeBlock>
                 </Section>
 
-                <Section label="Scorer trace">
+                {/* Each line carries its category: cap = scored, gate = a
+                    precondition that zeroes the score, diag = harness only. */}
+                <Section label="Scorer trace" caption={TRACE_CAPTION}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
                     {s.scorerTrace.map((t) => {
                       const m = TRACE_MARKS[t.status];
+                      const category = categoryOf(t);
+                      const failedGate = category === "gate" && t.status === "failed";
                       return (
                         <span
                           key={t.name}
                           style={{ ...mono, fontSize: 11.5, display: "flex", gap: 8 }}
                         >
                           <span style={{ color: m.color, flex: "0 0 auto" }}>{m.mark}</span>
+                          <span
+                            aria-label={`${category} check`}
+                            style={{
+                              flex: "0 0 30px",
+                              color: failedGate ? "var(--color-red)" : "var(--color-faint)",
+                            }}
+                          >
+                            {CATEGORY_META[category].tag}
+                          </span>
                           <span style={{ color: "var(--color-muted)", minWidth: 0 }}>
                             {t.name}
                             {t.note ? ` — ${t.note}` : ""}

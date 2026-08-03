@@ -8,6 +8,7 @@ import { CategoryBars, type CategoryRow } from "@/components/charts/CategoryBars
 import { CostQualityScatter, type ScatterPoint } from "@/components/charts/CostQualityScatter";
 import { LatencyBands, type LatencyBandRow } from "@/components/charts/LatencyBands";
 import { WTLMatrix } from "@/components/charts/WTLMatrix";
+import { capabilityForModel, type CapabilityTally } from "@/lib/checks";
 import { endpointProviderLabel, modelColor, modelIdOf, shortNameOf } from "@/lib/data";
 import { getRunView } from "@/lib/server/loaders";
 import { mmss, seconds, usd } from "@/lib/format";
@@ -172,6 +173,29 @@ export default async function ResultsPage({
   const judgeScorer = runConfiguration.scorers.find((s) => s.type === "llm-judge");
   const checksTotal = view.checksTotal;
 
+  /**
+   * The headline browser number is the CAPABILITY ratio — did the model build
+   * what the brief asked for. Gates (html.parses, page.loads, console.clean,
+   * canvas.renders) are correctness preconditions: one failed gate means the
+   * artifact is broken, so the ratio is 0 and the gate is named rather than the
+   * model being shown as a partial pass. Diagnostics (screenshot.captured,
+   * fps.stable, a11y.contrast) measure the harness and are never scored.
+   *
+   * Read per model from that model's own stored traces (they carry the
+   * category, and a legacy trace classifies correctly by check name), falling
+   * back to the RunModel rollup for runs that stored no artifacts.
+   */
+  const capabilityFor = (endpointId: string): CapabilityTally => {
+    const rm = runModels.find((m) => m.endpointId === endpointId);
+    return capabilityForModel(
+      view.artifacts.filter((a) => a.endpointId === endpointId).map((a) => a.checks),
+      { passed: rm?.testsPassed ?? null, total: rm?.testsTotal ?? view.capabilityTotal },
+    );
+  };
+  const capabilityByEndpoint = new Map(
+    runModels.map((rm): [string, CapabilityTally] => [rm.endpointId, capabilityFor(rm.endpointId)]),
+  );
+
   // Scored annotations make a run human-scored even without a configured
   // human scorer — visual ratings arrive post-run via the audit trail.
   const hasHumanRatings = view.annotations.some((a) => a.scoreOverride != null);
@@ -222,19 +246,25 @@ export default async function ResultsPage({
       : [
           {
             name: "Browser tests",
-            scorer: `browser scorer · ${checksTotal} checks`,
+            scorer: `browser scorer · ${view.capabilityTotal} capability checks of ${checksTotal}`,
             bars: runModels.map((rm) => {
-              const passed = rm.testsPassed;
-              const total = rm.testsTotal ?? checksTotal;
+              const cap = capabilityByEndpoint.get(rm.endpointId);
+              const passed = cap?.passed ?? null;
+              const total = cap?.total ?? view.capabilityTotal;
               return {
                 key: rm.endpointId,
                 color: modelColor(rm.endpointId),
                 pct: passed != null && total > 0 ? (passed / total) * 100 : 0,
                 label:
-                  passed != null ? (
-                    `${passed}/${total}`
-                  ) : (
+                  passed == null ? (
                     <span style={{ color: "var(--color-faint)" }}>—</span>
+                  ) : cap?.gateName != null ? (
+                    // Not a partial pass: a failed gate means the build is broken.
+                    <span style={{ color: "var(--color-red)" }}>
+                      {passed}/{total} · gate {cap.gateName}
+                    </span>
+                  ) : (
+                    `${passed}/${total}`
                   ),
               };
             }),
@@ -615,13 +645,15 @@ export default async function ResultsPage({
           <div style={{ flex: "1 1 300px", minWidth: 0, display: "flex", flexDirection: "column", gap: 12 }}>
             {runModels.map((rm) => {
               const failed = rm.failedSampleCount > 0;
+              const cap = capabilityByEndpoint.get(rm.endpointId);
+              const gated = cap?.gateName != null;
               return (
                 <section
                   key={rm.endpointId}
                   className="panel"
                   style={{
                     padding: "13px 15px",
-                    borderColor: failed ? "var(--color-danger-border)" : undefined,
+                    borderColor: failed || gated ? "var(--color-danger-border)" : undefined,
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10 }}>
@@ -657,11 +689,15 @@ export default async function ResultsPage({
                         )}
                       </span>
                     </span>
+                    {/* Capability ratio — a failed gate shows 0 in the failure
+                        color with the gate named below, never as a partial pass. */}
                     <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                      <span style={{ color: "var(--color-faint)", fontSize: 10 }}>TESTS</span>
-                      <span>
-                        {rm.testsPassed != null ? (
-                          `${rm.testsPassed}/${rm.testsTotal ?? checksTotal}`
+                      <span style={{ color: "var(--color-faint)", fontSize: 10 }}>
+                        {gated ? "GATE FAILED" : "CAPABILITY"}
+                      </span>
+                      <span style={gated ? { color: "var(--color-red)" } : undefined}>
+                        {cap?.passed != null ? (
+                          `${cap.passed}/${cap.total}`
                         ) : (
                           <span style={{ color: "var(--color-faint)" }}>—</span>
                         )}
@@ -682,6 +718,21 @@ export default async function ResultsPage({
                       </span>
                     </span>
                   </div>
+                  {cap?.gateDetail != null && (
+                    <span
+                      style={{
+                        ...mono,
+                        display: "block",
+                        marginTop: 8,
+                        fontSize: 11,
+                        lineHeight: 1.5,
+                        color: "var(--color-red)",
+                        overflowWrap: "anywhere",
+                      }}
+                    >
+                      gate failed · {cap.gateDetail}
+                    </span>
+                  )}
                   <div style={{ display: "flex", gap: 10, marginTop: 10, fontSize: 12 }}>
                     {hasArtifacts && (
                       <Link

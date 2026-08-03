@@ -6,6 +6,7 @@
  * store/loader imports, schemas types only.
  */
 import type { Artifact, Run, RunConfiguration, RunModel } from "@model-lab/schemas";
+import { capabilityForModel } from "@/lib/checks";
 import { endpointProviderLabel, modelColor, modelIdOf } from "@/lib/data";
 import { seconds, usd } from "@/lib/format";
 
@@ -48,16 +49,20 @@ export interface BuildVM {
   visualLabel: string;
   /** inspector stat: "9.2/10" | "6.8/10 (n=2)" | "—" */
   visualStatLabel: string;
-  /** "10/12" */
+  /** capability ratio, "4/5" — gates and diagnostics are not scored */
   testsLabel: string;
-  /** teal all-pass / amber partial / red render-failed */
+  /** teal all-pass / amber partial / red gate-failed or render-failed */
   testsColor: string;
+  /** "canvas.renders" when a gate failed — the headline ratio is 0 because of it */
+  testsGate: string | null;
+  /** the failed gate with its note, for the inspector line */
+  testsGateDetail: string | null;
   costLabel: string;
   latencyLabel: string;
   /** "0" | "1 warn" | "1 error" — counted from consoleLines */
   consoleLabel: string;
   consoleColor: string;
-  /** builds-rail meta: "10/12 tests · $0.41" | "render failed · $0.00" */
+  /** builds-rail meta: "4/5 capability · $0.41" | "gate canvas.renders · $0.00" */
   railMeta: string;
   /** "1/3" */
   sampleIndexLabel: string;
@@ -100,11 +105,18 @@ export function getBuilds(data: RunArtifactData): BuildVM[] {
     const rm = models.find((m) => m.endpointId === a.endpointId);
     const vs = rm?.visualScore ?? null;
     const reducedN = vs != null && vs.n < cfg.samplesPerModel ? ` (n=${vs.n})` : "";
-    const testsPassed = rm?.testsPassed ?? null;
-    const testsTotal = rm?.testsTotal ?? null;
-    const testsLabel =
-      testsPassed != null && testsTotal != null ? `${testsPassed}/${testsTotal}` : "—";
-    const allPass = testsPassed != null && testsTotal != null && testsPassed === testsTotal;
+    /**
+     * The headline number is the CAPABILITY ratio of this build's own trace —
+     * gates are preconditions (a failed one zeroes it) and diagnostics measure
+     * the harness. Read from the trace rather than the RunModel rollup so a
+     * legacy 12-check trace is re-read under the same taxonomy.
+     */
+    const tally = capabilityForModel([a.checks], {
+      passed: rm?.testsPassed ?? null,
+      total: rm?.testsTotal ?? null,
+    });
+    const testsLabel = tally.passed != null ? `${tally.passed}/${tally.total}` : "—";
+    const allPass = tally.gateName === null && tally.passed != null && tally.passed === tally.total;
     const errors = a.consoleLines.filter((l) => l.level === "error").length;
     const warns = a.consoleLines.filter((l) => l.level === "warn").length;
     const costLabel = usd(rm?.costUsd ?? 0);
@@ -123,11 +135,14 @@ export function getBuilds(data: RunArtifactData): BuildVM[] {
       visualLabel: vs ? `${vs.value.toFixed(1)}${reducedN}` : "—",
       visualStatLabel: vs ? `${vs.value.toFixed(1)}/10${reducedN}` : "—",
       testsLabel,
-      testsColor: allPass
-        ? "var(--color-teal)"
-        : a.renderOk
-          ? "var(--color-amber)"
-          : "var(--color-red)",
+      testsColor:
+        tally.gateName != null || !a.renderOk
+          ? "var(--color-red)"
+          : allPass
+            ? "var(--color-teal)"
+            : "var(--color-amber)",
+      testsGate: tally.gateName,
+      testsGateDetail: tally.gateDetail,
       costLabel,
       latencyLabel: rm?.totalLatencyMs != null ? seconds(rm.totalLatencyMs) : "—",
       consoleLabel:
@@ -138,7 +153,12 @@ export function getBuilds(data: RunArtifactData): BuildVM[] {
           : warns > 0
             ? "var(--color-amber)"
             : "var(--color-teal)",
-      railMeta: a.renderOk ? `${testsLabel} tests · ${costLabel}` : `render failed · ${costLabel}`,
+      railMeta:
+        tally.gateName != null
+          ? `gate ${tally.gateName} · ${costLabel}`
+          : a.renderOk
+            ? `${testsLabel} capability · ${costLabel}`
+            : `render failed · ${costLabel}`,
       sampleIndexLabel: `${a.sampleIndex}/${cfg.samplesPerModel}`,
       sampleLabel: `${a.sampleIndex}/${cfg.samplesPerModel} (${sampleTag})`,
       seedLabel: (rm?.unseeded ?? false) || cfg.seed == null ? "unseeded" : String(cfg.seed),
@@ -148,7 +168,7 @@ export function getBuilds(data: RunArtifactData): BuildVM[] {
       sortScore: vs?.value ?? -1,
       sortCost: rm?.costUsd ?? Number.MAX_SAFE_INTEGER,
       sortLatency: rm?.totalLatencyMs ?? Number.MAX_SAFE_INTEGER,
-      sortTests: testsPassed ?? -1,
+      sortTests: tally.passed ?? -1,
     };
   });
 }

@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Raycaster Engine</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #222;
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden; /* Prevent scrollbars */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            border: 4px solid #444;
+        }
+
+        canvas#screen {
+            display: block;
+            background-color: #333; /* Floor/Ceiling color fallback */
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Let clicks pass through to canvas if needed */
+            display: flex;
+            flex-direction: column;
+        }
+
+        #instructions {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            text-align: center;
+            border-bottom: 2px solid #666;
+        }
+
+        #minimap-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #fff;
+            padding: 5px;
+        }
+
+        canvas#minimap {
+            display: block;
+            image-rendering: pixelated; /* Keeps minimap sharp */
+        }
+        
+        .key-hint {
+            color: #ffff00;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="screen" width="800" height="600"></canvas>
+    
+    <div id="ui-layer">
+        <div id="instructions">
+            <h3>RAYCASTER ENGINE</h3>
+            <p>Move: <span class="key-hint">W A S D</span> | Turn: <span class="key-hint">Arrow Keys</span></p>
+        </div>
+    </div>
+
+    <div id="minimap-container">
+        <canvas id="minimap" width="200" height="200"></canvas>
+    </div>
+</div>
+
+<script>
+/**
+ * RAYCASTER ENGINE
+ * ----------------
+ * A self-contained raycasting engine using HTML5 Canvas.
+ * No external assets are loaded; textures are generated programmatically.
+ */
+
+// --- CONFIGURATION ---
+const SCREEN_WIDTH = 800;
+const SCREEN_HEIGHT = 600;
+const FOV = 60 * (Math.PI / 180); // Field of view in radians
+const BLOCK_SIZE = 64; // Size of one map tile in world units
+const MAP_SIZE = 24;    // Map dimensions (tiles)
+
+// --- ASSET GENERATION (The "No External Images" Solution) ---
+function createTextureAtlas() {
+    const textureSize = 128; // Texture size per wall type
+    const canvas = document.createElement('canvas');
+    canvas.width = textureSize * 5; // We map 5 types of walls horizontally
+    canvas.height = textureSize;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    // Helper to draw a pattern
+    function drawPattern(xOffset, color1, color2, type) {
+        ctx.fillStyle = color1;
+        ctx.fillRect(xOffset * textureSize, 0, textureSize, textureSize);
+        
+        // Add details based on type
+        if (type === 'brick') {
+            ctx.strokeStyle = '#856'; 
+            ctx.lineWidth = 2;
+            for(let y=0; y<textureSize; y+=32) {
+                ctx.beginPath();
+                ctx.moveTo(xOffset * textureSize, y);
+                ctx.lineTo((xOffset+1) * textureSize, y);
+                ctx.stroke();
+                
+                // Vertical bricks
+                let mod = (y % 64 === 0) ? 0 : 32; 
+                for(let x=mod; x<textureSize; x+=32) {
+                     ctx.beginPath();
+                     ctx.moveTo(xOffset * textureSize + x, y);
+                     ctx.lineTo(xOffset * textureSize + x, y+32);
+                     ctx.stroke();
+                }
+            }
+        } else if (type === 'stripe') {
+             for(let i=0; i<textureSize; i+=16) {
+                 ctx.fillStyle = (Math.floor(i/16)%2===0) ? color1 : color2;
+                 ctx.fillRect(xOffset * textureSize, i, textureSize, 16);
+             }
+        } else if (type === 'noise') {
+            for(let y=0; y<textureSize; y++) {
+                for(let x=0; x<textureSize; x+=4) {
+                    if(Math.random() > 0.5) {
+                        ctx.fillStyle = color2;
+                        ctx.fillRect(xOffset * textureSize + x, y, 1, 1); // Pixel noise
+                    }
+                }
+            }
+        } else if (type === 'tech') {
+             // Grid lines
+             ctx.strokeStyle = '#0f0';
+             ctx.lineWidth = 2;
+             for(let i=0; i<textureSize; i+=8) {
+                 ctx.beginPath();
+                 ctx.moveTo(xOffset * textureSize, i);
+                 ctx.lineTo((xOffset+1) * textureSize, i);
+                 ctx.stroke();
+             }
+        }
+
+        // Add a dark border to simulate block edges
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(xOffset * textureSize + 2, 2, textureSize - 4, textureSize - 4);
+    }
+
+    // Generate the textures
+    drawPattern(0, '#d68', '#b57', 'brick');     // Wall Type 1: Red Brick
+    drawPattern(1, '#6bd', '#49a', 'stripe');    // Wall Type 2: Blue Stripes
+    drawPattern(2, '#fd9', '#ca4', 'noise');     // Wall Type 3: Yellow Noise
+    drawPattern(3, '#8f6', '#5a3', 'tech');      // Wall Type 4: Green Tech
+    drawPattern(4, '#eee', '#ccc', 'brick');     // Wall Type 5: White Marble
+
+    return canvas;
+}
+
+// --- GAME STATE ---
+const map = [
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,2,2,2,1,0,0,3,0,0,0,0,0,4,0,0,0,0,0,0,0,1],
+    [1,0,0,2,0,0,1,0,0,3,0,0,0,0,0,4,0,0,0,0,0,0,0,1],
+    [1,0,0,2,2,0,1,0,0,0,0,0,0,0,0,4,0,0,5,5,0,0,0,1],
+    [1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,5,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,5,0,0,0,0,1],
+    [1,0,0,4,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,4,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,1],
+    [1,0,0,4,4,4,4,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,5,5,5,5,5,5,5,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,3,3,3,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,1],
+    [1,0,0,2,2,2,2,2,0,0,0,0,0,0,3,0,0,5,5,5,5,5,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,0,0,0,0,5,1],
+    [1,0,0,4,0,0,0,0,0,0,0,2,0,0,0,0,0,5,0,0,0,0,5,1],
+    [1,0,0,4,0,0,0,0,0,0,0,2,0,0,0,0,0,5,0,0,0,0,5,1],
+    [1,0,0,4,0,0,0,0,0,0,0,2,2,2,0,0,0,5,0,0,0,0,5,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+];
+
+// 0 = Empty space. 1-5 = Wall types (matches texture atlas index)
+
+const player = {
+    x: BLOCK_SIZE * 3.5, // Initial X position
+    y: BLOCK_SIZE * 3.5, // Initial Y position
+    dirX: -1,           // Direction vector X
+    dirY: 0,            // Direction vector Y
+    planeX: 0,          // Camera Plane X (perpendicular to Dir)
+    planeY: 0.66        // Camera Plane Y
+};
+
+// Input State
+const keys = { w:false, a:false, s:false, d:false, left:false, right:false };
+
+// DOM Elements
+const canvas = document.getElementById('screen');
+const ctx = canvas.getContext('2d', { alpha: false }); // Alpha false for performance
+const minimapCanvas = document.getElementById('minimap');
+const mmCtx = minimapCanvas.getContext('2d');
+
+// Generate Texture Atlas (Image object)
+const textureAtlas = createTextureAtlas();
+ctx.imageSmoothingEnabled = false; // Retro look
+mmCtx.imageSmoothingEnabled = false;
+
+// --- RAYCASTING ENGINE ---
+
+function castRays() {
+    // 1. Draw Ceiling and Floor
+    // Simple gradient for ceiling
+    const ceilGrad = ctx.createLinearGradient(0, 0, 0, SCREEN_HEIGHT/2);
+    ceilGrad.addColorStop(0, '#1a1a2e');
+    ceilGrad.addColorStop(1, '#353b48');
+    ctx.fillStyle = ceilGrad;
+    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT / 2);
+
+    // Simple gradient for floor
+    const floorGrad = ctx.createLinearGradient(0, SCREEN_HEIGHT/2, 0, SCREEN_HEIGHT);
+    floorGrad.addColorStop(0, '#4a4a5e');
+    floorGrad.addColorStop(1, '#2b2b36');
+    ctx.fillStyle = floorGrad;
+    ctx.fillRect(0, SCREEN_HEIGHT / 2, SCREEN_WIDTH, SCREEN_HEIGHT / 2);
+
+    // 2. Cast Rays for every vertical strip of the screen
+    for (let x = 0; x < SCREEN_WIDTH; x++) {
+        // Calculate ray position and direction
+        const cameraX = 2 * x / SCREEN_WIDTH - 1; // x-coordinate in camera space
+        const rayDirX = player.dirX + player.planeX * cameraX;
+        const rayDirY = player.dirY + player.planeY * cameraX;
+
+        // Which box of the map we're in
+        let mapX = Math.floor(player.x);
+        let mapY = Math.floor(player.y);
+
+        // Length of ray from current position to next x or y-side
+        let sideDistX, sideDistY;
+
+        // Length of ray from one x or y-side to next x or y-side
+        const deltaDistX = Math.abs(1 / rayDirX);
+        const deltaDistY = Math.abs(1 / rayDirY);
+
+        let stepX, stepY;
+        let hit = 0; // Was there a wall hit?
+        let side;    // Was it NS or EW wall?
+
+        // Calculate step and initial sideDist
+        if (rayDirX < 0) {
+            stepX = -1;
+            sideDistX = (player.x - mapX) * deltaDistX;
+        } else {
+            stepX = 1;
+            sideDistX = (mapX + 1.0 - player.x) * deltaDistX;
+        }
+
+        if (rayDirY < 0) {
+            stepY = -1;
+            sideDistY = (player.y - mapY) * deltaDistY;
+        } else {
+            stepY = 1;
+            sideDistY = (mapY + 1.0 - player.y) * deltaDistY;
+        }
+
+        // DDA Algorithm
+        while (hit === 0) {
+            // Jump to next map square, OR in x-direction, OR in y-direction
+            if (sideDistX < sideDistY) {
+                sideDistX += deltaDistX;
+                mapX += stepX;
+                side = 0; // NS Wall
+            } else {
+                sideDistY += deltaDistY;
+                mapY += stepY;
+                side = 1; // EW Wall
+            }
+            // Check if ray has hit a wall
+            if (map[mapX][mapY] > 0) hit = 1;
+        }
+
+        // Calculate distance to wall (perpendicular to avoid fisheye)
+        let perpWallDist;
+        if (side === 0) perpWallDist = (sideDistX - deltaDistX);
+        else            perpWallDist = (sideDistY - deltaDistY);
+
+        // Calculate height of line to draw on screen
+        const lineHeight = Math.floor(SCREEN_HEIGHT / perpWallDist);
+
+        // Calculate lowest and highest pixel to fill in current stripe
+        let drawStart = -lineHeight / 2 + SCREEN_HEIGHT / 2;
+        if (drawStart < 0) drawStart = 0;
+        let drawEnd = lineHeight / 2 + SCREEN_HEIGHT / 2;
+        if (drawEnd >= SCREEN_HEIGHT) drawEnd = SCREEN_HEIGHT - 1;
+
+        // --- TEXTURING ---
+        // Calculate which part of the texture to use
+        const texNum = map[mapX][mapY];
+        
+        let wallX; // Where exactly the wall was hit
+        if (side == 0) wallX = player.y + perpWallDist * rayDirY;
+        else           wallX = player.x + perpWallDist * rayDirX;
+        
+        wallX -= Math.floor(wallX); // Fractional part
+
+        // x coordinate on the texture
+        let texX = (wallX < 0 && side == 1) ? 1 - wallX : wallX;
+        
+        const TEX_SIZE = 128;
+        
+        // Draw vertical strip using drawImage
+        ctx.drawImage(
+            textureAtlas, 
+            (texNum - 1) * TEX_SIZE + texX * TEX_SIZE, // Source X
+            0,                                         // Source Y
+            TEX_SIZE,                                  // Source W
+            TEX_SIZE,                                  // Source H
+            x,                                         // Dest X
+            drawStart,                                 // Dest Y
+            1,                                         // Dest W (1 pixel strip)
+            drawEnd - drawStart                        // Dest H
+        );
+
+        // Darken East/West walls slightly for pseudo-lighting
+        if (side === 1) {
+            ctx.fillStyle = 'rgba(0, 0, 20, 0.2)';
+            ctx.fillRect(x, drawStart, 1, drawEnd - drawStart);
+        }
+    }
+}
+
+// --- MINIMAP RENDERER ---
+function drawMinimap() {
+    const tileSize = minimapCanvas.width / MAP_SIZE;
+    
+    // Clear background
+    mmCtx.fillStyle = '#000';
+    mmCtx.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+
+    // Draw Map Tiles
+    for (let x = 0; x < map.length; x++) {
+        for (let y = 0; y < map[x].length; y++) {
+            if (map[x][y] > 0) {
+                mmCtx.fillStyle = `hsl(${(map[x][y]-1)*45}, 60%, 50%)`; // Generate color based on type
+                mmCtx.fillRect(x * tileSize, y * tileSize, tileSize + 1, tileSize + 1);
+            }
+        }
+    }
+
+    // Draw Player
+    const px = (player.x % BLOCK_SIZE) / BLOCK_SIZE * tileSize; 
+    const py = (player.y % BLOCK_SIZE) / BLOCK_SIZE * tileSize;
+    
+    // Center of player tile
+    const cx = Math.floor(player.x / BLOCK_SIZE) * tileSize + tileSize/2;
+    const cy = Math.floor(player.y / BLOCK_SIZE) * tileSize + tileSize/2;
+
+    mmCtx.fillStyle = 'red';
+    mmCtx.beginPath();
+    mmCtx.arc(cx, cy, 3, 0, Math.PI*2);
+    mmCtx.fill();
+
+    // Draw Player Direction Arrow on Minimap
+    mmCtx.strokeStyle = 'yellow';
+    mmCtx.lineWidth = 1;
+    mmCtx.beginPath();
+    mmCtx.moveTo(cx, cy);
+    mmCtx.lineTo(
+        cx + player.dirX * (tileSize/2), 
+        cy + player.dirY * (tileSize/2)
+    );
+    mmCtx.stroke();
+}
+
+// --- INPUT & MOVEMENT ---
+function updatePlayer() {
+    const moveSpeed = 0.15; // Linear speed
+    const rotSpeed = 0.06;  // Rotation speed
+
+    // Movement (W/S)
+    if (keys.w) {
+        player.x += player.dirX * moveSpeed;
+        player.y += player.dirY * moveSpeed;
+        
+        // Simple collision: check new X, then Y separately to allow sliding
+        if(map[Math.floor(player.x)][Math.floor(player.y)] > 0) {
+             player.x -= player.dirX * moveSpeed; // Backtrack X
+             player.y -= player.dirY * moveSpeed; // Backtrack Y
+        }
+    }
+    if (keys.s) {
+        player.x -= player.dirX * moveSpeed;
+        player.y -= player.dirY * moveSpeed;
+
+        if(map[Math.floor(player.x)][Math.floor(player.y)] > 0) {
+             player.x += player.dirX * moveSpeed; 
+             player.y += player.dirY * moveSpeed; 
+        }
+    }
+
+    // Strafe (A/D - Perpendicular movement)
+    // Calculate strafe direction vector (-dirY, dirX)
+    const strafeDirX = -player.dirY;
+    const strafeDirY = player.dirX;
+
+    if (keys.a) {
+        player.x += strafeDirX * moveSpeed;
+        player.y += strafeDirY * moveSpeed;
+        // Collision check for strafing is simplified here to stop on wall hit
+         if(map[Math.floor(player.x)][Math.floor(player.y)] > 0) {
+             player.x -= strafeDirX * moveSpeed; 
+             player.y -= strafeDirY * moveSpeed; 
+        }
+    }
+    if (keys.d) {
+        player.x += -strafeDirX * moveSpeed;
+        player.y += -strafeDirY * moveSpeed;
+         if(map[Math.floor(player.x)][Math.floor(player.y)] > 0) {
+             player.x -= -strafeDirX * moveSpeed; 
+             player.y -= -strafeDirY * moveSpeed; 
+        }
+    }
+
+    // Rotation (Left/Right Arrows or Q/E)
+    if (keys.left) {
+        const oldDirX = player.dirX;
+        player.dirX = player.dirX * Math.cos(-rotSpeed) - player.dirY * Math.sin(-rotSpeed);
+        player.dirY = oldDirX * Math.sin(-rotSpeed) + player.dirY * Math.cos(-rotSpeed);
+        const oldPlaneX = player.planeX;
+        player.planeX = player.planeX * Math.cos(-rotSpeed) - player.planeY * Math.sin(-rotSpeed);
+        player.planeY = oldPlaneX * Math.sin(-rotSpeed) + player.planeY * Math.cos(-rotSpeed);
+    }
+    if (keys.right) {
+        const oldDirX = player.dirX;
+        player.dirX = player.dirX * Math.cos(rotSpeed) - player.dirY * Math.sin(rotSpeed);
+        player.dirY = oldDirX * Math.sin(rotSpeed) + player.dirY * Math.cos(rotSpeed);
+        const oldPlaneX = player.planeX;
+        player.planeX = player.planeX * Math.cos(rotSpeed) - player.planeY * Math.sin(rotSpeed);
+        player.planeY = oldPlaneX * Math.sin(rotSpeed) + player.planeY * Math.cos(rotSpeed);
+    }
+}
+
+// --- EVENT LISTENERS ---
+document.addEventListener('keydown', (e) => {
+    switch(e.key.toLowerCase()) {
+        case 'w': keys.w = true; break;
+        case 's': keys.s = true; break;
+        case 'a': keys.a = true; break;
+        case 'd': keys.d = true; break;
+        case 'arrowleft': keys.left = true; break;
+        case 'arrowright': keys.right = true; break;
+    }
+});
+
+document.addEventListener('keyup', (e) => {
+    switch(e.key.toLowerCase()) {
+        case 'w': keys.w = false; break;
+        case 's': keys.s = false; break;
+        case 'a': keys.a = false; break;
+        case 'd': keys.d = false; break;
+        case 'arrowleft': keys.left = false; break;
+        case 'arrowright': keys.right = false; break;
+    }
+});
+
+// --- GAME LOOP ---
+function gameLoop() {
+    updatePlayer();
+    castRays();
+    drawMinimap();
+    
+    // FPS Counter (Optional, drawing on canvas)
+    // ctx.fillStyle = 'white';
+    // ctx.fillText(Math.round(performance.now()), 10, SCREEN_HEIGHT - 10);
+
+    requestAnimationFrame(gameLoop);
+}
+
+// Initialize and Start
+gameLoop();
+
+</script>
+</body>
+</html>

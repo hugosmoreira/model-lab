@@ -59,11 +59,18 @@ export {
   injectCsp,
   BROWSER_CHECK_NAMES,
   BROWSER_NOT_INSTALLED_NOTE,
+  CHECK_CATEGORY,
+  CHECK_THRESHOLDS,
+  categoryOf,
+  capabilityChecks,
+  failedGates,
+  unmeasuredGates,
 } from "./checks/browser-checks";
 export type {
   BrowserCheckName,
   BrowserChecksOptions,
   BrowserChecksOutcome,
+  RegionMetrics,
 } from "./checks/browser-checks";
 export {
   FsRunStore,

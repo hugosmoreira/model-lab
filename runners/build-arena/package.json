@@ -11,7 +11,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit",
-    "lint": "echo runner: no lint configured"
+    "lint": "echo runner: no lint configured",
+    "test:checks": "node --experimental-strip-types --disable-warning=ExperimentalWarning test/check-taxonomy.test.mjs"
   },
   "dependencies": {
     "@model-lab/schemas": "workspace:*",

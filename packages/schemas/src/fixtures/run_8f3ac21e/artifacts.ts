@@ -1,19 +1,20 @@
-import type { Artifact, BrowserTestResult, ConsoleLine } from "../../index";
-import { CHECK_NAMES } from "./samples";
+import type { Artifact, BrowserTestResult, CheckCategory, ConsoleLine } from "../../index";
+import { CHECK_NAMES, FIXTURE_CHECK_CATEGORY } from "./samples";
 
 const SANDBOX = { isolatedOrigin: true, networkBlocked: true, execLimitSec: 30, sizeLimitMb: 2 };
 
 /** Full 12-check list with the given failures (by name → note). */
 function checks(failures: Record<string, string>, skipped: string[] = []): BrowserTestResult[] {
   return CHECK_NAMES.map((name) => {
-    if (name in failures) return { name, status: "failed" as const, note: failures[name]!, durationMs: null };
-    if (skipped.includes(name)) return { name, status: "skipped" as const, note: "skipped (render failed)", durationMs: null };
+    const category: CheckCategory = FIXTURE_CHECK_CATEGORY[name] ?? "capability";
+    if (name in failures) return { name, status: "failed" as const, note: failures[name]!, durationMs: null, category };
+    if (skipped.includes(name)) return { name, status: "skipped" as const, note: "skipped (render failed)", durationMs: null, category };
     const notes: Record<string, string> = {
       "html.parses": "valid document",
       "page.loads": "1.4s < 5s limit",
       "screenshot.captured": "1280×720",
     };
-    return { name, status: "passed" as const, note: notes[name] ?? "", durationMs: null };
+    return { name, status: "passed" as const, note: notes[name] ?? "", durationMs: null, category };
   });
 }
 

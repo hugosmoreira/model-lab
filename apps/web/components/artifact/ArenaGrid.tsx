@@ -248,7 +248,12 @@ export function ArenaGrid({ data }: { data: ArenaData }) {
                   }}
                 >
                   <Metric label="VISUAL" value={b.visualLabel} color="var(--color-text)" />
-                  <Metric label="TESTS" value={b.testsLabel} color={b.testsColor} />
+                  {/* Capability ratio — gates zero it, diagnostics never count. */}
+                  <Metric
+                    label={b.testsGate != null ? "GATE FAILED" : "CAPABILITY"}
+                    value={b.testsLabel}
+                    color={b.testsColor}
+                  />
                   <Metric label="COST" value={b.costLabel} />
                   <Metric label="LATENCY" value={b.latencyLabel} />
                   <Metric label="CONSOLE" value={b.consoleLabel} color={b.consoleColor} />

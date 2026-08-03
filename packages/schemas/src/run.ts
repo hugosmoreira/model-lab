@@ -100,11 +100,35 @@ export type Run = z.infer<typeof Run>;
 
 export const CheckStatus = z.enum(["passed", "failed", "skipped", "warn"]);
 
+/**
+ * What a check is FOR — the three kinds answer different questions and must
+ * never be averaged together:
+ *  - "gate"       correctness precondition (html.parses, page.loads,
+ *                 console.clean, canvas.renders). A failed gate means the
+ *                 artifact is broken; the headline score is 0 regardless of
+ *                 what else passed.
+ *  - "capability" did the model build what the brief asked for
+ *                 (interaction.*, minimap.present, textures.applied,
+ *                 resize.handled). THIS is the headline score.
+ *  - "diagnostic" measures the harness / rendering environment rather than the
+ *                 artifact (screenshot.captured, fps.stable, a11y.contrast).
+ *                 Reported, never scored.
+ */
+export const CheckCategory = z.enum(["gate", "capability", "diagnostic"]);
+export type CheckCategory = z.infer<typeof CheckCategory>;
+
 export const BrowserTestResult = z.object({
   name: z.string(), // namespaced: "html.parses", "interaction.wasd", ...
   status: CheckStatus,
   note: z.string().default(""),
   durationMs: z.number().nullable().default(null),
+  /**
+   * Defaulted on purpose: traces stored before the taxonomy existed are jsonb
+   * and must keep parsing, so no DB migration is required. Historical rows
+   * read back as "capability", which is what the old flat score treated every
+   * check as.
+   */
+  category: CheckCategory.default("capability"),
 });
 export type BrowserTestResult = z.infer<typeof BrowserTestResult>;
 

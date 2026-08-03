@@ -2,6 +2,7 @@ import { ShareTemplate } from "@model-lab/schemas";
 import { TopBar } from "@/components/shell/TopBar";
 import { ShareStudio } from "@/components/share/ShareStudio";
 import type { ShareCardRow } from "@/components/share/ShareCard";
+import { capabilityForModel } from "@/lib/checks";
 import { fixtures, modelColor, modelIdOf } from "@/lib/data";
 import { DEMO_RUN_ID, getRunView } from "@/lib/server/loaders";
 import { usd } from "@/lib/format";
@@ -51,6 +52,12 @@ export default async function Page({
   const rows: ShareCardRow[] = models.map((rm) => {
     // Asterisk when the visual mean covers fewer samples than configured.
     const partialSamples = rm.visualScore != null && rm.visualScore.n < config.samplesPerModel;
+    // Same headline number the Results page shows: capability checks only,
+    // zeroed by a failed gate (see lib/checks.ts).
+    const cap = capabilityForModel(
+      view.artifacts.filter((a) => a.endpointId === rm.endpointId).map((a) => a.checks),
+      { passed: rm.testsPassed, total: rm.testsTotal ?? view.capabilityTotal },
+    );
     return {
       id: modelIdOf(rm.endpointId),
       color: modelColor(rm.endpointId),
@@ -59,15 +66,12 @@ export default async function Page({
           ? `${rm.visualScore.value.toFixed(1)}${partialSamples ? "*" : ""}`
           : "—",
       pct: rm.visualScore != null ? Math.round(rm.visualScore.value * 10) : 0,
-      tests:
-        rm.testsPassed != null && rm.testsTotal != null
-          ? `${rm.testsPassed}/${rm.testsTotal}`
-          : "—",
+      tests: cap.passed != null ? `${cap.passed}/${cap.total}` : "—",
       testsState:
-        rm.testsPassed != null && rm.testsPassed === rm.testsTotal
-          ? "ok"
-          : rm.failedSampleCount > 0
-            ? "warn"
+        cap.gateName != null || rm.failedSampleCount > 0
+          ? "warn"
+          : cap.passed != null && cap.passed === cap.total
+            ? "ok"
             : "partial",
       cost: usd(rm.costUsd),
       visualValue: rm.visualScore?.value ?? null,
@@ -98,7 +102,10 @@ export default async function Page({
   const judge = config.scorers.find((s) => s.type === "llm-judge" && s.enabled);
   const scorerParts: string[] = [];
   if (config.scorers.some((s) => s.type === "browser" && s.enabled)) {
-    scorerParts.push(`browser(${view.checksTotal})`);
+    // Two numbers, because they mean different things: the card's ratio is the
+    // capability score, while the run actually executed the full check list
+    // (gates + diagnostics are reported, not scored).
+    scorerParts.push(`browser(${view.capabilityTotal} of ${view.checksTotal} scored)`);
   }
   if (human) scorerParts.push(`human rubric ${human.rubricVersion ?? ""}`.trimEnd());
   if (judge) scorerParts.push(`judge${judge.orderSwapped ? " (order-swapped)" : ""}`);

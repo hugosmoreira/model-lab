@@ -43,7 +43,7 @@ export interface ShareCardRow {
   visual: string;
   /** bar width % = visualScore × 10 — the bar encodes VISUAL·HUMAN, not tests */
   pct: number;
-  /** "10/12" */
+  /** capability ratio, "4/5" — gates and diagnostics are not scored */
   tests: string;
   testsState: "ok" | "warn" | "partial";
   /** "$0.41" */

@@ -1,8 +1,30 @@
-import type { BrowserTestResult, SampleResult } from "../../index";
+import type { BrowserTestResult, CheckCategory } from "../../index";
+import type { SampleResult } from "../../index";
 
-const ok = (name: string, note = ""): BrowserTestResult => ({ name, status: "passed", note, durationMs: null });
-const fail = (name: string, note: string): BrowserTestResult => ({ name, status: "failed", note, durationMs: null });
-const skip = (name: string): BrowserTestResult => ({ name, status: "skipped", note: "skipped (render failed)", durationMs: null });
+/**
+ * Fixture mirror of the runner's CHECK_CATEGORY map (the source of truth lives
+ * in runners/build-arena/src/checks/browser-checks.ts — schemas must not
+ * depend on the runner). Keep the two in step when a check is added.
+ */
+export const FIXTURE_CHECK_CATEGORY: Record<string, CheckCategory> = {
+  "html.parses": "gate",
+  "page.loads": "gate",
+  "console.clean": "gate",
+  "canvas.renders": "gate",
+  "interaction.wasd": "capability",
+  "interaction.mouse": "capability",
+  "minimap.present": "capability",
+  "textures.applied": "capability",
+  "resize.handled": "capability",
+  "screenshot.captured": "diagnostic",
+  "fps.stable": "diagnostic",
+  "a11y.contrast": "diagnostic",
+};
+const categoryFor = (name: string): CheckCategory => FIXTURE_CHECK_CATEGORY[name] ?? "capability";
+
+const ok = (name: string, note = ""): BrowserTestResult => ({ name, status: "passed", note, durationMs: null, category: categoryFor(name) });
+const fail = (name: string, note: string): BrowserTestResult => ({ name, status: "failed", note, durationMs: null, category: categoryFor(name) });
+const skip = (name: string): BrowserTestResult => ({ name, status: "skipped", note: "skipped (render failed)", durationMs: null, category: categoryFor(name) });
 
 export const CHECK_NAMES = [
   "html.parses", "page.loads", "console.clean", "canvas.renders",

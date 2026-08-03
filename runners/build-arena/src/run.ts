@@ -36,8 +36,11 @@ import type {
 } from "@model-lab/schemas";
 import { computeFingerprint, promptHash } from "./bundle";
 import {
+  capabilityChecks,
   closeBrowserChecks,
+  failedGates,
   runBrowserChecks,
+  unmeasuredGates,
   type BrowserChecksOutcome,
 } from "./checks/browser-checks";
 import { scoreObjective } from "./checks/objective";
@@ -603,26 +606,73 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
         payload: { check: check.name, status: check.status, durationMs: check.durationMs },
       });
     }
-    const passed = outcome.checks.filter((c) => c.status === "passed").length;
-    const failedChecks = outcome.checks.filter((c) => c.status === "failed").length;
-    const total = outcome.checks.length;
+    /**
+     * SCORE DERIVATION (check taxonomy).
+     *
+     * Only CAPABILITY checks are scored — "did the model build what the brief
+     * asked for". GATE checks are correctness preconditions: one failed gate
+     * means the artifact is broken, so the headline score is 0 and the reason
+     * names the gate. DIAGNOSTIC checks (screenshot.captured, fps.stable,
+     * a11y.contrast) measure the harness and the rendering environment, so
+     * they are reported and never scored — counting them is how an artifact
+     * that drew nothing at all used to land level with a working build.
+     *
+     * A gate can also come back "warn": the measurement itself failed, so the
+     * gate has no verdict. That is NOT a pass and NOT a zero — it makes the
+     * sample noSignal (score null), the same state a missing browser produces.
+     * Zeroing on a harness fault would look like a legitimate result and quietly
+     * corrupt the leaderboard; null says "we have nothing to report".
+     */
+    const capability = capabilityChecks(outcome.checks);
+    const gatesFailed = failedGates(outcome.checks);
+    const gatesUnmeasured = unmeasuredGates(outcome.checks);
+    const gatesOk = gatesFailed.length === 0 && gatesUnmeasured.length === 0;
+    const capTotal = capability.length;
+    const capPassed = gatesOk ? capability.filter((c) => c.status === "passed").length : 0;
+    const capSkipped = capability.filter((c) => c.status === "skipped").length;
+    const firstGate = gatesFailed[0];
+    const firstUnmeasured = gatesUnmeasured[0];
+    /**
+     * no capability signal at all: browser missing, the runner never ran, or a
+     * gate could not be measured (see unmeasuredGates — fail closed).
+     */
+    const noSignal =
+      outcome.degraded || capTotal === 0 || capSkipped === capTotal || firstUnmeasured !== undefined;
     emit("browser.checks", {
       endpointId: ep.id,
       sampleIndex: s,
-      level: failedChecks > 0 ? "warn" : "success",
-      message: `${passed}/${total} passed`,
-      payload: { passed, total, failed: failedChecks },
+      level: gatesOk ? "success" : "warn",
+      message: gatesOk
+        ? `capability ${capPassed}/${capTotal} · gates ok`
+        : firstGate !== undefined
+          ? `gate failed: ${firstGate.name}${firstGate.note ? ` — ${firstGate.note}` : ""}`
+          : `gate unresolved: ${firstUnmeasured?.name ?? "gate"}${firstUnmeasured?.note ? ` — ${firstUnmeasured.note}` : ""}`,
+      payload: {
+        passed: capPassed,
+        total: capTotal,
+        failed: capability.filter((c) => c.status === "failed").length,
+        gatesOk,
+        gatesFailed: gatesFailed.map((c) => c.name),
+        gatesUnmeasured: gatesUnmeasured.map((c) => c.name),
+      },
     });
-    if (total > 0) {
-      st.testsTotal = total;
-      st.bestPassed = Math.max(st.bestPassed ?? 0, passed);
+    if (capTotal > 0 && !noSignal) {
+      st.testsTotal = capTotal;
+      st.bestPassed = Math.max(st.bestPassed ?? 0, capPassed);
     }
 
-    const renderFailed = outcome.checks.some(
+    /**
+     * A sample is FAILED (not merely low-scoring) when the artifact never
+     * became a running document or drew nothing — the render gates. A dirty
+     * console is also a gate, but it zeroes the score rather than voiding the
+     * sample: an artifact that throws once and still renders is worth keeping.
+     */
+    const renderGateFailure = outcome.checks.find(
       (c) =>
-        (c.name === "canvas.renders" || c.name === "page.loads" || c.name === "html.parses") &&
+        (c.name === "html.parses" || c.name === "page.loads" || c.name === "canvas.renders") &&
         c.status === "failed",
     );
+    const renderFailed = renderGateFailure !== undefined;
     artifacts.push({
       endpointId: ep.id,
       sampleIndex: s,
@@ -637,13 +687,25 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
 
     st.status = "scoring";
     if (renderFailed) {
-      const firstFail = outcome.checks.find((c) => c.status === "failed");
+      // Name the RENDER gate, not merely the first failed gate: "console.clean
+      // — foo is not defined" would not explain why the sample was voided.
       // Truncation explains a render failure; without it the log reads as if
       // the model shipped a broken raycaster.
-      const detail = `${firstFail?.note ?? "render failed"}${truncated ? ` — ${truncationNote(gen, cfg.maxOutputTokens)}` : ""}`;
+      const named =
+        renderGateFailure === undefined
+          ? "render failed"
+          : `${renderGateFailure.name} — ${renderGateFailure.note}`;
+      const detail = `${named}${truncated ? ` — ${truncationNote(gen, cfg.maxOutputTokens)}` : ""}`;
       recordFailure(ep, st, s, "render.failed", `sample ${s}: ${detail}`, gen, outcome.checks, cost, true);
     } else {
-      const score = outcome.degraded || total === 0 ? null : round1((passed / total) * 10);
+      /**
+       * visualScore is the capability pass-ratio on a 0-10 scale, zeroed by a
+       * failed gate. NOTE: the field still conflates "browser checks" with
+       * "visual quality" and is scheduled to be split into a browser score and
+       * a judge-supplied visual score; until then it follows the capability
+       * ratio so it can never again reward an artifact that drew nothing.
+       */
+      const score = noSignal ? null : round1((capPassed / capTotal) * 10);
       if (score !== null) st.scores.push(score);
       samplesScored += 1;
       samples.push({
@@ -669,11 +731,15 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       emit("sample.scored", {
         endpointId: ep.id,
         sampleIndex: s,
-        level: "success",
+        level: score === null || !gatesOk ? "warn" : "success",
         message:
-          score !== null
-            ? `${passed}/${total} browser tests · score ${score.toFixed(1)}`
-            : `sample ${s} stored — checks skipped, score unavailable`,
+          firstUnmeasured !== undefined
+            ? `sample ${s} stored — no score: ${firstUnmeasured.name} could not be measured (${firstUnmeasured.note})`
+            : score === null
+              ? `sample ${s} stored — checks skipped, score unavailable`
+              : gatesOk
+                ? `${capPassed}/${capTotal} capability checks · score ${score.toFixed(1)}`
+                : `score 0.0 — gate failed: ${firstGate?.name ?? "gate"}${firstGate?.note ? ` (${firstGate.note})` : ""}`,
       });
     }
     st.status = "generating";

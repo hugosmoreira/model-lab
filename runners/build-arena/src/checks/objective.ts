@@ -63,6 +63,8 @@ function makeTrace(
     status: passed ? "passed" : "failed",
     note: clipNote(note),
     durationMs,
+    // verified mode scores the answer itself — the task IS the capability
+    category: "capability",
   };
 }
 

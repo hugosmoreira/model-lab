@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import type { BrowserTestResult, ConsoleLine, HumanAnnotation } from "@model-lab/schemas";
 import { ModelDot, SectionLabel } from "@/components/ui/primitives";
+import { CATEGORY_META, groupByCategory, tallyCapability } from "@/lib/checks";
 import { ArtifactSandbox } from "./ArtifactSandbox";
 import { FailureTrace, ScenePlaceholder } from "./ScenePlaceholder";
 import { RateBuildPanel } from "./RateBuildPanel";
@@ -189,7 +190,46 @@ function ScreenshotPane({ build, widthPx }: { build: BuildVM; widthPx: number | 
   );
 }
 
+function CheckCard({ check }: { check: BrowserTestResult }) {
+  const m = CHECK_MARKS[check.status] ?? { glyph: "–", color: "var(--color-faint)" };
+  return (
+    <div
+      title={check.status}
+      style={{
+        display: "flex",
+        gap: 10,
+        alignItems: "center",
+        background: "var(--color-inset-alt)",
+        border: "1px solid var(--color-border-subtle)",
+        borderRadius: 6,
+        padding: "8px 12px",
+        ...mono,
+        fontSize: 12,
+      }}
+    >
+      <span aria-label={check.status} style={{ width: 14, flex: "0 0 14px", color: m.color }}>
+        {m.glyph}
+      </span>
+      <span style={{ color: "var(--color-text-secondary)", flex: 1, minWidth: 0 }}>
+        {check.name}
+      </span>
+      <span style={{ color: "var(--color-faint)", fontSize: 11, textAlign: "right" }}>
+        {check.note}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * The checks, grouped by what they are FOR. The three kinds answer different
+ * questions and are never averaged: a failed gate zeroes the headline score,
+ * the capability group IS the headline score, and diagnostics measure the
+ * harness (they used to be counted, which is how a build that drew nothing at
+ * all landed level with a working one).
+ */
 function ChecksPane({ checks }: { checks: BrowserTestResult[] }) {
+  const groups = groupByCategory(checks);
+  const tally = tallyCapability(checks);
   return (
     <div
       style={{
@@ -197,41 +237,90 @@ function ChecksPane({ checks }: { checks: BrowserTestResult[] }) {
         flex: 1,
         display: "flex",
         flexDirection: "column",
-        gap: 6,
+        gap: 14,
         overflow: "auto",
         minWidth: 0,
       }}
     >
-      {checks.map((c) => {
-        const m = CHECK_MARKS[c.status] ?? { glyph: "–", color: "var(--color-faint)" };
+      {tally.gateDetail != null ? (
+        <div
+          role="status"
+          style={{
+            background: "var(--color-inset-alt)",
+            border: "1px solid var(--color-danger-border)",
+            borderLeft: "3px solid var(--color-red)",
+            borderRadius: 6,
+            padding: "10px 13px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 3,
+          }}
+        >
+          <span style={{ ...mono, fontSize: 12, color: "var(--color-red)" }}>
+            gate failed · {tally.gateDetail}
+          </span>
+          <span style={{ fontSize: 11.5, color: "var(--color-muted)", lineHeight: 1.5 }}>
+            A failed gate means the artifact is broken — the headline score is 0/{tally.total}{" "}
+            however many capability checks passed.
+          </span>
+        </div>
+      ) : (
+        <div
+          style={{
+            ...mono,
+            fontSize: 11.5,
+            color: "var(--color-faint)",
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap",
+          }}
+        >
+          {tally.passed != null ? (
+            <>
+              <span style={{ color: "var(--color-teal)" }}>gates ok</span>
+              <span>
+                · capability {tally.passed}/{tally.total} — the headline score
+              </span>
+            </>
+          ) : (
+            /* Nothing failed and nothing ran — degraded harness, not a pass. */
+            <span>checks did not run — no capability signal for this build</span>
+          )}
+        </div>
+      )}
+
+      {groups.map((g) => {
+        const meta = CATEGORY_META[g.category];
+        const passed = g.checks.filter((c) => c.status === "passed").length;
         return (
           <div
-            key={c.name}
-            title={c.status}
-            style={{
-              display: "flex",
-              gap: 10,
-              alignItems: "center",
-              background: "var(--color-inset-alt)",
-              border: "1px solid var(--color-border-subtle)",
-              borderRadius: 6,
-              padding: "8px 12px",
-              ...mono,
-              fontSize: 12,
-            }}
+            key={g.category}
+            style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}
           >
-            <span aria-label={c.status} style={{ width: 14, flex: "0 0 14px", color: m.color }}>
-              {m.glyph}
-            </span>
-            <span style={{ color: "var(--color-text-secondary)", flex: 1, minWidth: 0 }}>
-              {c.name}
-            </span>
-            <span style={{ color: "var(--color-faint)", fontSize: 11, textAlign: "right" }}>
-              {c.note}
-            </span>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+              <SectionLabel>{meta.heading}</SectionLabel>
+              <span style={{ ...mono, fontSize: 10.5, color: "var(--color-faint)" }}>
+                {g.category === "diagnostic"
+                  ? `${passed}/${g.checks.length} · not scored`
+                  : g.category === "capability" && tally.gateDetail != null
+                    ? /* raw tally vs the score the gate forces — never conflated */
+                      `${passed}/${g.checks.length} passed · scored 0/${g.checks.length}`
+                    : `${passed}/${g.checks.length}`}{" "}
+                · {meta.blurb}
+              </span>
+            </div>
+            {g.checks.map((c) => (
+              <CheckCard key={c.name} check={c} />
+            ))}
           </div>
         );
       })}
+
+      {groups.length === 0 && (
+        <span style={{ ...mono, fontSize: 12, color: "var(--color-faint)" }}>
+          no browser checks recorded for this build
+        </span>
+      )}
     </div>
   );
 }
@@ -657,10 +746,24 @@ export function ArtifactViewer({
             }}
           >
             <StatCard label="VISUAL (HUMAN)" value={build.visualStatLabel} />
-            <StatCard label="BROWSER TESTS" value={build.testsLabel} color={build.testsColor} />
+            <StatCard label="CAPABILITY" value={build.testsLabel} color={build.testsColor} />
             <StatCard label="COST" value={build.costLabel} />
             <StatCard label="LATENCY" value={build.latencyLabel} />
           </div>
+          {build.testsGateDetail != null && (
+            <span
+              style={{
+                ...mono,
+                fontSize: 11,
+                color: "var(--color-red)",
+                lineHeight: 1.5,
+                marginTop: -6,
+                overflowWrap: "anywhere",
+              }}
+            >
+              gate failed · {build.testsGateDetail}
+            </span>
+          )}
           <div
             style={{
               borderTop: "1px solid var(--color-border-subtle)",

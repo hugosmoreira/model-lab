@@ -30,6 +30,11 @@ import type {
 } from "@model-lab/schemas";
 import * as fx from "@model-lab/schemas/fixtures";
 import { getStore, type RunStore } from "@model-lab/store";
+import {
+  BROWSER_CHECK_COUNT,
+  CAPABILITY_CHECK_COUNT,
+  capabilityChecksOf,
+} from "@/lib/checks";
 import { humanVisualByEndpoint, latestOverrideBySample, sampleKey } from "@/lib/human-score";
 import { listRuns as listRegistryRuns } from "@/lib/live/run-registry";
 
@@ -65,8 +70,14 @@ export interface RunView {
   challengePrompt: string;
   /** "One-Shot Raycaster" — pack display name. */
   packName: string;
-  /** Browser-check count for "n/12" displays. */
+  /** How many browser checks RAN per artifact (the full list — gates + capability + diagnostics). */
   checksTotal: number;
+  /**
+   * How many of them are CAPABILITY checks — the denominator of the headline
+   * browser score. Gates are preconditions and diagnostics measure the harness,
+   * so neither is scored; see lib/checks.ts.
+   */
+  capabilityTotal: number;
   /** Per-endpoint latency min/median/max (ms) — derived from samples for store runs. */
   latencyRanges: Record<string, LatencyRange>;
   /** check.warn event count per endpoint (reliability panel). */
@@ -302,6 +313,11 @@ function manifestFor(run: Run, configuration: RunConfiguration): RunManifest {
   };
 }
 
+/** Largest non-zero value of `pick` over `items` — 0 when there is nothing to read. */
+function maxOver<T>(items: readonly T[], pick: (item: T) => number): number {
+  return items.reduce((max, item) => Math.max(max, pick(item)), 0);
+}
+
 /** The demo scenario exactly as the pages consumed it pre-Phase 3. */
 async function fixtureView(annotations: HumanAnnotation[]): Promise<RunView> {
   return {
@@ -317,6 +333,8 @@ async function fixtureView(annotations: HumanAnnotation[]): Promise<RunView> {
       fx.benchmarkPacks.find((p) => p.slug === fx.runCompleted.pack.slug)?.name ??
       fx.runCompleted.name,
     checksTotal: fx.CHECK_NAMES.length,
+    capabilityTotal:
+      maxOver(fx.artifacts, (a) => capabilityChecksOf(a.checks).length) || CAPABILITY_CHECK_COUNT,
     latencyRanges: fx.latencyRanges,
     checkWarnCounts: warnCountsFrom([...fx.liveEvents, ...fx.completionEvents]),
     judge: {
@@ -358,10 +376,23 @@ export async function getRunView(runId: string): Promise<RunView> {
   ]);
 
   const pack = fx.benchmarkPacks.find((p) => p.slug === run.pack.slug);
+  /**
+   * Two different questions, two different numbers. `checksTotal` is "how many
+   * checks ran" and must be read off the traces themselves — RunModel.testsTotal
+   * now carries the CAPABILITY count, so deriving it from the rollup would
+   * quietly report 5 checks per artifact. `capabilityTotal` is the headline
+   * denominator, taken from the traces first (legacy traces carry no category
+   * field but classify correctly by name) and from the rollup only when the run
+   * stored no artifacts to read.
+   */
   const checksTotal =
-    runModels.reduce((max, rm) => Math.max(max, rm.testsTotal ?? 0), 0) ||
+    maxOver(rawArtifacts, (a) => a.checks.length) ||
     pack?.browserCheckCount ||
-    12;
+    BROWSER_CHECK_COUNT;
+  const capabilityTotal =
+    maxOver(rawArtifacts, (a) => capabilityChecksOf(a.checks).length) ||
+    maxOver(runModels, (rm) => rm.testsTotal ?? 0) ||
+    CAPABILITY_CHECK_COUNT;
 
   // Judge view — persisted pairs + rubric grades from judge.vote events.
   // No pairs recorded → judge stays null and the pages render EmptyStates.
@@ -405,6 +436,7 @@ export async function getRunView(runId: string): Promise<RunView> {
     challengePrompt: promptFor(run.pack.slug, run.promptHash),
     packName: pack?.name ?? run.name,
     checksTotal,
+    capabilityTotal,
     latencyRanges: latencyRangesFrom(samples),
     checkWarnCounts: warnCountsFrom(events),
     judge,
