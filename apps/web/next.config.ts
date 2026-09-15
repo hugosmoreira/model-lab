@@ -23,13 +23,12 @@ function loadWorkspaceRootEnv(): void {
 loadWorkspaceRootEnv();
 
 const nextConfig: NextConfig = {
+  /* Linting is a separate CI gate (`pnpm lint`, root eslint.config.mjs); the
+     build stays a build. Next 16 drops the built-in lint step anyway. */
+  eslint: { ignoreDuringBuilds: true },
   /* Workspace packages ship TS source (main: ./src/index.ts) — Next compiles
      them. Store + runner are imported from server code only. */
-  transpilePackages: [
-    "@model-lab/schemas",
-    "@model-lab/store",
-    "@model-lab/build-arena-runner",
-  ],
+  transpilePackages: ["@model-lab/schemas", "@model-lab/store", "@model-lab/build-arena-runner"],
   /* Playwright (dynamic import inside the runner's browser checks) must stay
      an external runtime require — bundling breaks its __dirname-relative
      browser registry lookups. */

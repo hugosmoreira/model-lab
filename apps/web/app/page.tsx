@@ -11,13 +11,7 @@ import {
   StatusDot,
 } from "@/components/ui/primitives";
 import { CostQualityScatter } from "@/components/charts/CostQualityScatter";
-import {
-  endpointProviderLabel,
-  fixtures,
-  modelColor,
-  modelIdOf,
-  shortNameOf,
-} from "@/lib/data";
+import { fixtures, modelColor, modelIdOf, shortNameOf } from "@/lib/data";
 import { listAllRuns } from "@/lib/server/loaders";
 import { hhmm, usd } from "@/lib/format";
 
@@ -62,9 +56,22 @@ function KpiCard({
       </span>
       <span style={{ ...mono, fontSize: 25, fontWeight: 600, lineHeight: 1.1 }}>
         {value}
-        {unit && <span style={{ fontSize: 13, color: "var(--color-faint)", fontWeight: 400 }}> {unit}</span>}
+        {unit && (
+          <span style={{ fontSize: 13, color: "var(--color-faint)", fontWeight: 400 }}>
+            {" "}
+            {unit}
+          </span>
+        )}
       </span>
-      <span style={{ fontSize: 12, color: "var(--color-muted)", display: "flex", alignItems: "center", gap: 6 }}>
+      <span
+        style={{
+          fontSize: 12,
+          color: "var(--color-muted)",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+        }}
+      >
         {dotColor && <ModelDot color={dotColor} size={8} />}
         {caption}
       </span>
@@ -154,7 +161,15 @@ export default async function MissionControl() {
         {/* Two-column body */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
           {/* Left column */}
-          <div style={{ flex: "2 1 520px", minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+          <div
+            style={{
+              flex: "2 1 520px",
+              minWidth: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+            }}
+          >
             {/* Active run */}
             <Panel>
               <PanelHeader
@@ -166,7 +181,11 @@ export default async function MissionControl() {
                 }
                 caption={`${runLive.id} · ${runLive.mode}`}
                 action={
-                  <Link href={`/runs/${runLive.id}/live`} className="hover-amber" style={{ color: "var(--color-amber)", fontSize: 12.5, fontWeight: 600 }}>
+                  <Link
+                    href={`/runs/${runLive.id}/live`}
+                    className="hover-amber"
+                    style={{ color: "var(--color-amber)", fontSize: 12.5, fontWeight: 600 }}
+                  >
                     Open Live Run →
                   </Link>
                 }
@@ -175,8 +194,14 @@ export default async function MissionControl() {
                 {runModels.map((rm) => {
                   const status =
                     rm.failedSampleCount > 0 && rm.status !== "completed"
-                      ? { label: `${rm.failedSampleCount} sample failed`, color: "var(--color-red)" }
-                      : RUN_MODEL_STATUS[rm.status] ?? { label: rm.status, color: "var(--color-muted)" };
+                      ? {
+                          label: `${rm.failedSampleCount} sample failed`,
+                          color: "var(--color-red)",
+                        }
+                      : (RUN_MODEL_STATUS[rm.status] ?? {
+                          label: rm.status,
+                          color: "var(--color-muted)",
+                        });
                   const barColor =
                     rm.failedSampleCount > 0 && rm.status !== "completed"
                       ? "var(--color-red)"
@@ -217,7 +242,14 @@ export default async function MissionControl() {
                       >
                         {status.label}
                       </span>
-                      <span style={{ ...mono, fontSize: 12, color: "var(--color-muted)", textAlign: "right" }}>
+                      <span
+                        style={{
+                          ...mono,
+                          fontSize: 12,
+                          color: "var(--color-muted)",
+                          textAlign: "right",
+                        }}
+                      >
                         {usd(rm.costUsd)}
                       </span>
                     </div>
@@ -227,32 +259,56 @@ export default async function MissionControl() {
             </Panel>
 
             {/* Chart + Notable finding */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 16 }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))",
+                gap: 16,
+              }}
+            >
               <Panel style={{ padding: "14px 18px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>Cost vs quality</span>
-                  <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>last run · n=3</span>
+                  <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>
+                    last run · n=3
+                  </span>
                 </div>
                 <CostQualityScatter points={scatterPoints} />
               </Panel>
 
-              <Callout variant="insight" style={{ padding: "14px 18px", flexDirection: "column", display: "flex" }}>
+              <Callout
+                variant="insight"
+                style={{ padding: "14px 18px", flexDirection: "column", display: "flex" }}
+              >
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>
                     <span style={{ color: "var(--color-magenta)" }}>◆</span> Notable finding
                   </span>
-                  <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.55 }}>{notableFinding.body}</p>
+                  <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.55 }}>
+                    {notableFinding.body}
+                  </p>
                   <p style={{ margin: 0, fontSize: 12.5, color: "var(--color-muted)" }}>
                     {notableFinding.note}{" "}
-                    <Link href={notableFinding.reviewHref} style={{ color: "var(--color-magenta)" }}>
+                    <Link
+                      href={notableFinding.reviewHref}
+                      style={{ color: "var(--color-magenta)" }}
+                    >
                       review in Head-to-Head
                     </Link>
                   </p>
                   <span style={{ display: "flex", gap: 14, marginTop: 2 }}>
-                    <Link href={notableFinding.investigateHref} className="hover-amber" style={{ color: "var(--color-amber)", fontSize: 12, fontWeight: 600 }}>
+                    <Link
+                      href={notableFinding.investigateHref}
+                      className="hover-amber"
+                      style={{ color: "var(--color-amber)", fontSize: 12, fontWeight: 600 }}
+                    >
                       Investigate →
                     </Link>
-                    <Link href={notableFinding.shareHref} className="hover-text" style={{ color: "var(--color-muted)", fontSize: 12 }}>
+                    <Link
+                      href={notableFinding.shareHref}
+                      className="hover-text"
+                      style={{ color: "var(--color-muted)", fontSize: 12 }}
+                    >
                       Create share card
                     </Link>
                   </span>
@@ -265,7 +321,11 @@ export default async function MissionControl() {
               <PanelHeader
                 title="Recent runs"
                 action={
-                  <Link href="/runs" className="hover-text" style={{ color: "var(--color-muted)", fontSize: 12.5 }}>
+                  <Link
+                    href="/runs"
+                    className="hover-text"
+                    style={{ color: "var(--color-muted)", fontSize: 12.5 }}
+                  >
                     View all →
                   </Link>
                 }
@@ -307,11 +367,27 @@ export default async function MissionControl() {
                       </span>
                     </span>
                     <ModeBadge mode={r.mode} />
-                    <span style={{ ...mono, fontSize: 11, color: RUN_STATUS_COLORS[r.status] }}>{r.status}</span>
-                    <span style={{ ...mono, fontSize: 12, color: "var(--color-muted)", textAlign: "right" }}>
+                    <span style={{ ...mono, fontSize: 11, color: RUN_STATUS_COLORS[r.status] }}>
+                      {r.status}
+                    </span>
+                    <span
+                      style={{
+                        ...mono,
+                        fontSize: 12,
+                        color: "var(--color-muted)",
+                        textAlign: "right",
+                      }}
+                    >
                       {usd(r.costUsd)}
                     </span>
-                    <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)", textAlign: "right" }}>
+                    <span
+                      style={{
+                        ...mono,
+                        fontSize: 11,
+                        color: "var(--color-faint)",
+                        textAlign: "right",
+                      }}
+                    >
                       {r.when}
                     </span>
                   </Link>
@@ -321,18 +397,37 @@ export default async function MissionControl() {
           </div>
 
           {/* Right column */}
-          <div style={{ flex: "1 1 300px", minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+          <div
+            style={{
+              flex: "1 1 300px",
+              minWidth: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+            }}
+          >
             {/* Latest artifacts */}
             <Panel>
               <PanelHeader
                 title="Latest artifacts"
                 action={
-                  <Link href="/arena" className="hover-amber" style={{ color: "var(--color-amber)", fontSize: 12.5 }}>
+                  <Link
+                    href="/arena"
+                    className="hover-amber"
+                    style={{ color: "var(--color-amber)", fontSize: 12.5 }}
+                  >
                     Arena →
                   </Link>
                 }
               />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, padding: "12px 16px" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 10,
+                  padding: "12px 16px",
+                }}
+              >
                 {artifacts.map((a) => (
                   <Link
                     key={a.endpointId}
@@ -429,7 +524,11 @@ export default async function MissionControl() {
                 ))}
               </div>
               <div style={{ padding: "10px 16px" }}>
-                <Link href="/settings/providers" className="hover-text" style={{ color: "var(--color-muted)", fontSize: 12.5 }}>
+                <Link
+                  href="/settings/providers"
+                  className="hover-text"
+                  style={{ color: "var(--color-muted)", fontSize: 12.5 }}
+                >
                   Manage providers →
                 </Link>
               </div>
@@ -463,8 +562,12 @@ export default async function MissionControl() {
                         flex: "0 0 auto",
                       }}
                     />
-                    <span style={{ fontSize: 13, flex: 1, color: "var(--color-text)" }}>{e.filename}</span>
-                    <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>{e.aspect}</span>
+                    <span style={{ fontSize: 13, flex: 1, color: "var(--color-text)" }}>
+                      {e.filename}
+                    </span>
+                    <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>
+                      {e.aspect}
+                    </span>
                   </Link>
                 ))}
               </div>
@@ -484,10 +587,19 @@ export default async function MissionControl() {
                       borderBottom: "1px solid var(--color-border-row)",
                     }}
                   >
-                    <span style={{ flex: "0 0 44px", ...mono, fontSize: 11, color: "var(--color-faint)" }}>
+                    <span
+                      style={{
+                        flex: "0 0 44px",
+                        ...mono,
+                        fontSize: 11,
+                        color: "var(--color-faint)",
+                      }}
+                    >
                       {hhmm(ev.t)}
                     </span>
-                    <span style={{ fontSize: 12.5, color: "var(--color-text-secondary)", minWidth: 0 }}>
+                    <span
+                      style={{ fontSize: 12.5, color: "var(--color-text-secondary)", minWidth: 0 }}
+                    >
                       <span style={{ ...mono, fontSize: 11.5 }}>{ev.type}</span> — {ev.message}
                     </span>
                   </div>

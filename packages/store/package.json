@@ -11,7 +11,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit",
-    "lint": "echo store: no lint configured"
+    "lint": "pnpm -w exec eslint packages/store",
+    "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning test/conformance.test.mjs"
   },
   "dependencies": {
     "@model-lab/schemas": "workspace:*",

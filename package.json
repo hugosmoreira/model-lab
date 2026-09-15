@@ -7,6 +7,33 @@
     "dev": "pnpm --filter @model-lab/web dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint"
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm -r --if-present test"
+  },
+  "engines": {
+    "node": ">=22.13",
+    "pnpm": ">=10"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^15.5.25",
+    "globals": "^16.0.0",
+    "prettier": "^3.9.6",
+    "typescript-eslint": "^8.70.0",
+    "@eslint/eslintrc": "^3.3.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss@8": "^8.5.28",
+      "nanoid@3": "^3.3.19",
+      "sharp@0.34": "^0.35.4"
+    },
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "unrs-resolver"
+    ]
   }
 }

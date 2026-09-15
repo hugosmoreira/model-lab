@@ -11,8 +11,11 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit",
-    "lint": "echo runner: no lint configured",
-    "test:checks": "node --experimental-strip-types --disable-warning=ExperimentalWarning test/check-taxonomy.test.mjs"
+    "lint": "pnpm -w exec eslint runners/build-arena",
+    "test:checks": "node --experimental-strip-types --disable-warning=ExperimentalWarning test/check-taxonomy.test.mjs",
+    "selftest": "tsx src/selftest.ts",
+    "test": "pnpm run test:unit && pnpm run test:checks && pnpm run selftest",
+    "test:unit": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test test/unit.test.mjs"
   },
   "dependencies": {
     "@model-lab/schemas": "workspace:*",
@@ -21,6 +24,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "tsx": "^4.23.13"
   }
 }

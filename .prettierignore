@@ -1,0 +1,16 @@
+# build output and dependencies
+node_modules
+.next
+dist
+out
+artifacts-data
+pnpm-lock.yaml
+.claude
+
+# recorded evidence — never reformat what a model or a run produced
+docs/example-run
+runners/build-arena/test/fixtures
+**/*.html
+
+# prose keeps its hand-set line breaks
+**/*.md

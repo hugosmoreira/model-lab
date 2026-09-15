@@ -12,7 +12,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit",
-    "lint": "echo schemas: no lint configured"
+    "lint": "pnpm -w exec eslint packages/schemas"
   },
   "dependencies": {
     "zod": "^4.1.0"
