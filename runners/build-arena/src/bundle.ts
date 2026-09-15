@@ -5,7 +5,7 @@
  */
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import type { RunManifest } from "@model-lab/schemas";
 import { FsRunStore, runPrefix, sanitizeSegment } from "./store-fs";
 import type { BundleResult, RunnerConfig } from "./types";
@@ -161,7 +161,9 @@ export async function exportBundle(
     sampleIndex: null,
     level: "info",
     message: `bundle exported · ${files.length} entries`,
-    payload: { dir },
+    // Relative to the data root: the event log ships inside the bundle, and an
+    // absolute path would publish the exporter's username and disk layout.
+    payload: { dir: relative(store.root, dir).split("\\").join("/") },
   });
 
   return { runId: snapshot.run.id, fingerprint: snapshot.run.fingerprint, dir, files };

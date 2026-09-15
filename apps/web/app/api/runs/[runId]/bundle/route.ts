@@ -1,7 +1,7 @@
-import AdmZip from "adm-zip";
 import { NextResponse } from "next/server";
 import { exportBundle } from "@model-lab/build-arena-runner";
 import { buildDemoBundleZip, DEMO_RUN_ID } from "@/lib/share/demo-bundle";
+import { zipDirectory } from "@/lib/share/zip";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  *  - Real runs: the runner's exportBundle(runId) writes bundles/<runId>/
  *    under MODEL_LAB_DATA_DIR (manifest, models, benchmark, samples.jsonl,
  *    scores, README, artifacts/, screenshots/, events.jsonl); that directory
- *    is zipped with adm-zip. Bundles exist only for terminal runs — the
+ *    is zipped in memory (lib/share/zip). Bundles exist only for terminal runs — the
  *    runner persists run.json when the run finishes.
  *
  * Security: the runId is validated against ^run_[0-9a-f]{8}$ BEFORE any
@@ -24,18 +24,14 @@ export const dynamic = "force-dynamic";
 
 const RUN_ID_RE = /^run_[0-9a-f]{8}$/;
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ runId: string }> },
-) {
+export async function GET(_req: Request, { params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
   if (!RUN_ID_RE.test(runId)) {
     return NextResponse.json({ error: "invalid run id" }, { status: 400 });
   }
 
   try {
-    const buffer =
-      runId === DEMO_RUN_ID ? buildDemoBundleZip() : await zipStoredBundle(runId);
+    const buffer = runId === DEMO_RUN_ID ? buildDemoBundleZip() : await zipStoredBundle(runId);
     return new Response(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/zip",
@@ -54,7 +50,5 @@ export async function GET(
 
 async function zipStoredBundle(runId: string): Promise<Buffer> {
   const result = await exportBundle(runId); // writes bundles/<runId>/ on disk
-  const zip = new AdmZip();
-  zip.addLocalFolder(result.dir);
-  return zip.toBuffer();
+  return zipDirectory(result.dir);
 }

@@ -1,14 +1,14 @@
 /**
  * In-memory run bundle for the seeded demo scenario (run_8f3ac21e).
  *
- * SERVER-ONLY (imports adm-zip / node Buffer) — used exclusively by
+ * SERVER-ONLY (node Buffer) — used exclusively by
  * GET /api/runs/[runId]/bundle. The demo run never touched the FsRunStore,
  * so its bundle is generated from the typed fixtures with the same file
  * layout the native runner's exportBundle() writes to bundles/<runId>/
  * (runners/build-arena/src/bundle.ts): manifest.json, models.json,
  * benchmark.json, samples.jsonl, scores.json, README.md.
  */
-import AdmZip from "adm-zip";
+import { zipFiles } from "@/lib/share/zip";
 import {
   benchmarkPacks,
   challengePrompt,
@@ -21,9 +21,9 @@ import {
 export const DEMO_RUN_ID = "run_8f3ac21e";
 
 export function buildDemoBundleZip(): Buffer {
-  const zip = new AdmZip();
+  const files: Record<string, string> = {};
   const add = (name: string, content: string): void => {
-    zip.addFile(name, Buffer.from(content, "utf8"));
+    files[name] = content;
   };
 
   add("manifest.json", JSON.stringify(runManifest, null, 2));
@@ -95,5 +95,5 @@ export function buildDemoBundleZip(): Buffer {
     ].join("\n"),
   );
 
-  return zip.toBuffer();
+  return zipFiles(files);
 }
