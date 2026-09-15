@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: typecheck · lint · test · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # Every step below is guaranteed zero-spend: the mock flag substitutes all
+      # providers and disables the judge, and no key is ever present in CI.
+      MODEL_LAB_MOCK_PROVIDERS: "1"
+      MODEL_LAB_STORE: memory
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4 # version comes from packageManager in package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('./runners/build-arena/node_modules/playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Chromium
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: Install Chromium (cache miss)
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @model-lab/build-arena-runner exec playwright install --with-deps chromium
+
+      - name: Install Chromium system libraries (cache hit)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @model-lab/build-arena-runner exec playwright install-deps chromium
+
+      - name: Store conformance (memory + sqlite)
+        run: pnpm --filter @model-lab/store test
+
+      - name: Runner unit tests
+        run: pnpm --filter @model-lab/build-arena-runner test:unit
+
+      - name: Check-taxonomy regression (real artifacts through the browser checks)
+        run: pnpm --filter @model-lab/build-arena-runner test:checks
+
+      - name: Runner selftest (mock end-to-end run)
+        run: pnpm --filter @model-lab/build-arena-runner selftest
+
+      - name: Build
+        run: pnpm build
