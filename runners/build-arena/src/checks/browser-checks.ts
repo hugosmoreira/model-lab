@@ -328,7 +328,12 @@ export function injectCsp(html: string): string {
 
 type CheckStatus = BrowserTestResult["status"];
 
-function result(name: BrowserCheckName, status: CheckStatus, note: string, ms: number | null): BrowserTestResult {
+function result(
+  name: BrowserCheckName,
+  status: CheckStatus,
+  note: string,
+  ms: number | null,
+): BrowserTestResult {
   return { name, status, note, durationMs: ms, category: CHECK_CATEGORY[name] };
 }
 
@@ -569,9 +574,11 @@ interface MeasureRequest {
  * artifact code has ever run in this context.
  */
 const MEASURE_REGION = (req: MeasureRequest): RegionMetrics => {
-  const frame = (globalThis as unknown as {
-    __mlFrame?: { ctx: CanvasRenderingContext2D; w: number; h: number };
-  }).__mlFrame;
+  const frame = (
+    globalThis as unknown as {
+      __mlFrame?: { ctx: CanvasRenderingContext2D; w: number; h: number };
+    }
+  ).__mlFrame;
   if (frame === undefined) throw new Error("frame not loaded");
   const x0 = Math.max(0, Math.min(frame.w - 1, Math.round(req.rect.x)));
   const y0 = Math.max(0, Math.min(frame.h - 1, Math.round(req.rect.y)));
@@ -816,7 +823,12 @@ export async function runBrowserChecks(
       void ctx.close().catch(() => undefined);
     }, watchdogMs);
 
-    const record = (name: BrowserCheckName, status: CheckStatus, note: string, ms: number): void => {
+    const record = (
+      name: BrowserCheckName,
+      status: CheckStatus,
+      note: string,
+      ms: number,
+    ): void => {
       results.push(result(name, status, note, ms));
     };
 
@@ -837,7 +849,12 @@ export async function runBrowserChecks(
       const okDoc = await page.evaluate(
         () => document.documentElement !== null && document.body !== null,
       );
-      record("html.parses", okDoc ? "passed" : "failed", okDoc ? "valid document" : "no document element", loadMs);
+      record(
+        "html.parses",
+        okDoc ? "passed" : "failed",
+        okDoc ? "valid document" : "no document element",
+        loadMs,
+      );
     } else {
       const staticOk = /<!doctype\s+html|<html[\s>]/i.test(html);
       record(
@@ -949,7 +966,12 @@ export async function runBrowserChecks(
       if (buf.byteLength > 1024) {
         record("screenshot.captured", "passed", `1280×720 · ${kb}kb`, Date.now() - shotStart);
       } else {
-        record("screenshot.captured", "warn", `suspiciously small (${kb}kb)`, Date.now() - shotStart);
+        record(
+          "screenshot.captured",
+          "warn",
+          `suspiciously small (${kb}kb)`,
+          Date.now() - shotStart,
+        );
       }
       try {
         const analyzed = await analyzeFrame(page, await getAnalyzer(browser), buf);
@@ -962,7 +984,12 @@ export async function runBrowserChecks(
         frameIssue = `frame analysis error: ${errorMessage(err).slice(0, 120)}`;
       }
     } catch (err) {
-      record("screenshot.captured", "failed", errorMessage(err).slice(0, 160), Date.now() - shotStart);
+      record(
+        "screenshot.captured",
+        "failed",
+        errorMessage(err).slice(0, 160),
+        Date.now() - shotStart,
+      );
       frameIssue = `screenshot failed: ${errorMessage(err).slice(0, 120)}`;
     }
     /** "we could not look, because …" — only ever read when frame === null. */
@@ -977,11 +1004,18 @@ export async function runBrowserChecks(
         m.columnVariance < T.columnVarianceMin &&
         m.localDetail < T.localDetailMin;
       const evidence =
-        m === null ? "" : `(column σ ${m.columnVariance.toFixed(1)}, detail ${m.localDetail.toFixed(1)})`;
+        m === null
+          ? ""
+          : `(column σ ${m.columnVariance.toFixed(1)}, detail ${m.localDetail.toFixed(1)})`;
       if (!info.found) {
         record("canvas.renders", "failed", "no canvas element", canvasProbeMs);
       } else if (info.blank) {
-        record("canvas.renders", "failed", "blank frame — nothing drawn to the canvas", canvasProbeMs);
+        record(
+          "canvas.renders",
+          "failed",
+          "blank frame — nothing drawn to the canvas",
+          canvasProbeMs,
+        );
       } else if (m !== null && (m.distinctColors <= 1 || m.uniformity >= T.blankUniformityMax)) {
         record(
           "canvas.renders",
@@ -990,7 +1024,12 @@ export async function runBrowserChecks(
           canvasProbeMs,
         );
       } else if (flat) {
-        record("canvas.renders", "failed", `no vertical structure — gradient only ${evidence}`, canvasProbeMs);
+        record(
+          "canvas.renders",
+          "failed",
+          `no vertical structure — gradient only ${evidence}`,
+          canvasProbeMs,
+        );
       } else if (m === null) {
         /**
          * FAIL-CLOSED. This used to record "passed (pixels not measurable)",
@@ -1037,24 +1076,56 @@ export async function runBrowserChecks(
     }
 
     // 5. interaction.wasd (CAPABILITY)
+    //
+    // One key at a time, comparing the frame after each. Pressing w-a-s-d back
+    // to back and comparing only at the end let opposite keys cancel out: a
+    // build that moved forward for w and back for s could land on the exact
+    // starting frame, and how many rAF ticks each hold spanned depended on
+    // machine load — so a working build scored "no visible state change" on a
+    // busy runner and "movement responds" on an idle one. Any key that changes
+    // the frame is proof of a responding build; a wall in front of the player
+    // blocking w is why the others still get their turn.
     {
       const start = Date.now();
       const errsBefore = totalErrors();
       const before = await canvasSnapshot(page);
-      for (const key of ["w", "a", "s", "d"]) {
+      let changed = false;
+      let respondedTo = "";
+      for (const key of ["w", "d", "a", "s"]) {
         await page.keyboard.down(key);
-        await page.waitForTimeout(60);
+        await page.waitForTimeout(160);
         await page.keyboard.up(key);
+        await page.waitForTimeout(120);
+        if (totalErrors() > errsBefore) break;
+        const now = await canvasSnapshot(page);
+        if (before !== "" && now !== before) {
+          changed = true;
+          respondedTo = key;
+          break;
+        }
       }
-      await page.waitForTimeout(200);
-      const after = await canvasSnapshot(page);
       const ms = Date.now() - start;
       if (totalErrors() > errsBefore) {
-        record("interaction.wasd", "failed", `error during input: ${lastError().slice(0, 120)}`, ms);
-      } else if (before !== "" && before !== after) {
-        record("interaction.wasd", "passed", "movement responds", ms);
+        record(
+          "interaction.wasd",
+          "failed",
+          `error during input: ${lastError().slice(0, 120)}`,
+          ms,
+        );
+      } else if (changed) {
+        record(
+          "interaction.wasd",
+          "passed",
+          `movement responds (frame changed on "${respondedTo}")`,
+          ms,
+        );
       } else {
-        record("interaction.wasd", "warn", "no crash; no visible state change", ms);
+        record(
+          "interaction.wasd",
+          "warn",
+          "no crash; no visible state change after w, d, a, s",
+          ms,
+        );
       }
     }
 
@@ -1069,7 +1140,12 @@ export async function runBrowserChecks(
       await page.waitForTimeout(150);
       const ms = Date.now() - start;
       if (totalErrors() > errsBefore) {
-        record("interaction.mouse", "failed", `error during input: ${lastError().slice(0, 120)}`, ms);
+        record(
+          "interaction.mouse",
+          "failed",
+          `error during input: ${lastError().slice(0, 120)}`,
+          ms,
+        );
       } else {
         record("interaction.mouse", "passed", "no errors on mouse input", ms);
       }
@@ -1157,11 +1233,26 @@ export async function runBrowserChecks(
       } else {
         const pct = (m.wallDetail * 100).toFixed(1);
         if (m.wallDetail >= T.wallDetailMin) {
-          record("textures.applied", "passed", `surface detail in the wall region (${pct}% edge pixels)`, ms);
+          record(
+            "textures.applied",
+            "passed",
+            `surface detail in the wall region (${pct}% edge pixels)`,
+            ms,
+          );
         } else if (m.wallDetail >= T.wallDetailWarn) {
-          record("textures.applied", "warn", `flat shading — only ${pct}% edge pixels in the wall region`, ms);
+          record(
+            "textures.applied",
+            "warn",
+            `flat shading — only ${pct}% edge pixels in the wall region`,
+            ms,
+          );
         } else {
-          record("textures.applied", "failed", `no surface detail — ${pct}% edge pixels in the wall region (gradient or flat fill)`, ms);
+          record(
+            "textures.applied",
+            "failed",
+            `no surface detail — ${pct}% edge pixels in the wall region (gradient or flat fill)`,
+            ms,
+          );
         }
       }
     }
@@ -1260,13 +1351,19 @@ export async function runBrowserChecks(
       });
       const ms = Date.now() - start;
       if (ratio === null) record("a11y.contrast", "warn", "no text content to sample", ms);
-      else if (ratio >= 4.5) record("a11y.contrast", "passed", `min contrast ${ratio.toFixed(1)}:1`, ms);
-      else if (ratio >= 3) record("a11y.contrast", "warn", `min contrast ${ratio.toFixed(1)}:1 (< 4.5:1)`, ms);
+      else if (ratio >= 4.5)
+        record("a11y.contrast", "passed", `min contrast ${ratio.toFixed(1)}:1`, ms);
+      else if (ratio >= 3)
+        record("a11y.contrast", "warn", `min contrast ${ratio.toFixed(1)}:1 (< 4.5:1)`, ms);
       else record("a11y.contrast", "failed", `min contrast ${ratio.toFixed(1)}:1`, ms);
     }
   } catch (err) {
     if (timedOut) {
-      fillMissing(results, "failed", `watchdog: ${Math.round((opts.watchdogMs ?? 30_000) / 1000)}s limit exceeded`);
+      fillMissing(
+        results,
+        "failed",
+        `watchdog: ${Math.round((opts.watchdogMs ?? 30_000) / 1000)}s limit exceeded`,
+      );
     } else {
       fillMissing(results, "skipped", `check runner error: ${errorMessage(err).slice(0, 160)}`);
     }

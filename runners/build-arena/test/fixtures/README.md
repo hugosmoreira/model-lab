@@ -44,6 +44,13 @@ retuned; the assertions are written as bounds (`0`, `>= 3`, `gap >= 3`) rather
 than exact values so honest retuning does not break them, but the **gap** is the
 property that must never regress.
 
+`interaction.wasd` is probed one key at a time (w, d, a, s) with a frame
+comparison after each. An earlier version pressed all four back to back and
+compared only at the end, which let a working build land on its starting frame
+when the forward and backward holds spanned the same number of animation
+ticks — the walls fixture then scored 3/5 on a busy machine and 4/5 on an idle
+one. Any single key that changes the frame is proof the build responds.
+
 ## Note on the wider brief
 
 The "scored 11/12, exactly level with a working claude build" framing refers to
