@@ -2,6 +2,10 @@
 
 > Run reproducible LLM comparisons, inspect live artifacts, and export publication-ready results.
 
+[![CI](https://github.com/hugosmoreira/model-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/hugosmoreira/model-lab/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node 22.13+](https://img.shields.io/badge/node-%E2%89%A5%2022.13-3c873a.svg)](.nvmrc)
+
 Model Lab is a local-first, open-source **LLM Benchmark & Build Arena**: send the same
 one-shot build challenge (or objective test pack) to several models — cloud APIs and
 local models side by side — under identical configuration. Watch the run live, execute
@@ -69,6 +73,9 @@ with raw outputs and screenshots.
 
 ## Quickstart
 
+Requirements: Node 22.13 or newer, pnpm 10 (`corepack enable` picks up the pinned
+version), and a Chromium that Playwright installs for you (on Linux add `--with-deps`).
+
 ```bash
 git clone https://github.com/hugosmoreira/model-lab
 cd model-lab
@@ -78,7 +85,10 @@ pnpm dev        # http://localhost:3000
 ```
 
 With no configuration you get a fully working demo on deterministic mock providers.
-To benchmark real models, create a `.env` at the repo root:
+The demo workspace is a tour, not data: its model list and run history are
+illustrative fixtures (see [known issues](docs/ROADMAP.md#known-issues)), and real
+endpoints take over the moment a key is present. To benchmark real models, copy
+[`.env.example`](.env.example) to `.env` at the repo root:
 
 ```bash
 ANTHROPIC_API_KEY=...          # any subset — endpoints without a key run as
@@ -101,6 +111,20 @@ judge phase, reproducible bundle writer), `benchmark-packs/` (versioned challeng
 definitions). Provider keys never reach the browser; generated code never escapes
 the sandbox. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full architecture and [`SECURITY.md`](SECURITY.md) for the threat model.
 
+## Development
+
+```bash
+pnpm -r typecheck               # strict TypeScript across all four packages
+pnpm lint && pnpm format:check  # ESLint + Prettier
+pnpm test                       # store conformance · runner unit tests · check-taxonomy regression · mock selftest
+pnpm build                      # production build (stop the dev server first)
+```
+
+CI runs the same gates on every push and pull request, all zero-spend.
+[`CONTRIBUTING.md`](CONTRIBUTING.md) lists the extension points,
+[`docs/ROADMAP.md`](docs/ROADMAP.md) what is planned and what is known to be wrong, and
+[`CHANGELOG.md`](CHANGELOG.md) what shipped when.
+
 ## Honest limitations
 
 - One-shot visual benchmarks measure *one-shot visual building* — they are vivid and
@@ -108,8 +132,9 @@ the sandbox. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full arc
 - The LLM judge is an estimate, never ground truth — that's why verdicts are
   order-swapped, labeled, and excluded when unstable.
 - Formal eval-engine adapters (Inspect/OpenBench), Leaderboard, and Judge Lab are
-  roadmap, not features. Buttons marked `soon` are honest.
+  [roadmap](docs/ROADMAP.md), not features. Buttons marked `soon` are honest.
 
 ## License
 
-MIT
+MIT — see [`LICENSE`](LICENSE). If Model Lab ends up in a paper or a published
+comparison, [`CITATION.cff`](CITATION.cff) has the reference.

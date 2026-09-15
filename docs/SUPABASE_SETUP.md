@@ -1,7 +1,8 @@
 # Supabase setup for Model Lab
 
-The app is local-first and runs entirely on fixtures until persistence is wired
-(Phase 2). When you're ready, prepare Supabase like this:
+Model Lab is local-first: the default `memory` store needs no setup, and
+`MODEL_LAB_STORE=sqlite` persists runs to a local file. Use Supabase when you
+want hosted persistence that several machines share. Prepare it like this:
 
 ## 1. Create the project
 
@@ -38,7 +39,8 @@ Use the **secret** key as `SUPABASE_SERVICE_ROLE_KEY` (on older projects this
 is the `service_role` JWT). The publishable/anon key is useless to Model Lab —
 the schema is RLS deny-by-default and the browser never talks to Supabase.
 
-Provider keys (Phase 2 runner) also live here, server-side only:
+Provider keys also live here, server-side only (the full list is in
+[`.env.example`](../.env.example)):
 
 ```bash
 ANTHROPIC_API_KEY=...

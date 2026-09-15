@@ -1,0 +1,43 @@
+name: New benchmark pack
+description: Propose a build-arena challenge or an objective eval pack.
+labels: [pack, enhancement]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Pack kind
+      options:
+        - build-arena (one-shot build + browser checks against the artifact)
+        - eval (tasks with an objective scorer — exact-match, contains, json-field)
+    validations:
+      required: true
+  - type: textarea
+    id: measures
+    attributes:
+      label: What it measures
+      description: The capability this pack isolates, and what a strong versus weak result looks like.
+    validations:
+      required: true
+  - type: textarea
+    id: prompt
+    attributes:
+      label: Prompt or task draft
+      description: The verbatim prompt for a build-arena pack, or a few representative tasks with expected answers for an eval pack.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: checks
+    attributes:
+      label: Checks or scorer
+      description: For build-arena, which browser checks apply and which are gates. For eval, which scorer and why it cannot be gamed by formatting.
+  - type: dropdown
+    id: license
+    attributes:
+      label: License of the pack content
+      description: Packs ship in `benchmark-packs/<slug>/` under the repo's MIT license unless noted.
+      options:
+        - MIT (same as the repo)
+        - Other (explain below)
+    validations:
+      required: true

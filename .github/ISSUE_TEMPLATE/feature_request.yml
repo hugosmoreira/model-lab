@@ -1,0 +1,38 @@
+name: Feature request
+description: Propose a capability, a scoring change, or a UI improvement.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What can you not do, or not trust, today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should change. For anything that touches scores, say which source (browser / judge / human / objective) it affects and how it stays labelled.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Provider adapters
+        - Benchmark packs / browser checks
+        - Judge / scoring
+        - Persistence (memory / sqlite / supabase)
+        - UI / Share Studio
+        - CLI / CI / tooling
+        - Docs
+    validations:
+      required: true
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contribution
+      options:
+        - label: I would like to implement this myself

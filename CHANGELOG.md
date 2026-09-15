@@ -1,0 +1,59 @@
+# Changelog
+
+All notable changes to Model Lab are recorded here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
+[Semantic Versioning](https://semver.org/).
+
+## [Unreleased]
+
+### Added
+
+- CI on GitHub Actions: typecheck, lint, format check, store conformance,
+  runner unit tests, the check-taxonomy regression, the mock selftest, and a
+  production build — all zero-spend.
+- `pnpm test` at the root: store conformance on memory and SQLite, runner unit
+  tests for finish-reason normalization and check scoring, the check-taxonomy
+  regression, and the end-to-end mock selftest.
+- ESLint (flat config, Next.js preset for the app, typescript-eslint for the
+  packages) and Prettier, both enforced in CI.
+- Community files: code of conduct, issue and pull request templates,
+  citation metadata, a public roadmap with known issues, Dependabot.
+- A root `.env.example` documenting every variable the code reads, including
+  the judge and output-cap settings.
+
+### Changed
+
+- Next.js 15.5.25 (patches two critical advisories in 15.5.22); postcss,
+  nanoid, and sharp pinned past their advisories; adm-zip replaced by fflate.
+- Node 22.13 or newer is now declared and enforced (`node:sqlite` unflagged).
+- `interaction.wasd` probes one key at a time and compares the frame after
+  each, so opposite keys can no longer cancel out into "no visible state
+  change" on a busy machine.
+- Exported bundles record the bundle directory relative to the data root
+  instead of the exporter's absolute path.
+- SECURITY.md names a private reporting channel and states plainly that the
+  HTTP API ships without authentication.
+
+## [0.1.0] — 2026-08-03
+
+First complete version.
+
+- Build Arena runs: identical prompt, temperature, token budget, and retry
+  policy across 2–8 endpoints; cloud (Anthropic, OpenAI, DeepSeek, Gemini,
+  OpenRouter) and local (Ollama) side by side; a hard budget ceiling.
+- 12 Playwright checks in a gate / capability / diagnostic taxonomy, with
+  pixel-level render detection in an isolated analyzer context.
+- LLM judge that sees the rendered frame: per-build rubric plus pairwise
+  comparison in both presentation orders; order-reversed verdicts are flagged
+  and excluded from the tally.
+- Human 0–10 ratings through an append-only annotation trail.
+- Truncation reported as a harness limit (`finishReason: "length"`) with
+  reasoning-token accounting, never as a model failure.
+- Persistence behind one interface: memory, SQLite (`node:sqlite`), Supabase.
+- Live run page over SSE, Sample Explorer, Artifact Viewer with a locked
+  sandbox, Share Studio exports (PNG/SVG/CSV/JSON + alt text), reproducible
+  run bundles with fingerprints.
+- Example judged three-way run committed at `docs/example-run/run_f0520023`.
+
+[Unreleased]: https://github.com/hugosmoreira/model-lab/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/hugosmoreira/model-lab/releases/tag/v0.1.0
