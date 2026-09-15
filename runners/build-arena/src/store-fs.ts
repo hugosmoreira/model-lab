@@ -63,9 +63,7 @@ function defaultRoot(): string {
 
 function isEexist(err: unknown): boolean {
   return (
-    typeof err === "object" &&
-    err !== null &&
-    (err as NodeJS.ErrnoException).code === "EEXIST"
+    typeof err === "object" && err !== null && (err as NodeJS.ErrnoException).code === "EEXIST"
   );
 }
 

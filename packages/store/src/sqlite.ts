@@ -69,100 +69,207 @@ export function defaultSqlitePath(): string {
 // row shapes (SQLite column names, SQLite-representable types)
 
 interface RunRow {
-  id: string; fingerprint: string; name: string; mode: string; status: string;
-  pack_slug: string; pack_version: string; prompt_hash: string;
-  samples_per_model: number; model_count: number;
-  budget_ceiling_usd: number; cost_spent_usd: number;
-  est_cost_low_usd: number | null; est_cost_high_usd: number | null;
-  started_at: string; completed_at: string | null; elapsed_sec: number | null;
-  runner_version: string; git_commit: string | null;
-  composite_browser_pct: number; composite_visual_pct: number;
+  id: string;
+  fingerprint: string;
+  name: string;
+  mode: string;
+  status: string;
+  pack_slug: string;
+  pack_version: string;
+  prompt_hash: string;
+  samples_per_model: number;
+  model_count: number;
+  budget_ceiling_usd: number;
+  cost_spent_usd: number;
+  est_cost_low_usd: number | null;
+  est_cost_high_usd: number | null;
+  started_at: string;
+  completed_at: string | null;
+  elapsed_sec: number | null;
+  runner_version: string;
+  git_commit: string | null;
+  composite_browser_pct: number;
+  composite_visual_pct: number;
   composite_efficiency_pct: number;
-  verdict_label: string | null; verdict_narrative: string | null;
-  judge_reversal_count: number; configuration: string;
+  verdict_label: string | null;
+  verdict_narrative: string | null;
+  judge_reversal_count: number;
+  configuration: string;
 }
 
 interface RunModelRow {
-  run_id: string; endpoint_id: string; status: string;
-  failed_sample_count: number; progress_pct: number; current_task: string | null;
-  tokens_out: number; ttft_ms: number | null; total_latency_ms: number | null;
-  cost_usd: number; visual_score_value: number | null; visual_score_n: number | null;
-  tests_passed: number | null; tests_total: number | null; retries: number;
-  unseeded: number; flag: string | null;
+  run_id: string;
+  endpoint_id: string;
+  status: string;
+  failed_sample_count: number;
+  progress_pct: number;
+  current_task: string | null;
+  tokens_out: number;
+  ttft_ms: number | null;
+  total_latency_ms: number | null;
+  cost_usd: number;
+  visual_score_value: number | null;
+  visual_score_n: number | null;
+  tests_passed: number | null;
+  tests_total: number | null;
+  retries: number;
+  unseeded: number;
+  flag: string | null;
 }
 
 interface SampleRow {
-  run_id: string; endpoint_id: string; sample_index: number; global_index: number;
-  status: string; score_value: number | null; score_failed: number;
-  primary_scorer: string | null; cost_usd: number; latency_ms: number | null;
-  ttft_ms: number | null; seed: number | null; has_artifact: number;
-  tokens_out: number | null; raw_ref: string | null; raw_excerpt: string;
-  scorer_trace: string; judge_reversed: number; human_reviewed: number;
+  run_id: string;
+  endpoint_id: string;
+  sample_index: number;
+  global_index: number;
+  status: string;
+  score_value: number | null;
+  score_failed: number;
+  primary_scorer: string | null;
+  cost_usd: number;
+  latency_ms: number | null;
+  ttft_ms: number | null;
+  seed: number | null;
+  has_artifact: number;
+  tokens_out: number | null;
+  raw_ref: string | null;
+  raw_excerpt: string;
+  scorer_trace: string;
+  judge_reversed: number;
+  human_reviewed: number;
   human_note: string | null;
 }
 
 interface ArtifactRow {
-  run_id: string; endpoint_id: string; sample_index: number;
-  path: string; filename: string; size_kb: number; render_ok: number;
-  is_best_of_model: number; source_ref: string | null; source_inline: string | null;
-  screenshot_ref: string | null; console_lines: string; checks: string;
+  run_id: string;
+  endpoint_id: string;
+  sample_index: number;
+  path: string;
+  filename: string;
+  size_kb: number;
+  render_ok: number;
+  is_best_of_model: number;
+  source_ref: string | null;
+  source_inline: string | null;
+  screenshot_ref: string | null;
+  console_lines: string;
+  checks: string;
   judge_commentary: string | null;
-  sandbox_isolated_origin: number; sandbox_network_blocked: number;
-  sandbox_exec_limit_sec: number; sandbox_size_limit_mb: number;
+  sandbox_isolated_origin: number;
+  sandbox_network_blocked: number;
+  sandbox_exec_limit_sec: number;
+  sandbox_size_limit_mb: number;
 }
 
 interface EventRow {
-  id: number; run_id: string; t: string; type: string;
-  endpoint_id: string | null; sample_index: number | null;
-  level: string; message: string; payload: string;
+  id: number;
+  run_id: string;
+  t: string;
+  type: string;
+  endpoint_id: string | null;
+  sample_index: number | null;
+  level: string;
+  message: string;
+  payload: string;
 }
 
 interface AnnotationRow {
-  id: number; run_id: string; endpoint_id: string; sample_index: number;
-  note: string; score_override: number | null; author: string; at: string;
+  id: number;
+  run_id: string;
+  endpoint_id: string;
+  sample_index: number;
+  note: string;
+  score_override: number | null;
+  author: string;
+  at: string;
 }
 
 interface VoteRow {
-  run_id: string; pair_index: number; endpoint_a: string; endpoint_b: string;
-  criterion: string; order_swapped: number; vote: string | null;
-  confidence: string; voted_at: string | null; final: number;
+  run_id: string;
+  pair_index: number;
+  endpoint_a: string;
+  endpoint_b: string;
+  criterion: string;
+  order_swapped: number;
+  vote: string | null;
+  confidence: string;
+  voted_at: string | null;
+  final: number;
 }
 
 interface JudgePairRow {
-  run_id: string; pair_index: number; endpoint_a: string; endpoint_b: string;
-  verdict_ab: string | null; verdict_ba: string | null; reversed: number;
-  excluded_from_tally: number; commentary: string | null;
+  run_id: string;
+  pair_index: number;
+  endpoint_a: string;
+  endpoint_b: string;
+  verdict_ab: string | null;
+  verdict_ba: string | null;
+  reversed: number;
+  excluded_from_tally: number;
+  commentary: string | null;
 }
 
 interface ProviderRow {
-  id: string; name: string; kind: string; is_local: number; status: string;
-  health_latency_ms: number | null; models_available: number | null;
-  models_loaded: number | null; last_tested_at: string | null;
-  credential_masked: string; credential_store: string;
-  warning_message: string | null; local_endpoint: string | null;
+  id: string;
+  name: string;
+  kind: string;
+  is_local: number;
+  status: string;
+  health_latency_ms: number | null;
+  models_available: number | null;
+  models_loaded: number | null;
+  last_tested_at: string | null;
+  credential_masked: string;
+  credential_store: string;
+  warning_message: string | null;
+  local_endpoint: string | null;
   local_hardware: string | null;
 }
 
 interface ModelDefinitionRow {
-  id: string; family: string; short_name: string; identity_color: string;
-  context_window_tokens: number; capabilities: string; supports_seed: number;
+  id: string;
+  family: string;
+  short_name: string;
+  identity_color: string;
+  context_window_tokens: number;
+  capabilities: string;
+  supports_seed: number;
 }
 
 interface EndpointRow {
-  id: string; model_id: string; provider_id: string; deployment: string;
-  quantization: string | null; hardware: string | null;
-  price_in_per_mtok_usd: number | null; price_out_per_mtok_usd: number | null;
-  status: string; runs_count: number; reliability_pct: number | null;
-  avg_visual_score: number | null; last_tested_at: string | null;
+  id: string;
+  model_id: string;
+  provider_id: string;
+  deployment: string;
+  quantization: string | null;
+  hardware: string | null;
+  price_in_per_mtok_usd: number | null;
+  price_out_per_mtok_usd: number | null;
+  status: string;
+  runs_count: number;
+  reliability_pct: number | null;
+  avg_visual_score: number | null;
+  last_tested_at: string | null;
 }
 
 interface PackRow {
-  slug: string; version: string; name: string; kind: string; source: string;
-  description: string; task_count: number; browser_check_count: number | null;
-  eval_scorer: string | null; scorers_summary: string;
-  est_cost_per_model_usd: number | null; est_output_tokens_per_model: number | null;
-  category: string | null; license: string; prompt: string | null;
-  content_hash: string | null; last_run_at: string | null;
+  slug: string;
+  version: string;
+  name: string;
+  kind: string;
+  source: string;
+  description: string;
+  task_count: number;
+  browser_check_count: number | null;
+  eval_scorer: string | null;
+  scorers_summary: string;
+  est_cost_per_model_usd: number | null;
+  est_output_tokens_per_model: number | null;
+  category: string | null;
+  license: string;
+  prompt: string | null;
+  content_hash: string | null;
+  last_run_at: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -416,9 +523,7 @@ export class SqliteStore implements RunStore {
   // -- runs -----------------------------------------------------------------
 
   async listRuns(): Promise<Run[]> {
-    return this.many<RunRow>("select * from runs order by started_at desc").map(
-      rowToRun,
-    );
+    return this.many<RunRow>("select * from runs order by started_at desc").map(rowToRun);
   }
 
   async getRun(runId: string): Promise<RunWithConfig | null> {
@@ -446,15 +551,32 @@ export class SqliteStore implements RunStore {
          ) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .run(
-        run.id, run.fingerprint, run.name, run.mode, run.status,
-        run.pack.slug, run.pack.version, run.promptHash, run.samplesPerModel,
-        run.modelCount, run.budgetCeilingUsd, run.costSpentUsd,
-        run.estCostRangeUsd?.[0] ?? null, run.estCostRangeUsd?.[1] ?? null,
-        run.startedAt, run.completedAt, run.elapsedSec, run.runnerVersion,
-        run.gitCommit, run.compositeWeighting.browser,
-        run.compositeWeighting.visual, run.compositeWeighting.efficiency,
-        run.verdict?.label ?? null, run.verdict?.narrative ?? null,
-        run.judgeReversalCount, json(config),
+        run.id,
+        run.fingerprint,
+        run.name,
+        run.mode,
+        run.status,
+        run.pack.slug,
+        run.pack.version,
+        run.promptHash,
+        run.samplesPerModel,
+        run.modelCount,
+        run.budgetCeilingUsd,
+        run.costSpentUsd,
+        run.estCostRangeUsd?.[0] ?? null,
+        run.estCostRangeUsd?.[1] ?? null,
+        run.startedAt,
+        run.completedAt,
+        run.elapsedSec,
+        run.runnerVersion,
+        run.gitCommit,
+        run.compositeWeighting.browser,
+        run.compositeWeighting.visual,
+        run.compositeWeighting.efficiency,
+        run.verdict?.label ?? null,
+        run.verdict?.narrative ?? null,
+        run.judgeReversalCount,
+        json(config),
       );
   }
 
@@ -470,9 +592,14 @@ export class SqliteStore implements RunStore {
          where id = ?`,
       )
       .run(
-        run.status, run.costSpentUsd, run.completedAt, run.elapsedSec,
-        run.verdict?.label ?? null, run.verdict?.narrative ?? null,
-        run.judgeReversalCount, runId,
+        run.status,
+        run.costSpentUsd,
+        run.completedAt,
+        run.elapsedSec,
+        run.verdict?.label ?? null,
+        run.verdict?.narrative ?? null,
+        run.judgeReversalCount,
+        runId,
       );
     return run;
   }
@@ -506,10 +633,23 @@ export class SqliteStore implements RunStore {
            flag = excluded.flag`,
       )
       .run(
-        rm.runId, rm.endpointId, rm.status, rm.failedSampleCount, rm.progressPct,
-        rm.currentTask, rm.tokensOut, rm.ttftMs, rm.totalLatencyMs, rm.costUsd,
-        rm.visualScore?.value ?? null, rm.visualScore?.n ?? null,
-        rm.testsPassed, rm.testsTotal, rm.retries, b(rm.unseeded), rm.flag,
+        rm.runId,
+        rm.endpointId,
+        rm.status,
+        rm.failedSampleCount,
+        rm.progressPct,
+        rm.currentTask,
+        rm.tokensOut,
+        rm.ttftMs,
+        rm.totalLatencyMs,
+        rm.costUsd,
+        rm.visualScore?.value ?? null,
+        rm.visualScore?.n ?? null,
+        rm.testsPassed,
+        rm.testsTotal,
+        rm.retries,
+        b(rm.unseeded),
+        rm.flag,
       );
   }
 
@@ -525,7 +665,9 @@ export class SqliteStore implements RunStore {
   async insertSample(s: SampleResult): Promise<void> {
     const existing = this.one<Pick<SampleRow, "status">>(
       "select status from samples where run_id = ? and endpoint_id = ? and sample_index = ?",
-      s.runId, s.endpointId, s.sampleIndex,
+      s.runId,
+      s.endpointId,
+      s.sampleIndex,
     );
     if (existing && TERMINAL_SAMPLE_STATUSES.has(existing.status)) {
       throw new StoreError(
@@ -545,17 +687,35 @@ export class SqliteStore implements RunStore {
          ) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .run(
-        s.runId, s.endpointId, s.sampleIndex, s.globalIndex, s.status,
-        scoreValue, b(scoreFailed), s.primaryScorer, s.costUsd, s.latencyMs,
-        s.ttftMs, s.seed, b(s.hasArtifact), s.tokensOut, null, s.rawExcerpt,
-        json(s.scorerTrace), b(s.judgeReversed), b(s.humanReviewed), s.humanNote,
+        s.runId,
+        s.endpointId,
+        s.sampleIndex,
+        s.globalIndex,
+        s.status,
+        scoreValue,
+        b(scoreFailed),
+        s.primaryScorer,
+        s.costUsd,
+        s.latencyMs,
+        s.ttftMs,
+        s.seed,
+        b(s.hasArtifact),
+        s.tokensOut,
+        null,
+        s.rawExcerpt,
+        json(s.scorerTrace),
+        b(s.judgeReversed),
+        b(s.humanReviewed),
+        s.humanNote,
       );
   }
 
   async insertArtifact(a: Artifact): Promise<void> {
     const existing = this.one<Pick<ArtifactRow, "path">>(
       "select path from artifacts where run_id = ? and endpoint_id = ? and sample_index = ?",
-      a.runId, a.endpointId, a.sampleIndex,
+      a.runId,
+      a.endpointId,
+      a.sampleIndex,
     );
     if (existing) {
       throw new StoreError(
@@ -574,11 +734,24 @@ export class SqliteStore implements RunStore {
          ) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .run(
-        a.runId, a.endpointId, a.sampleIndex, a.path, a.filename, a.sizeKb,
-        b(a.renderOk), b(a.isBestOfModel), null, a.source, a.screenshotRef,
-        json(a.consoleLines), json(a.checks), a.judgeCommentary,
-        b(a.sandbox.isolatedOrigin), b(a.sandbox.networkBlocked),
-        a.sandbox.execLimitSec, a.sandbox.sizeLimitMb,
+        a.runId,
+        a.endpointId,
+        a.sampleIndex,
+        a.path,
+        a.filename,
+        a.sizeKb,
+        b(a.renderOk),
+        b(a.isBestOfModel),
+        null,
+        a.source,
+        a.screenshotRef,
+        json(a.consoleLines),
+        json(a.checks),
+        a.judgeCommentary,
+        b(a.sandbox.isolatedOrigin),
+        b(a.sandbox.networkBlocked),
+        a.sandbox.execLimitSec,
+        a.sandbox.sizeLimitMb,
       );
   }
 
@@ -588,17 +761,15 @@ export class SqliteStore implements RunStore {
         `insert into run_events (run_id, t, type, endpoint_id, sample_index, level, message, payload)
          values (?,?,?,?,?,?,?,?)`,
       )
-      .run(
-        e.runId, e.t, e.type, e.endpointId, e.sampleIndex, e.level, e.message,
-        json(e.payload),
-      );
+      .run(e.runId, e.t, e.type, e.endpointId, e.sampleIndex, e.level, e.message, json(e.payload));
     return { ...RunEvent.parse(e), id: Number(result.lastInsertRowid) };
   }
 
   async listEvents(runId: string, afterId?: number): Promise<StoredRunEvent[]> {
     return this.many<EventRow>(
       "select * from run_events where run_id = ? and id > ? order by id asc",
-      runId, afterId ?? 0,
+      runId,
+      afterId ?? 0,
     ).map(rowToEvent);
   }
 
@@ -633,8 +804,13 @@ export class SqliteStore implements RunStore {
       runId,
     ).map((r) =>
       HumanAnnotation.parse({
-        runId: r.run_id, endpointId: r.endpoint_id, sampleIndex: r.sample_index,
-        note: r.note, scoreOverride: r.score_override, author: r.author, at: r.at,
+        runId: r.run_id,
+        endpointId: r.endpoint_id,
+        sampleIndex: r.sample_index,
+        note: r.note,
+        scoreOverride: r.score_override,
+        author: r.author,
+        at: r.at,
       }),
     );
   }
@@ -661,8 +837,16 @@ export class SqliteStore implements RunStore {
            final = excluded.final`,
       )
       .run(
-        v.runId, v.pairIndex, v.pairing[0], v.pairing[1], v.criterion,
-        b(v.orderSwapped), v.vote, v.confidence, v.votedAt, b(v.final),
+        v.runId,
+        v.pairIndex,
+        v.pairing[0],
+        v.pairing[1],
+        v.criterion,
+        b(v.orderSwapped),
+        v.vote,
+        v.confidence,
+        v.votedAt,
+        b(v.final),
       );
   }
 
@@ -673,10 +857,16 @@ export class SqliteStore implements RunStore {
     );
     return rows.map((r) =>
       PairwiseVote.parse({
-        runId: r.run_id, pairIndex: r.pair_index, pairTotal: rows.length,
-        pairing: [r.endpoint_a, r.endpoint_b], criterion: r.criterion,
-        orderSwapped: nb(r.order_swapped), vote: r.vote,
-        confidence: r.confidence, votedAt: r.voted_at, final: nb(r.final),
+        runId: r.run_id,
+        pairIndex: r.pair_index,
+        pairTotal: rows.length,
+        pairing: [r.endpoint_a, r.endpoint_b],
+        criterion: r.criterion,
+        orderSwapped: nb(r.order_swapped),
+        vote: r.vote,
+        confidence: r.confidence,
+        votedAt: r.voted_at,
+        final: nb(r.final),
       }),
     );
   }
@@ -692,8 +882,15 @@ export class SqliteStore implements RunStore {
          ) values (?,?,?,?,?,?,?,?,?)`,
       )
       .run(
-        p.runId, p.pairIndex, p.pairing[0], p.pairing[1], p.verdictAB,
-        p.verdictBA, b(p.reversed), b(p.excludedFromTally), p.commentary,
+        p.runId,
+        p.pairIndex,
+        p.pairing[0],
+        p.pairing[1],
+        p.verdictAB,
+        p.verdictBA,
+        b(p.reversed),
+        b(p.excludedFromTally),
+        p.commentary,
       );
   }
 
@@ -703,10 +900,13 @@ export class SqliteStore implements RunStore {
       runId,
     ).map((r) =>
       JudgePairResult.parse({
-        runId: r.run_id, pairIndex: r.pair_index,
+        runId: r.run_id,
+        pairIndex: r.pair_index,
         pairing: [r.endpoint_a, r.endpoint_b],
-        verdictAB: r.verdict_ab, verdictBA: r.verdict_ba,
-        reversed: nb(r.reversed), excludedFromTally: nb(r.excluded_from_tally),
+        verdictAB: r.verdict_ab,
+        verdictBA: r.verdict_ba,
+        reversed: nb(r.reversed),
+        excludedFromTally: nb(r.excluded_from_tally),
         commentary: r.commentary,
       }),
     );
@@ -715,60 +915,81 @@ export class SqliteStore implements RunStore {
   // -- registry reads -------------------------------------------------------
 
   async listProviders(): Promise<Provider[]> {
-    return this.many<ProviderRow>("select * from providers order by rowid").map(
-      (r) =>
-        Provider.parse({
-          id: r.id, name: r.name, kind: r.kind, status: r.status,
-          isLocal: nb(r.is_local), healthLatencyMs: r.health_latency_ms,
-          modelsAvailable: r.models_available, modelsLoaded: r.models_loaded,
-          lastTestedAt: r.last_tested_at, credentialMasked: r.credential_masked,
-          credentialStore: r.credential_store,
-          warning: r.warning_message === null ? null : { message: r.warning_message },
-          localEndpoint: r.local_endpoint, localHardware: r.local_hardware,
-        }),
-    );
-  }
-
-  async listModelDefinitions(): Promise<ModelDefinition[]> {
-    return this.many<ModelDefinitionRow>(
-      "select * from model_definitions order by rowid",
-    ).map((r) =>
-      ModelDefinition.parse({
-        id: r.id, family: r.family, shortName: r.short_name,
-        identityColor: r.identity_color,
-        contextWindowTokens: r.context_window_tokens,
-        capabilities: unjson(r.capabilities), supportsSeed: nb(r.supports_seed),
+    return this.many<ProviderRow>("select * from providers order by rowid").map((r) =>
+      Provider.parse({
+        id: r.id,
+        name: r.name,
+        kind: r.kind,
+        status: r.status,
+        isLocal: nb(r.is_local),
+        healthLatencyMs: r.health_latency_ms,
+        modelsAvailable: r.models_available,
+        modelsLoaded: r.models_loaded,
+        lastTestedAt: r.last_tested_at,
+        credentialMasked: r.credential_masked,
+        credentialStore: r.credential_store,
+        warning: r.warning_message === null ? null : { message: r.warning_message },
+        localEndpoint: r.local_endpoint,
+        localHardware: r.local_hardware,
       }),
     );
   }
 
-  async listEndpoints(): Promise<ModelEndpoint[]> {
-    return this.many<EndpointRow>("select * from model_endpoints order by rowid").map(
+  async listModelDefinitions(): Promise<ModelDefinition[]> {
+    return this.many<ModelDefinitionRow>("select * from model_definitions order by rowid").map(
       (r) =>
-        ModelEndpoint.parse({
-          id: r.id, modelId: r.model_id, providerId: r.provider_id,
-          deployment: r.deployment, quantization: r.quantization,
-          hardware: r.hardware, priceInPerMtokUsd: r.price_in_per_mtok_usd,
-          priceOutPerMtokUsd: r.price_out_per_mtok_usd, status: r.status,
-          runsCount: r.runs_count, reliabilityPct: r.reliability_pct,
-          avgVisualScore: r.avg_visual_score, lastTestedAt: r.last_tested_at,
+        ModelDefinition.parse({
+          id: r.id,
+          family: r.family,
+          shortName: r.short_name,
+          identityColor: r.identity_color,
+          contextWindowTokens: r.context_window_tokens,
+          capabilities: unjson(r.capabilities),
+          supportsSeed: nb(r.supports_seed),
         }),
     );
   }
 
+  async listEndpoints(): Promise<ModelEndpoint[]> {
+    return this.many<EndpointRow>("select * from model_endpoints order by rowid").map((r) =>
+      ModelEndpoint.parse({
+        id: r.id,
+        modelId: r.model_id,
+        providerId: r.provider_id,
+        deployment: r.deployment,
+        quantization: r.quantization,
+        hardware: r.hardware,
+        priceInPerMtokUsd: r.price_in_per_mtok_usd,
+        priceOutPerMtokUsd: r.price_out_per_mtok_usd,
+        status: r.status,
+        runsCount: r.runs_count,
+        reliabilityPct: r.reliability_pct,
+        avgVisualScore: r.avg_visual_score,
+        lastTestedAt: r.last_tested_at,
+      }),
+    );
+  }
+
   async listPacks(): Promise<BenchmarkPack[]> {
-    return this.many<PackRow>("select * from benchmark_packs order by rowid").map(
-      (r) =>
-        BenchmarkPack.parse({
-          slug: r.slug, name: r.name, version: r.version, kind: r.kind,
-          source: r.source, description: r.description, taskCount: r.task_count,
-          browserCheckCount: r.browser_check_count, evalScorer: r.eval_scorer,
-          scorersSummary: r.scorers_summary,
-          estCostPerModelUsd: r.est_cost_per_model_usd,
-          estOutputTokensPerModel: r.est_output_tokens_per_model,
-          category: r.category, license: r.license, prompt: r.prompt,
-          lastRunAt: r.last_run_at,
-        }),
+    return this.many<PackRow>("select * from benchmark_packs order by rowid").map((r) =>
+      BenchmarkPack.parse({
+        slug: r.slug,
+        name: r.name,
+        version: r.version,
+        kind: r.kind,
+        source: r.source,
+        description: r.description,
+        taskCount: r.task_count,
+        browserCheckCount: r.browser_check_count,
+        evalScorer: r.eval_scorer,
+        scorersSummary: r.scorers_summary,
+        estCostPerModelUsd: r.est_cost_per_model_usd,
+        estOutputTokensPerModel: r.est_output_tokens_per_model,
+        category: r.category,
+        license: r.license,
+        prompt: r.prompt,
+        lastRunAt: r.last_run_at,
+      }),
     );
   }
 
@@ -794,8 +1015,14 @@ export class SqliteStore implements RunStore {
       // children are deleted explicitly).
       const runId = fixtures.run.id;
       for (const table of [
-        "annotations", "pairwise_votes", "judge_pairs", "run_events",
-        "artifacts", "samples", "run_models", "share_exports",
+        "annotations",
+        "pairwise_votes",
+        "judge_pairs",
+        "run_events",
+        "artifacts",
+        "samples",
+        "run_models",
+        "share_exports",
       ]) {
         this.db.prepare(`delete from ${table} where run_id = ?`).run(runId);
       }
@@ -835,9 +1062,19 @@ export class SqliteStore implements RunStore {
          ) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .run(
-        p.id, p.name, p.kind, b(p.isLocal), p.status, p.healthLatencyMs,
-        p.modelsAvailable, p.modelsLoaded, p.lastTestedAt, p.credentialMasked,
-        p.credentialStore, p.warning?.message ?? null, p.localEndpoint,
+        p.id,
+        p.name,
+        p.kind,
+        b(p.isLocal),
+        p.status,
+        p.healthLatencyMs,
+        p.modelsAvailable,
+        p.modelsLoaded,
+        p.lastTestedAt,
+        p.credentialMasked,
+        p.credentialStore,
+        p.warning?.message ?? null,
+        p.localEndpoint,
         p.localHardware,
       );
   }
@@ -851,8 +1088,13 @@ export class SqliteStore implements RunStore {
          ) values (?,?,?,?,?,?,?)`,
       )
       .run(
-        m.id, m.family, m.shortName, m.identityColor, m.contextWindowTokens,
-        json(m.capabilities), b(m.supportsSeed),
+        m.id,
+        m.family,
+        m.shortName,
+        m.identityColor,
+        m.contextWindowTokens,
+        json(m.capabilities),
+        b(m.supportsSeed),
       );
   }
 
@@ -868,9 +1110,19 @@ export class SqliteStore implements RunStore {
          ) values (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .run(
-        e.id, e.modelId, e.providerId, e.deployment, e.quantization, e.hardware,
-        e.priceInPerMtokUsd, e.priceOutPerMtokUsd, e.status, e.runsCount,
-        e.reliabilityPct, e.avgVisualScore, e.lastTestedAt,
+        e.id,
+        e.modelId,
+        e.providerId,
+        e.deployment,
+        e.quantization,
+        e.hardware,
+        e.priceInPerMtokUsd,
+        e.priceOutPerMtokUsd,
+        e.status,
+        e.runsCount,
+        e.reliabilityPct,
+        e.avgVisualScore,
+        e.lastTestedAt,
       );
   }
 
@@ -885,10 +1137,23 @@ export class SqliteStore implements RunStore {
          ) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .run(
-        p.slug, p.version, p.name, p.kind, p.source, p.description, p.taskCount,
-        p.browserCheckCount, p.evalScorer, p.scorersSummary,
-        p.estCostPerModelUsd, p.estOutputTokensPerModel, p.category, p.license,
-        p.prompt, null, p.lastRunAt,
+        p.slug,
+        p.version,
+        p.name,
+        p.kind,
+        p.source,
+        p.description,
+        p.taskCount,
+        p.browserCheckCount,
+        p.evalScorer,
+        p.scorersSummary,
+        p.estCostPerModelUsd,
+        p.estOutputTokensPerModel,
+        p.category,
+        p.license,
+        p.prompt,
+        null,
+        p.lastRunAt,
       );
   }
 }
@@ -898,17 +1163,25 @@ export class SqliteStore implements RunStore {
 
 function rowToRun(r: RunRow): Run {
   return Run.parse({
-    id: r.id, fingerprint: r.fingerprint, name: r.name, mode: r.mode,
-    status: r.status, pack: { slug: r.pack_slug, version: r.pack_version },
-    promptHash: r.prompt_hash, samplesPerModel: r.samples_per_model,
-    modelCount: r.model_count, budgetCeilingUsd: r.budget_ceiling_usd,
+    id: r.id,
+    fingerprint: r.fingerprint,
+    name: r.name,
+    mode: r.mode,
+    status: r.status,
+    pack: { slug: r.pack_slug, version: r.pack_version },
+    promptHash: r.prompt_hash,
+    samplesPerModel: r.samples_per_model,
+    modelCount: r.model_count,
+    budgetCeilingUsd: r.budget_ceiling_usd,
     costSpentUsd: r.cost_spent_usd,
     estCostRangeUsd:
       r.est_cost_low_usd === null || r.est_cost_high_usd === null
         ? null
         : [r.est_cost_low_usd, r.est_cost_high_usd],
-    startedAt: r.started_at, completedAt: r.completed_at,
-    elapsedSec: r.elapsed_sec, runnerVersion: r.runner_version,
+    startedAt: r.started_at,
+    completedAt: r.completed_at,
+    elapsedSec: r.elapsed_sec,
+    runnerVersion: r.runner_version,
     gitCommit: r.git_commit,
     compositeWeighting: {
       browser: r.composite_browser_pct,
@@ -925,44 +1198,69 @@ function rowToRun(r: RunRow): Run {
 
 function rowToRunModel(r: RunModelRow): RunModel {
   return RunModel.parse({
-    runId: r.run_id, endpointId: r.endpoint_id, status: r.status,
-    failedSampleCount: r.failed_sample_count, progressPct: r.progress_pct,
-    currentTask: r.current_task, tokensOut: r.tokens_out, ttftMs: r.ttft_ms,
-    totalLatencyMs: r.total_latency_ms, costUsd: r.cost_usd,
+    runId: r.run_id,
+    endpointId: r.endpoint_id,
+    status: r.status,
+    failedSampleCount: r.failed_sample_count,
+    progressPct: r.progress_pct,
+    currentTask: r.current_task,
+    tokensOut: r.tokens_out,
+    ttftMs: r.ttft_ms,
+    totalLatencyMs: r.total_latency_ms,
+    costUsd: r.cost_usd,
     visualScore:
       r.visual_score_value === null || r.visual_score_n === null
         ? null
         : { value: r.visual_score_value, n: r.visual_score_n },
-    testsPassed: r.tests_passed, testsTotal: r.tests_total, retries: r.retries,
-    unseeded: nb(r.unseeded), flag: r.flag,
+    testsPassed: r.tests_passed,
+    testsTotal: r.tests_total,
+    retries: r.retries,
+    unseeded: nb(r.unseeded),
+    flag: r.flag,
   });
 }
 
 function rowToSample(r: SampleRow): SampleResult {
   return SampleResult.parse({
-    runId: r.run_id, endpointId: r.endpoint_id, sampleIndex: r.sample_index,
-    globalIndex: r.global_index, status: r.status,
+    runId: r.run_id,
+    endpointId: r.endpoint_id,
+    sampleIndex: r.sample_index,
+    globalIndex: r.global_index,
+    status: r.status,
     score: nb(r.score_failed)
       ? { failed: true }
       : r.score_value === null
         ? null
         : { value: r.score_value },
-    primaryScorer: r.primary_scorer, costUsd: r.cost_usd,
-    latencyMs: r.latency_ms, ttftMs: r.ttft_ms, seed: r.seed,
-    hasArtifact: nb(r.has_artifact), tokensOut: r.tokens_out,
-    rawExcerpt: r.raw_excerpt, scorerTrace: unjson(r.scorer_trace),
-    judgeReversed: nb(r.judge_reversed), humanReviewed: nb(r.human_reviewed),
+    primaryScorer: r.primary_scorer,
+    costUsd: r.cost_usd,
+    latencyMs: r.latency_ms,
+    ttftMs: r.ttft_ms,
+    seed: r.seed,
+    hasArtifact: nb(r.has_artifact),
+    tokensOut: r.tokens_out,
+    rawExcerpt: r.raw_excerpt,
+    scorerTrace: unjson(r.scorer_trace),
+    judgeReversed: nb(r.judge_reversed),
+    humanReviewed: nb(r.human_reviewed),
     humanNote: r.human_note,
   });
 }
 
 function rowToArtifact(r: ArtifactRow): Artifact {
   return Artifact.parse({
-    runId: r.run_id, endpointId: r.endpoint_id, sampleIndex: r.sample_index,
-    path: r.path, filename: r.filename, sizeKb: r.size_kb,
-    renderOk: nb(r.render_ok), isBestOfModel: nb(r.is_best_of_model),
-    source: r.source_inline ?? "", screenshotRef: r.screenshot_ref,
-    consoleLines: unjson(r.console_lines), checks: unjson(r.checks),
+    runId: r.run_id,
+    endpointId: r.endpoint_id,
+    sampleIndex: r.sample_index,
+    path: r.path,
+    filename: r.filename,
+    sizeKb: r.size_kb,
+    renderOk: nb(r.render_ok),
+    isBestOfModel: nb(r.is_best_of_model),
+    source: r.source_inline ?? "",
+    screenshotRef: r.screenshot_ref,
+    consoleLines: unjson(r.console_lines),
+    checks: unjson(r.checks),
     judgeCommentary: r.judge_commentary,
     sandbox: {
       isolatedOrigin: nb(r.sandbox_isolated_origin),
@@ -976,8 +1274,13 @@ function rowToArtifact(r: ArtifactRow): Artifact {
 function rowToEvent(r: EventRow): StoredRunEvent {
   return {
     ...RunEvent.parse({
-      t: r.t, type: r.type, runId: r.run_id, endpointId: r.endpoint_id,
-      sampleIndex: r.sample_index, level: r.level, message: r.message,
+      t: r.t,
+      type: r.type,
+      runId: r.run_id,
+      endpointId: r.endpoint_id,
+      sampleIndex: r.sample_index,
+      level: r.level,
+      message: r.message,
       payload: unjson(r.payload),
     }),
     id: r.id,

@@ -59,10 +59,7 @@ export async function POST(req: NextRequest) {
     if (err instanceof RunServiceError) {
       return NextResponse.json({ error: err.message }, { status: 400 });
     }
-    return NextResponse.json(
-      { error: "Run creation failed unexpectedly." },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Run creation failed unexpectedly." }, { status: 500 });
   }
 }
 

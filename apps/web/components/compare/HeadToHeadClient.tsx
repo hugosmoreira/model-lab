@@ -153,7 +153,8 @@ export function HeadToHeadClient({ initial }: { initial: PairQueue }) {
   const [error, setError] = useState<string | null>(null);
 
   const runId = queue.runId;
-  const pair = viewIndex == null ? null : queue.pairs.find((p) => p.pairIndex === viewIndex) ?? null;
+  const pair =
+    viewIndex == null ? null : (queue.pairs.find((p) => p.pairIndex === viewIndex) ?? null);
   const revealed = pair?.final ?? false;
   const locked = revealed || busy;
 
@@ -229,7 +230,10 @@ export function HeadToHeadClient({ initial }: { initial: PairQueue }) {
     // Blind protocol: mask the endpoint id in the sandbox's accessible title
     // until reveal. srcDoc is unchanged, so the iframe does not remount.
     const sandboxArtifact: Artifact | null = side.artifact
-      ? { ...side.artifact, endpointId: revealed ? side.artifact.endpointId : `model-${side.slot}-hidden` }
+      ? {
+          ...side.artifact,
+          endpointId: revealed ? side.artifact.endpointId : `model-${side.slot}-hidden`,
+        }
       : null;
     return (
       <section
@@ -291,7 +295,9 @@ export function HeadToHeadClient({ initial }: { initial: PairQueue }) {
               ? `${side.modelId} · ${side.providerId}`
               : `Model ${side.slot} — identity hidden`}
           </span>
-          <span style={{ marginLeft: "auto", ...mono, fontSize: 10.5, color: "var(--color-faint)" }}>
+          <span
+            style={{ marginLeft: "auto", ...mono, fontSize: 10.5, color: "var(--color-faint)" }}
+          >
             {revealed && side.artifactMeta ? side.artifactMeta : "interactive preview"}
           </span>
         </div>
@@ -381,7 +387,14 @@ export function HeadToHeadClient({ initial }: { initial: PairQueue }) {
               </div>
             ))}
           </div>
-          <p style={{ margin: 0, fontSize: 12.5, color: "var(--color-text-secondary)", lineHeight: 1.6 }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 12.5,
+              color: "var(--color-text-secondary)",
+              lineHeight: 1.6,
+            }}
+          >
             {queue.stats.judgeAgreement != null ? (
               <>
                 Your blind votes agreed with the LLM judge on{" "}
@@ -392,7 +405,15 @@ export function HeadToHeadClient({ initial }: { initial: PairQueue }) {
               <>No judge scorer in this run — your blind votes stand alone.</>
             )}
           </p>
-          <div style={{ display: "flex", gap: 14, alignItems: "center", fontSize: 12, flexWrap: "wrap" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 14,
+              alignItems: "center",
+              fontSize: 12,
+              flexWrap: "wrap",
+            }}
+          >
             <Link
               href={`/runs/${runId}/results`}
               className="hover-amber"
@@ -617,7 +638,9 @@ export function HeadToHeadClient({ initial }: { initial: PairQueue }) {
                         pair.vote === judge.verdictAB ? (
                           <>
                             {" "}
-                            — <span style={{ color: "var(--color-teal)" }}>it matches your vote</span>.
+                            —{" "}
+                            <span style={{ color: "var(--color-teal)" }}>it matches your vote</span>
+                            .
                           </>
                         ) : (
                           <>

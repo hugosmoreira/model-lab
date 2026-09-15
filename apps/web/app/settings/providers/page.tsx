@@ -26,9 +26,8 @@ export default function ProvidersPage() {
         }}
       >
         <Callout variant="note" glyph="🔒">
-          Provider keys live in the OS keychain or a server-side encrypted store.
-          Only masked previews ever reach the browser — never the key, never in
-          logs.
+          Provider keys live in the OS keychain or a server-side encrypted store. Only masked
+          previews ever reach the browser — never the key, never in logs.
         </Callout>
 
         {/* Provider cards */}
@@ -45,10 +44,7 @@ export default function ProvidersPage() {
         </div>
 
         {/* Workspace settings (deep-linkable) */}
-        <section
-          id="settings"
-          style={{ display: "flex", flexDirection: "column", gap: 10 }}
-        >
+        <section id="settings" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <SectionLabel>Workspace settings</SectionLabel>
           <SettingsGrid />
         </section>

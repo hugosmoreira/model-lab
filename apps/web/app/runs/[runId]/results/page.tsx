@@ -3,7 +3,13 @@ import type { CSSProperties, ReactNode } from "react";
 import type { RunModel, SampleResult } from "@model-lab/schemas";
 import { TopBar } from "@/components/shell/TopBar";
 import { ReproStrip } from "@/components/shell/ReproStrip";
-import { Callout, EmptyState, ModelDot, Panel, RUN_STATUS_COLORS } from "@/components/ui/primitives";
+import {
+  Callout,
+  EmptyState,
+  ModelDot,
+  Panel,
+  RUN_STATUS_COLORS,
+} from "@/components/ui/primitives";
 import { CategoryBars, type CategoryRow } from "@/components/charts/CategoryBars";
 import { CostQualityScatter, type ScatterPoint } from "@/components/charts/CostQualityScatter";
 import { LatencyBands, type LatencyBandRow } from "@/components/charts/LatencyBands";
@@ -100,11 +106,7 @@ function buildSampleStats(samples: SampleResult[]): Map<string, SampleStats> {
   return map;
 }
 
-export default async function ResultsPage({
-  params,
-}: {
-  params: Promise<{ runId: string }>;
-}) {
+export default async function ResultsPage({ params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
   const view = await getRunView(runId);
   const {
@@ -153,7 +155,10 @@ export default async function ResultsPage({
         case "browser":
           return { name: "BROWSER / TEST", color: "var(--color-teal)" };
         case "human":
-          return { name: `HUMAN RUBRIC ${s.rubricVersion ?? ""}`.trim(), color: "var(--color-amber)" };
+          return {
+            name: `HUMAN RUBRIC ${s.rubricVersion ?? ""}`.trim(),
+            color: "var(--color-amber)",
+          };
         case "llm-judge":
           return {
             name: `LLM JUDGE${s.orderSwapped ? " (order-swapped)" : ""}`,
@@ -213,9 +218,7 @@ export default async function ResultsPage({
     1 - (0.5 * (rm.costUsd / maxCost) + 0.5 * ((rm.totalLatencyMs ?? maxLat) / maxLat));
 
   const hasVisual = runModels.some((rm) => rm.visualScore != null);
-  const hasBrowserScorer = runConfiguration.scorers.some(
-    (s) => s.type === "browser" && s.enabled,
-  );
+  const hasBrowserScorer = runConfiguration.scorers.some((s) => s.type === "browser" && s.enabled);
 
   const categories: CategoryRow[] = [
     {
@@ -231,7 +234,8 @@ export default async function ResultsPage({
           label:
             st.failed > 0 ? (
               <>
-                {ok}/{st.total} · <span style={{ color: "var(--color-red)" }}>{st.failed} failed</span>
+                {ok}/{st.total} ·{" "}
+                <span style={{ color: "var(--color-red)" }}>{st.failed} failed</span>
               </>
             ) : (
               `${ok}/${st.total}`
@@ -439,7 +443,11 @@ export default async function ResultsPage({
             </Link>
             {/* Runs without artifacts (verified mode) get no artifact links. */}
             {hasArtifacts && (
-              <Link href={`/runs/${runId}/artifacts`} className="hover-border" style={secondaryLink}>
+              <Link
+                href={`/runs/${runId}/artifacts`}
+                className="hover-border"
+                style={secondaryLink}
+              >
                 View Artifacts
               </Link>
             )}
@@ -505,7 +513,9 @@ export default async function ResultsPage({
 
         {/* Scorer badges + composite weighting */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <span style={{ fontSize: 12, color: "var(--color-faint)" }}>Scoring methods in this run:</span>
+          <span style={{ fontSize: 12, color: "var(--color-faint)" }}>
+            Scoring methods in this run:
+          </span>
           {scorerBadges.map((b) => (
             <span key={b.name} style={badgeStyle(b.color)}>
               {b.name}
@@ -536,7 +546,15 @@ export default async function ResultsPage({
         {/* Two-column body */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 14, alignItems: "flex-start" }}>
           {/* LEFT column */}
-          <div style={{ flex: "2 1 520px", minWidth: 0, display: "flex", flexDirection: "column", gap: 14 }}>
+          <div
+            style={{
+              flex: "2 1 520px",
+              minWidth: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+            }}
+          >
             {/* Category scores */}
             <Panel style={{ padding: "14px 18px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
@@ -549,7 +567,13 @@ export default async function ResultsPage({
             </Panel>
 
             {/* Scatter + Latency/Reliability */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 14 }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))",
+                gap: 14,
+              }}
+            >
               <Panel style={{ padding: "14px 18px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>Cost vs quality</span>
@@ -565,7 +589,9 @@ export default async function ResultsPage({
                 <CostQualityScatter points={scatterPoints} showPareto footnote={scatterFootnote} />
               </Panel>
 
-              <Panel style={{ padding: "14px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+              <Panel
+                style={{ padding: "14px 18px", display: "flex", flexDirection: "column", gap: 10 }}
+              >
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>Latency · total per sample</span>
                   <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>
@@ -604,14 +630,25 @@ export default async function ResultsPage({
 
             {/* Win/tie/loss matrix */}
             <Panel style={{ padding: "14px 18px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, gap: 10, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 14, fontWeight: 600 }}>Win / tie / loss — judge pairs, order-swapped</span>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: 10,
+                  gap: 10,
+                  flexWrap: "wrap",
+                }}
+              >
+                <span style={{ fontSize: 14, fontWeight: 600 }}>
+                  Win / tie / loss — judge pairs, order-swapped
+                </span>
                 {judge !== null && (
                   <span
                     style={{
                       ...mono,
                       fontSize: 11,
-                      color: run.judgeReversalCount > 0 ? "var(--color-amber)" : "var(--color-faint)",
+                      color:
+                        run.judgeReversalCount > 0 ? "var(--color-amber)" : "var(--color-faint)",
                     }}
                   >
                     {run.judgeReversalCount > 0
@@ -623,13 +660,20 @@ export default async function ResultsPage({
               {judge !== null ? (
                 <>
                   <WTLMatrix rows={matrixRows} matrix={judge.wtlMatrix} />
-                  <span style={{ fontSize: 11, color: "var(--color-faint)", display: "block", marginTop: 8 }}>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: "var(--color-faint)",
+                      display: "block",
+                      marginTop: 8,
+                    }}
+                  >
                     Read as row vs column: W–T–L over {judge.judgePairs.length} pairs,{" "}
                     {view.source === "store"
                       ? "best build judged in both presentation orders per pair"
                       : `n=${n} samples × 2 orders per pair`}
-                    . ⟲ = verdict reversed when answer order was swapped — the flagged pair is excluded
-                    from the aggregate verdict; cells show raw tallies.
+                    . ⟲ = verdict reversed when answer order was swapped — the flagged pair is
+                    excluded from the aggregate verdict; cells show raw tallies.
                   </span>
                 </>
               ) : (
@@ -642,7 +686,15 @@ export default async function ResultsPage({
           </div>
 
           {/* RIGHT rail */}
-          <div style={{ flex: "1 1 300px", minWidth: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div
+            style={{
+              flex: "1 1 300px",
+              minWidth: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+            }}
+          >
             {runModels.map((rm) => {
               const failed = rm.failedSampleCount > 0;
               const cap = capabilityByEndpoint.get(rm.endpointId);
@@ -665,7 +717,9 @@ export default async function ResultsPage({
                       </span>
                     </span>
                     {rm.flag && (
-                      <span style={{ marginLeft: "auto", ...badgeStyle(flagColor(rm)) }}>{rm.flag}</span>
+                      <span style={{ marginLeft: "auto", ...badgeStyle(flagColor(rm)) }}>
+                        {rm.flag}
+                      </span>
                     )}
                   </div>
                   <div
@@ -757,10 +811,20 @@ export default async function ResultsPage({
 
             {/* Action row — wired in later phases */}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button type="button" disabled title="Export arrives in Phase 4" style={secondaryButtonDisabled}>
+              <button
+                type="button"
+                disabled
+                title="Export arrives in Phase 4"
+                style={secondaryButtonDisabled}
+              >
                 Export Data (CSV/JSON)
               </button>
-              <button type="button" disabled title="Re-run arrives in Phase 1" style={secondaryButtonDisabled}>
+              <button
+                type="button"
+                disabled
+                title="Re-run arrives in Phase 1"
+                style={secondaryButtonDisabled}
+              >
                 Re-run
               </button>
               <button
@@ -785,11 +849,13 @@ export default async function ResultsPage({
                 lineHeight: 1.6,
               }}
             >
-              <strong style={{ color: "var(--color-text-secondary)", fontWeight: 600 }}>Legend:</strong>{" "}
-              scores marked <span style={{ color: "var(--color-red)" }}>failed</span> are execution failures
-              (evidence preserved), <span style={{ color: "var(--color-faint)" }}>—</span> is
-              missing/not-applicable, and <span style={mono}>0</span> is a true zero score. These are never
-              conflated.
+              <strong style={{ color: "var(--color-text-secondary)", fontWeight: 600 }}>
+                Legend:
+              </strong>{" "}
+              scores marked <span style={{ color: "var(--color-red)" }}>failed</span> are execution
+              failures (evidence preserved), <span style={{ color: "var(--color-faint)" }}>—</span>{" "}
+              is missing/not-applicable, and <span style={mono}>0</span> is a true zero score. These
+              are never conflated.
             </div>
           </div>
         </div>

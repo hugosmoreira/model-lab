@@ -133,7 +133,8 @@ export class BuildArenaAdapter implements RunnerAdapter {
       warn("pack.tasks", "task list is ignored outside verified mode");
     }
     if (cfg.endpoints.length === 0) error("endpoints", "at least one endpoint is required");
-    if (cfg.endpoints.length > 8) warn("endpoints", `${cfg.endpoints.length} endpoints is a large run`);
+    if (cfg.endpoints.length > 8)
+      warn("endpoints", `${cfg.endpoints.length} endpoints is a large run`);
     const seen = new Set<string>();
     for (const ep of cfg.endpoints) {
       const field = `endpoints[${ep.id}]`;
@@ -143,8 +144,10 @@ export class BuildArenaAdapter implements RunnerAdapter {
         error(field, `unknown baseKind "${ep.baseKind as string}"`);
       }
       if (ep.model.trim() === "") error(field, "model must not be empty");
-      if (ep.priceInPerMtokUsd !== null && ep.priceInPerMtokUsd < 0) error(field, "negative input price");
-      if (ep.priceOutPerMtokUsd !== null && ep.priceOutPerMtokUsd < 0) error(field, "negative output price");
+      if (ep.priceInPerMtokUsd !== null && ep.priceInPerMtokUsd < 0)
+        error(field, "negative input price");
+      if (ep.priceOutPerMtokUsd !== null && ep.priceOutPerMtokUsd < 0)
+        error(field, "negative output price");
       if (ep.baseKind === "anthropic" && (process.env["ANTHROPIC_API_KEY"] ?? "") === "") {
         warn(field, "ANTHROPIC_API_KEY is not set — generation will fail at run time");
       }
@@ -186,8 +189,7 @@ export class BuildArenaAdapter implements RunnerAdapter {
       const priceIn = ep.priceInPerMtokUsd ?? 0;
       const priceOut = ep.priceOutPerMtokUsd ?? 0;
       const estCostUsd =
-        (estTokensInPerSample * samplesPerEndpoint * priceIn +
-          estOutputTokensPerModel * priceOut) /
+        (estTokensInPerSample * samplesPerEndpoint * priceIn + estOutputTokensPerModel * priceOut) /
         1_000_000;
       return { endpointId: ep.id, estCostUsd: Math.round(estCostUsd * 10_000) / 10_000 };
     });

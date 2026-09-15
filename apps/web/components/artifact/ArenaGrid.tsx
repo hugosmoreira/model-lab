@@ -185,7 +185,9 @@ export function ArenaGrid({ data }: { data: ArenaData }) {
                     inset={14}
                   />
                 )}
-                <span style={{ position: "absolute", left: 10, bottom: 10, display: "flex", gap: 6 }}>
+                <span
+                  style={{ position: "absolute", left: 10, bottom: 10, display: "flex", gap: 6 }}
+                >
                   <Link href={href} className="hover-amber-border" style={overlayBtn}>
                     ▶ Play
                   </Link>

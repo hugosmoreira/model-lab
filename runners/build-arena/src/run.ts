@@ -64,9 +64,7 @@ import {
 
 export const MAX_ARTIFACT_BYTES = 2 * 1024 * 1024;
 
-export type ArtifactExtraction =
-  | { ok: true; html: string }
-  | { ok: false; violation: string };
+export type ArtifactExtraction = { ok: true; html: string } | { ok: false; violation: string };
 
 /**
  * Normalize raw model output into a single-file HTML artifact.
@@ -138,9 +136,7 @@ function fmtTokens(n: number): string {
  */
 function truncationNote(gen: GenResult, capTokens: number): string {
   const reasoning =
-    gen.reasoningTokens > 0
-      ? ` — ${fmtTokens(gen.reasoningTokens)} of it on hidden reasoning`
-      : "";
+    gen.reasoningTokens > 0 ? ` — ${fmtTokens(gen.reasoningTokens)} of it on hidden reasoning` : "";
   return `output truncated at the ${fmtTokens(capTokens)}-token cap (${fmtTokens(gen.tokensOut)} out${reasoning})`;
 }
 
@@ -180,7 +176,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
   const fingerprint = computeFingerprint(cfg);
   /** Verified runs iterate the task list; sampleIndex = 1-based task index. */
   const verified = cfg.mode === "verified";
-  const tasks: Task[] = verified ? cfg.pack.tasks ?? [] : [];
+  const tasks: Task[] = verified ? (cfg.pack.tasks ?? []) : [];
   const samplesPerEndpoint = verified ? tasks.length : cfg.samplesPerModel;
   const totalPlanned = cfg.endpoints.length * samplesPerEndpoint;
   const hash = promptHash(cfg.pack.prompt);
@@ -261,9 +257,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
         ? Math.round(st.latencies.reduce((a, b) => a + b, 0) / st.latencies.length)
         : null;
     const meanScore =
-      st.scores.length > 0
-        ? round1(st.scores.reduce((a, b) => a + b, 0) / st.scores.length)
-        : null;
+      st.scores.length > 0 ? round1(st.scores.reduce((a, b) => a + b, 0) / st.scores.length) : null;
     return {
       runId: cfg.runId,
       endpointId: ep.id,
@@ -445,7 +439,11 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       emit("budget.status", {
         level: "warn",
         message: `projected $${projected.toFixed(2)} ≥ budget $${cfg.maxBudgetUsd.toFixed(2)} — hard stop`,
-        payload: { spentUsd: round4(spentUsd), projectedUsd: round4(projected), ceilingUsd: cfg.maxBudgetUsd },
+        payload: {
+          spentUsd: round4(spentUsd),
+          projectedUsd: round4(projected),
+          ceilingUsd: cfg.maxBudgetUsd,
+        },
       });
       emit("run.partial", {
         level: "warn",
@@ -456,7 +454,11 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     } else {
       emit("budget.status", {
         message: `$${spentUsd.toFixed(2)} spent · ${pct}% of ceiling`,
-        payload: { spentUsd: round4(spentUsd), projectedUsd: round4(projected), ceilingUsd: cfg.maxBudgetUsd },
+        payload: {
+          spentUsd: round4(spentUsd),
+          projectedUsd: round4(projected),
+          ceilingUsd: cfg.maxBudgetUsd,
+        },
       });
     }
     saveSnapshot("running");
@@ -493,7 +495,17 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       }
     }
     if (gen === null) {
-      recordFailure(ep, st, s, "transport", `sample ${s}: transport failure — ${transportError}`, null, [], 0, false);
+      recordFailure(
+        ep,
+        st,
+        s,
+        "transport",
+        `sample ${s}: transport failure — ${transportError}`,
+        null,
+        [],
+        0,
+        false,
+      );
       st.samplesFinished += 1;
       finishSample();
       return;
@@ -637,7 +649,10 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
      * gate could not be measured (see unmeasuredGates — fail closed).
      */
     const noSignal =
-      outcome.degraded || capTotal === 0 || capSkipped === capTotal || firstUnmeasured !== undefined;
+      outcome.degraded ||
+      capTotal === 0 ||
+      capSkipped === capTotal ||
+      firstUnmeasured !== undefined;
     emit("browser.checks", {
       endpointId: ep.id,
       sampleIndex: s,
@@ -696,7 +711,17 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
           ? "render failed"
           : `${renderGateFailure.name} — ${renderGateFailure.note}`;
       const detail = `${named}${truncated ? ` — ${truncationNote(gen, cfg.maxOutputTokens)}` : ""}`;
-      recordFailure(ep, st, s, "render.failed", `sample ${s}: ${detail}`, gen, outcome.checks, cost, true);
+      recordFailure(
+        ep,
+        st,
+        s,
+        "render.failed",
+        `sample ${s}: ${detail}`,
+        gen,
+        outcome.checks,
+        cost,
+        true,
+      );
     } else {
       /**
        * visualScore is the capability pass-ratio on a 0-10 scale, zeroed by a
@@ -781,7 +806,17 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       }
     }
     if (gen === null) {
-      recordFailure(ep, st, s, "transport", `sample ${s}: transport failure — ${transportError}`, null, [], 0, false);
+      recordFailure(
+        ep,
+        st,
+        s,
+        "transport",
+        `sample ${s}: transport failure — ${transportError}`,
+        null,
+        [],
+        0,
+        false,
+      );
       st.samplesFinished += 1;
       finishSample();
       return;
@@ -830,7 +865,17 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       const why = truncated
         ? truncationNote(gen, cfg.maxOutputTokens)
         : `contract violation — ${outcome.violation}`;
-      recordFailure(ep, st, s, "contract", `sample ${s}: ${why}`, gen, [outcome.trace], cost, false);
+      recordFailure(
+        ep,
+        st,
+        s,
+        "contract",
+        `sample ${s}: ${why}`,
+        gen,
+        [outcome.trace],
+        cost,
+        false,
+      );
     } else {
       // tasks passed / task total (RunModel "TESTS n/m" display)
       st.testsTotal = samplesPerEndpoint;
@@ -1005,7 +1050,9 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       });
     }
     // run.partial was already emitted at the moment of the budget stop
-    saveSnapshot(status === "completed" ? "completed" : status === "partial" ? "partial" : "cancelled");
+    saveSnapshot(
+      status === "completed" ? "completed" : status === "partial" ? "partial" : "cancelled",
+    );
     bus.close();
     return { status, spentUsd: round4(spentUsd), samplesScored, samplesFailed };
   };

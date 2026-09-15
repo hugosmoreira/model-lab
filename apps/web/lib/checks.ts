@@ -38,26 +38,24 @@ export const CHECK_CATEGORY: Record<string, CheckCategory> = {
 /** Display order — gates, then the scored capabilities, then diagnostics. */
 export const CATEGORY_ORDER: readonly CheckCategory[] = ["gate", "capability", "diagnostic"];
 
-export const CATEGORY_META: Record<
-  CheckCategory,
-  { heading: string; blurb: string; tag: string }
-> = {
-  gate: {
-    heading: "Gates",
-    blurb: "gates must pass for the build to count",
-    tag: "gate",
-  },
-  capability: {
-    heading: "Capability",
-    blurb: "capability = what the brief asked for",
-    tag: "cap",
-  },
-  diagnostic: {
-    heading: "Diagnostics",
-    blurb: "diagnostics measure the harness, not the build",
-    tag: "diag",
-  },
-};
+export const CATEGORY_META: Record<CheckCategory, { heading: string; blurb: string; tag: string }> =
+  {
+    gate: {
+      heading: "Gates",
+      blurb: "gates must pass for the build to count",
+      tag: "gate",
+    },
+    capability: {
+      heading: "Capability",
+      blurb: "capability = what the brief asked for",
+      tag: "cap",
+    },
+    diagnostic: {
+      heading: "Diagnostics",
+      blurb: "diagnostics measure the harness, not the build",
+      tag: "diag",
+    },
+  };
 
 /** How many checks run per artifact (the full list). */
 export const BROWSER_CHECK_COUNT = Object.keys(CHECK_CATEGORY).length;

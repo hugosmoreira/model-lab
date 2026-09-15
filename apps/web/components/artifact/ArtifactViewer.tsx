@@ -576,7 +576,13 @@ export function ArtifactViewer({
             );
           })}
           <span
-            style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center", padding: "6px 0" }}
+            style={{
+              marginLeft: "auto",
+              display: "flex",
+              gap: 6,
+              alignItems: "center",
+              padding: "6px 0",
+            }}
           >
             {VIEWPORTS.map((v) => (
               <button
@@ -782,7 +788,14 @@ export function ArtifactViewer({
           </div>
           <div>
             <SectionLabel>{data.judgeHeading}</SectionLabel>
-            <p style={{ margin: "6px 0 0", fontSize: 12.5, lineHeight: 1.55, color: "var(--color-muted)" }}>
+            <p
+              style={{
+                margin: "6px 0 0",
+                fontSize: 12.5,
+                lineHeight: 1.55,
+                color: "var(--color-muted)",
+              }}
+            >
               {build.artifact.judgeCommentary ?? "No judge commentary recorded for this build."}
             </p>
           </div>

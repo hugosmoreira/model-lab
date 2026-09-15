@@ -47,9 +47,7 @@ export function valueAtPath(root: unknown, path: string): unknown {
 }
 
 function clipNote(note: string): string {
-  return note.length > MAX_TRACE_NOTE_CHARS
-    ? `${note.slice(0, MAX_TRACE_NOTE_CHARS - 1)}…`
-    : note;
+  return note.length > MAX_TRACE_NOTE_CHARS ? `${note.slice(0, MAX_TRACE_NOTE_CHARS - 1)}…` : note;
 }
 
 function makeTrace(

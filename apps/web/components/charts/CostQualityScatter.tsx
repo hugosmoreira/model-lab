@@ -55,16 +55,43 @@ export function CostQualityScatter({
       >
         <line x1={X0} y1={Y1} x2={X0} y2={Y0} stroke="var(--color-border)" strokeWidth={1} />
         <line x1={X0} y1={Y0} x2={X1} y2={Y0} stroke="var(--color-border)" strokeWidth={1} />
-        <text x={X0 - 6} y={Y1 + 4} textAnchor="end" fontSize={10} fill="var(--color-faint)" fontFamily="var(--font-mono)">
+        <text
+          x={X0 - 6}
+          y={Y1 + 4}
+          textAnchor="end"
+          fontSize={10}
+          fill="var(--color-faint)"
+          fontFamily="var(--font-mono)"
+        >
           10
         </text>
-        <text x={X0 - 6} y={Y0 + 4} textAnchor="end" fontSize={10} fill="var(--color-faint)" fontFamily="var(--font-mono)">
+        <text
+          x={X0 - 6}
+          y={Y0 + 4}
+          textAnchor="end"
+          fontSize={10}
+          fill="var(--color-faint)"
+          fontFamily="var(--font-mono)"
+        >
           0
         </text>
-        <text x={X0} y={Y0 + 16} fontSize={10} fill="var(--color-faint)" fontFamily="var(--font-mono)">
+        <text
+          x={X0}
+          y={Y0 + 16}
+          fontSize={10}
+          fill="var(--color-faint)"
+          fontFamily="var(--font-mono)"
+        >
           $0.00
         </text>
-        <text x={X1} y={Y0 + 16} textAnchor="end" fontSize={10} fill="var(--color-faint)" fontFamily="var(--font-mono)">
+        <text
+          x={X1}
+          y={Y0 + 16}
+          textAnchor="end"
+          fontSize={10}
+          fill="var(--color-faint)"
+          fontFamily="var(--font-mono)"
+        >
           ${xMax.toFixed(2)}
         </text>
         <text

@@ -128,10 +128,24 @@ export default async function RunsIndex() {
                   >
                     {r.status}
                   </span>
-                  <span style={{ ...mono, fontSize: 12, color: "var(--color-muted)", textAlign: "right" }}>
+                  <span
+                    style={{
+                      ...mono,
+                      fontSize: 12,
+                      color: "var(--color-muted)",
+                      textAlign: "right",
+                    }}
+                  >
                     {usd(r.costUsd)}
                   </span>
-                  <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)", textAlign: "right" }}>
+                  <span
+                    style={{
+                      ...mono,
+                      fontSize: 11,
+                      color: "var(--color-faint)",
+                      textAlign: "right",
+                    }}
+                  >
                     {r.when}
                   </span>
                 </Link>

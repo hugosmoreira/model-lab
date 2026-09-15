@@ -42,9 +42,7 @@ export default async function Page({
 
   /* Error excerpt for a failing model: first failed check of its failed sample. */
   const failureNoteFor = (endpointId: string): string | null => {
-    const failed = view.samples.find(
-      (s) => s.endpointId === endpointId && s.status === "failed",
-    );
+    const failed = view.samples.find((s) => s.endpointId === endpointId && s.status === "failed");
     const check = failed?.scorerTrace.find((c) => c.status === "failed");
     return check?.note ?? null;
   };

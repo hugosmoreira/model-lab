@@ -4,7 +4,13 @@ export const RunMode = z.enum(["build-arena", "verified", "performance", "head-t
 export type RunMode = z.infer<typeof RunMode>;
 
 export const RunStatus = z.enum([
-  "queued", "running", "paused", "partial", "completed", "cancelled", "failed",
+  "queued",
+  "running",
+  "paused",
+  "partial",
+  "completed",
+  "cancelled",
+  "failed",
 ]);
 export type RunStatus = z.infer<typeof RunStatus>;
 
@@ -42,7 +48,12 @@ export const RunConfiguration = z.object({
 export type RunConfiguration = z.infer<typeof RunConfiguration>;
 
 export const RunModelStatus = z.enum([
-  "queued", "generating", "testing", "scoring", "completed", "failed",
+  "queued",
+  "generating",
+  "testing",
+  "scoring",
+  "completed",
+  "failed",
 ]);
 export type RunModelStatus = z.infer<typeof RunModelStatus>;
 
@@ -90,10 +101,7 @@ export const Run = z.object({
   compositeWeighting: z
     .object({ browser: z.number(), visual: z.number(), efficiency: z.number() })
     .default({ browser: 50, visual: 35, efficiency: 15 }),
-  verdict: z
-    .object({ label: z.string(), narrative: z.string() })
-    .nullable()
-    .default(null),
+  verdict: z.object({ label: z.string(), narrative: z.string() }).nullable().default(null),
   judgeReversalCount: z.number().default(0),
 });
 export type Run = z.infer<typeof Run>;
@@ -132,7 +140,14 @@ export const BrowserTestResult = z.object({
 });
 export type BrowserTestResult = z.infer<typeof BrowserTestResult>;
 
-export const SampleStatus = z.enum(["queued", "generating", "testing", "scoring", "scored", "failed"]);
+export const SampleStatus = z.enum([
+  "queued",
+  "generating",
+  "testing",
+  "scoring",
+  "scored",
+  "failed",
+]);
 
 export const SampleScore = z.union([
   z.object({ value: z.number() }),

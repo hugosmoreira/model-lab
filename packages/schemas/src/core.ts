@@ -37,8 +37,16 @@ export const Provider = z.object({
 export type Provider = z.infer<typeof Provider>;
 
 export const ModelCapability = z.enum([
-  "code", "vision", "tools", "seed", "json-mode", "fast", "cheap",
-  "local", "hosted", "general",
+  "code",
+  "vision",
+  "tools",
+  "seed",
+  "json-mode",
+  "fast",
+  "cheap",
+  "local",
+  "hosted",
+  "general",
 ]);
 export type ModelCapability = z.infer<typeof ModelCapability>;
 

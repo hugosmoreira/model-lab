@@ -65,7 +65,13 @@ export function buildPostDraft(rows: ShareCardRow[], content: ShareCardContent):
   const metricLines = rows
     .slice(0, 4)
     .map((r) => `${r.id} — visual ${r.visual}/10 · tests ${r.tests} · ${r.cost}`);
-  return [content.title, "", content.takeaway, "", ...metricLines, "", `run ${content.runLink}`].join(
-    "\n",
-  );
+  return [
+    content.title,
+    "",
+    content.takeaway,
+    "",
+    ...metricLines,
+    "",
+    `run ${content.runLink}`,
+  ].join("\n");
 }

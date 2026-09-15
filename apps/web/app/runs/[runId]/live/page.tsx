@@ -1,10 +1,6 @@
 import { TopBar } from "@/components/shell/TopBar";
 import { LiveRunClient, type LiveRunSnapshot } from "@/components/live/LiveRunClient";
-import type {
-  ConsoleLineVM,
-  LiveFailure,
-  LiveModelMeta,
-} from "@/components/live/LiveRunScreen";
+import type { ConsoleLineVM, LiveFailure, LiveModelMeta } from "@/components/live/LiveRunScreen";
 import { endpointProviderLabel, fixtures, modelColor, modelIdOf } from "@/lib/data";
 import { getRun as getRegisteredRun } from "@/lib/live/run-registry";
 import type { Run } from "@model-lab/schemas";
@@ -109,7 +105,8 @@ export default async function Page({ params }: { params: Promise<{ runId: string
 
   const record = getRegisteredRun(runId);
   const endpointIds = record?.config.endpointIds ?? [...fixtures.RUN_ENDPOINT_IDS];
-  const samplesPerModel = record?.config.samplesPerModel ?? fixtures.runConfiguration.samplesPerModel;
+  const samplesPerModel =
+    record?.config.samplesPerModel ?? fixtures.runConfiguration.samplesPerModel;
 
   /* Static shell: registered runs synthesize a Run from their config; unknown
      ids (deep links, the demo run) fall back to the fixture run under the

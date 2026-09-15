@@ -147,7 +147,15 @@ function LabeledInput({
   onChange: (v: string) => void;
 }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 11.5, color: "var(--color-muted)" }}>
+    <label
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 3,
+        fontSize: 11.5,
+        color: "var(--color-muted)",
+      }}
+    >
       <span style={{ display: "flex", alignItems: "baseline" }}>
         {label}
         <span style={{ marginLeft: "auto", ...mono, fontSize: 10, color: "var(--color-faint)" }}>
@@ -196,9 +204,7 @@ export function ShareStudio({
   runLink,
   initialTemplate,
 }: ShareStudioProps) {
-  const [template, setTemplate] = useState<ShareTemplate>(
-    initialTemplate ?? "new-model-scorecard",
-  );
+  const [template, setTemplate] = useState<ShareTemplate>(initialTemplate ?? "new-model-scorecard");
   const [aspect, setAspect] = useState<ShareAspect>("16:9");
   const [theme, setTheme] = useState<ShareCardTheme>("dark");
   const [title, setTitle] = useState(defaultTitle);
@@ -337,7 +343,9 @@ export function ShareStudio({
               >
                 {TEMPLATE_LABELS[tpl]}
                 {!enabled && (
-                  <span style={{ ...mono, fontSize: 9.5, color: "var(--color-faint)", marginLeft: 6 }}>
+                  <span
+                    style={{ ...mono, fontSize: 9.5, color: "var(--color-faint)", marginLeft: 6 }}
+                  >
                     soon
                   </span>
                 )}
@@ -398,7 +406,9 @@ export function ShareStudio({
           >
             <TogglePill on />
             Methodology footer{" "}
-            <span style={{ fontSize: 10, color: "var(--color-faint)" }}>(always on for exports)</span>
+            <span style={{ fontSize: 10, color: "var(--color-faint)" }}>
+              (always on for exports)
+            </span>
           </button>
           <button
             type="button"
@@ -498,7 +508,11 @@ export function ShareStudio({
           >
             {copied === "post" ? "Copied ✓" : "Copy post draft"}
           </button>
-          <a href={`/api/runs/${encodeURIComponent(runId)}/bundle`} className="hover-border" style={ghostStyle}>
+          <a
+            href={`/api/runs/${encodeURIComponent(runId)}/bundle`}
+            className="hover-border"
+            style={ghostStyle}
+          >
             Download run bundle{" "}
             <span style={{ ...mono, fontSize: 10, color: "var(--color-faint)" }}>.zip</span>
           </a>

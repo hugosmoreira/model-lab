@@ -31,10 +31,7 @@ const SSE_HEADERS = {
   Connection: "keep-alive",
 } as const;
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ runId: string }> },
-) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
 
   /* The demo run intentionally keeps the paced fixture replay even though it

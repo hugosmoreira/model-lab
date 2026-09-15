@@ -38,7 +38,7 @@ export function buildMockRaycasterHtml(
   const hue = seed % 360;
   const canvasId = injectFailure ? "view" : "screen";
   const bugComment = injectFailure
-    ? "\n// BUG (deliberate): the canvas id is \"view\" but the lookup asks for \"screen\" — cv is null"
+    ? '\n// BUG (deliberate): the canvas id is "view" but the lookup asks for "screen" — cv is null'
     : "";
   return `<!DOCTYPE html>
 <html>
@@ -136,7 +136,9 @@ function nestedFromPath(path: string, value: string): Record<string, unknown> {
 export function buildMockVerifiedAnswer(task: Task, answerWrong: boolean): string {
   if (task.scorer === "json-field" && task.jsonField !== undefined) {
     const value = answerWrong ? mockWrongValue(task.jsonField.expected) : task.jsonField.expected;
-    return "```json\n" + JSON.stringify(nestedFromPath(task.jsonField.path, value), null, 2) + "\n```";
+    return (
+      "```json\n" + JSON.stringify(nestedFromPath(task.jsonField.path, value), null, 2) + "\n```"
+    );
   }
   const expected = task.expected ?? "";
   const answer = answerWrong ? mockWrongValue(expected) : expected;

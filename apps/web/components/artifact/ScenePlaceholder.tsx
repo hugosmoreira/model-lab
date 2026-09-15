@@ -142,7 +142,9 @@ export function FailureTrace({
           {l.msg}
         </span>
       ))}
-      <span style={{ display: "block", marginTop: "1em", color: "var(--color-faint)" }}>{tail}</span>
+      <span style={{ display: "block", marginTop: "1em", color: "var(--color-faint)" }}>
+        {tail}
+      </span>
     </span>
   );
 }

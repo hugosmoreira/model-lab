@@ -123,8 +123,12 @@ export function Nav() {
           ML
         </span>
         <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
-          <span style={{ fontWeight: 600, color: "var(--color-text)", fontSize: 14 }}>Model Lab</span>
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-faint)" }}>
+          <span style={{ fontWeight: 600, color: "var(--color-text)", fontSize: 14 }}>
+            Model Lab
+          </span>
+          <span
+            style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-faint)" }}
+          >
             v0.1.0 · local
           </span>
         </span>

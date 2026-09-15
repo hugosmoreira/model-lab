@@ -19,10 +19,7 @@ import type { ShareAspect } from "@model-lab/schemas";
 export type ShareCardTheme = "dark" | "light";
 
 /** The templates with a shipped canvas design. The other 7 stay pending. */
-export type ShareCardTemplateId =
-  | "new-model-scorecard"
-  | "cost-vs-quality"
-  | "surprise-failure";
+export type ShareCardTemplateId = "new-model-scorecard" | "cost-vs-quality" | "surprise-failure";
 
 export const SHARE_CARD_TEMPLATE_IDS: readonly ShareCardTemplateId[] = [
   "new-model-scorecard",
@@ -208,7 +205,9 @@ function ScorecardBody({ rows, t }: { rows: ShareCardRow[]; t: ThemeTokens }) {
         <span />
         <span />
         <span style={{ fontSize: 9.5, letterSpacing: "0.08em", color: t.faint }}>VISUAL·HUMAN</span>
-        <span style={{ fontSize: 9.5, letterSpacing: "0.08em", color: t.faint }}>TESTS·BROWSER</span>
+        <span style={{ fontSize: 9.5, letterSpacing: "0.08em", color: t.faint }}>
+          TESTS·BROWSER
+        </span>
         <span style={{ fontSize: 9.5, letterSpacing: "0.08em", color: t.faint }}>COST</span>
       </div>
     </div>
@@ -220,7 +219,9 @@ function ScorecardBody({ rows, t }: { rows: ShareCardRow[]; t: ThemeTokens }) {
  * ------------------------------------------------------------------------- */
 
 function CostQualityBody({ rows, t }: { rows: ShareCardRow[]; t: ThemeTokens }) {
-  const pts = rows.flatMap((r) => (r.visualValue === null ? [] : [{ row: r, score: r.visualValue }]));
+  const pts = rows.flatMap((r) =>
+    r.visualValue === null ? [] : [{ row: r, score: r.visualValue }],
+  );
   if (pts.length === 0) {
     return (
       <div

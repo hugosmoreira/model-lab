@@ -431,7 +431,11 @@ export function SampleDetail({
                     );
                   })()}
 
-                  <AddNoteForm runId={runId} endpointId={s.endpointId} sampleIndex={s.sampleIndex} />
+                  <AddNoteForm
+                    runId={runId}
+                    endpointId={s.endpointId}
+                    sampleIndex={s.sampleIndex}
+                  />
 
                   <span
                     style={{

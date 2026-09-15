@@ -30,11 +30,7 @@ import type {
 } from "@model-lab/schemas";
 import * as fx from "@model-lab/schemas/fixtures";
 import { getStore, type RunStore } from "@model-lab/store";
-import {
-  BROWSER_CHECK_COUNT,
-  CAPABILITY_CHECK_COUNT,
-  capabilityChecksOf,
-} from "@/lib/checks";
+import { BROWSER_CHECK_COUNT, CAPABILITY_CHECK_COUNT, capabilityChecksOf } from "@/lib/checks";
 import { humanVisualByEndpoint, latestOverrideBySample, sampleKey } from "@/lib/human-score";
 import { listRuns as listRegistryRuns } from "@/lib/live/run-registry";
 
@@ -114,7 +110,7 @@ function latencyRangesFrom(samples: SampleResult[]): Record<string, LatencyRange
     const mid = Math.floor(sorted.length / 2);
     const median =
       sorted.length % 2 === 1
-        ? sorted[mid] ?? min
+        ? (sorted[mid] ?? min)
         : Math.round(((sorted[mid - 1] ?? min) + (sorted[mid] ?? max)) / 2);
     out[endpointId] = { min, median, max };
   }
@@ -160,7 +156,11 @@ interface RubricView {
  * rubric event per endpoint wins.
  */
 function rubricFrom(
-  events: ReadonlyArray<{ type: string; endpointId: string | null; payload: Record<string, unknown> }>,
+  events: ReadonlyArray<{
+    type: string;
+    endpointId: string | null;
+    payload: Record<string, unknown>;
+  }>,
 ): RubricView {
   const scores: Record<string, number> = {};
   const commentary: Record<string, string> = {};
@@ -211,9 +211,7 @@ function wtlMatrixFrom(pairs: JudgePairResult[]): Record<string, Record<string, 
   };
   for (const p of pairs) {
     const [a, b] = p.pairing;
-    const verdicts = [p.verdictAB, p.verdictBA].filter(
-      (v): v is "A" | "B" | "tie" => v != null,
-    );
+    const verdicts = [p.verdictAB, p.verdictBA].filter((v): v is "A" | "B" | "tie" => v != null);
     const first = verdicts[0];
     if (first === undefined) continue;
     if (p.reversed) {
@@ -267,8 +265,7 @@ function enrichArtifacts(
     const currentScore = samples.find(
       (c) => c.endpointId === s.endpointId && c.sampleIndex === current,
     )?.score;
-    const currentValue =
-      currentScore != null && "value" in currentScore ? currentScore.value : -1;
+    const currentValue = currentScore != null && "value" in currentScore ? currentScore.value : -1;
     if (s.score.value > currentValue) bestSample.set(s.endpointId, s.sampleIndex);
   }
   for (const a of artifacts) {
@@ -354,8 +351,7 @@ export async function getRunView(runId: string): Promise<RunView> {
   const store = await getStoreSafe();
 
   if (runId === DEMO_RUN_ID || store === null) {
-    const annotations =
-      store !== null ? await store.listAnnotations(runId).catch(() => []) : [];
+    const annotations = store !== null ? await store.listAnnotations(runId).catch(() => []) : [];
     return fixtureView(annotations);
   }
 
@@ -386,9 +382,7 @@ export async function getRunView(runId: string): Promise<RunView> {
    * stored no artifacts to read.
    */
   const checksTotal =
-    maxOver(rawArtifacts, (a) => a.checks.length) ||
-    pack?.browserCheckCount ||
-    BROWSER_CHECK_COUNT;
+    maxOver(rawArtifacts, (a) => a.checks.length) || pack?.browserCheckCount || BROWSER_CHECK_COUNT;
   const capabilityTotal =
     maxOver(rawArtifacts, (a) => capabilityChecksOf(a.checks).length) ||
     maxOver(runModels, (rm) => rm.testsTotal ?? 0) ||
@@ -554,7 +548,5 @@ export async function listAllRuns(): Promise<RunListEntry[]> {
     });
   }
 
-  return [...byId.values()]
-    .sort((a, b) => b.sortKey.localeCompare(a.sortKey))
-    .map((x) => x.entry);
+  return [...byId.values()].sort((a, b) => b.sortKey.localeCompare(a.sortKey)).map((x) => x.entry);
 }

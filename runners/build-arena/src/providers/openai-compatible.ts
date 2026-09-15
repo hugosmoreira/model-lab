@@ -48,10 +48,7 @@ export class OpenAiCompatibleProvider implements Provider {
 
   async *generate(req: GenerateRequest): AsyncGenerator<ProviderChunk, void, void> {
     const baseUrl = this.opts.baseUrl.replace(/\/+$/, "");
-    if (
-      (this.opts.apiKey === null || this.opts.apiKey === "") &&
-      baseUrl.startsWith("https://")
-    ) {
+    if ((this.opts.apiKey === null || this.opts.apiKey === "") && baseUrl.startsWith("https://")) {
       throw new Error(`API key is not set for ${baseUrl} (set the provider *_API_KEY env var)`);
     }
 
@@ -121,9 +118,17 @@ export class OpenAiCompatibleProvider implements Provider {
       if (detail.includes("max_completion_tokens") && "max_tokens" in body) {
         body["max_completion_tokens"] = body["max_tokens"];
         delete body["max_tokens"];
-      } else if (/temperature/i.test(detail) && /unsupported|does not support/i.test(detail) && "temperature" in body) {
+      } else if (
+        /temperature/i.test(detail) &&
+        /unsupported|does not support/i.test(detail) &&
+        "temperature" in body
+      ) {
         delete body["temperature"];
-      } else if (/seed/i.test(detail) && /unsupported|does not support/i.test(detail) && "seed" in body) {
+      } else if (
+        /seed/i.test(detail) &&
+        /unsupported|does not support/i.test(detail) &&
+        "seed" in body
+      ) {
         delete body["seed"];
       } else {
         throw new Error(scrubSecrets(`${this.kind} HTTP 400: ${detail.slice(0, 300)}`));

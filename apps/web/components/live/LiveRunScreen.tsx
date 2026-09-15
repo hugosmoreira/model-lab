@@ -142,7 +142,15 @@ function ModelCard({
         }}
       >
         {/* Identity cell */}
-        <span style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 170, flex: "0 1 200px" }}>
+        <span
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 9,
+            minWidth: 170,
+            flex: "0 1 200px",
+          }}
+        >
           <ModelDot color={meta.color} size={9} />
           <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
             <span
@@ -169,7 +177,15 @@ function ModelCard({
         </span>
 
         {/* Progress + task caption */}
-        <span style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 150, flex: "1 1 180px" }}>
+        <span
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+            minWidth: 150,
+            flex: "1 1 180px",
+          }}
+        >
           <ProgressBar pct={rm.progressPct} color={barColorOf(rm)} />
           <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>
             {rm.currentTask ?? "—"}
@@ -177,17 +193,23 @@ function ModelCard({
         </span>
 
         {/* Metric stat trio */}
-        <span style={{ ...mono, fontSize: 12, color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+        <span
+          style={{ ...mono, fontSize: 12, color: "var(--color-text-secondary)", lineHeight: 1.5 }}
+        >
           {tokensK(rm.tokensOut)}
           <br />
           <span style={{ color: "var(--color-faint)" }}>tokens</span>
         </span>
-        <span style={{ ...mono, fontSize: 12, color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+        <span
+          style={{ ...mono, fontSize: 12, color: "var(--color-text-secondary)", lineHeight: 1.5 }}
+        >
           {rm.ttftMs != null ? ttft(rm.ttftMs) : "—"}
           <br />
           <span style={{ color: "var(--color-faint)" }}>TTFT</span>
         </span>
-        <span style={{ ...mono, fontSize: 12, color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+        <span
+          style={{ ...mono, fontSize: 12, color: "var(--color-text-secondary)", lineHeight: 1.5 }}
+        >
           {usd(rm.costUsd)}
           <br />
           <span style={{ color: "var(--color-faint)" }}>cost</span>
@@ -225,10 +247,14 @@ function ModelCard({
             gridTemplateColumns: "1.4fr 1fr",
           }}
         >
-          <div style={{ padding: "12px 16px", borderRight: "1px solid var(--color-border-subtle)", minWidth: 0 }}>
-            <SectionLabel>
-              live output · sample {liveSampleIndex}
-            </SectionLabel>
+          <div
+            style={{
+              padding: "12px 16px",
+              borderRight: "1px solid var(--color-border-subtle)",
+              minWidth: 0,
+            }}
+          >
+            <SectionLabel>live output · sample {liveSampleIndex}</SectionLabel>
             <pre
               style={{
                 margin: "8px 0 0",
@@ -249,14 +275,29 @@ function ModelCard({
               {streaming && <span aria-hidden>▊</span>}
             </pre>
           </div>
-          <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 5, minWidth: 0 }}>
+          <div
+            style={{
+              padding: "12px 16px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 5,
+              minWidth: 0,
+            }}
+          >
             <SectionLabel>event log</SectionLabel>
             {events.length === 0 ? (
-              <span style={{ ...mono, fontSize: 11.5, color: "var(--color-faint)" }}>no events yet</span>
+              <span style={{ ...mono, fontSize: 11.5, color: "var(--color-faint)" }}>
+                no events yet
+              </span>
             ) : (
               events.map((e, i) => (
-                <span key={`${e.t}-${e.type}-${i}`} style={{ ...mono, fontSize: 11.5, display: "flex", gap: 8 }}>
-                  <span style={{ color: "var(--color-faint)", flex: "0 0 auto" }}>{hhmmss(e.t)}</span>
+                <span
+                  key={`${e.t}-${e.type}-${i}`}
+                  style={{ ...mono, fontSize: 11.5, display: "flex", gap: 8 }}
+                >
+                  <span style={{ color: "var(--color-faint)", flex: "0 0 auto" }}>
+                    {hhmmss(e.t)}
+                  </span>
                   <span style={{ color: LEVEL_COLORS[e.level], minWidth: 0 }}>
                     {e.type} — {e.message}
                   </span>
@@ -306,7 +347,9 @@ function RunConsole({ lines }: { lines: ConsoleLineVM[] }) {
       {lines.map((l, i) => (
         <span key={`${l.t}-${i}`} style={{ ...mono, fontSize: 11.5, display: "flex", gap: 10 }}>
           <span style={{ color: "var(--color-timestamp)", flex: "0 0 auto" }}>{hhmmss(l.t)}</span>
-          <span style={{ color: LEVEL_COLORS[l.level], whiteSpace: "pre-wrap", minWidth: 0 }}>{l.text}</span>
+          <span style={{ color: LEVEL_COLORS[l.level], whiteSpace: "pre-wrap", minWidth: 0 }}>
+            {l.text}
+          </span>
         </span>
       ))}
     </div>
@@ -383,7 +426,9 @@ export function LiveRunScreen({
       >
         <span style={{ display: "flex", alignItems: "center", gap: 9 }}>
           <StatusDot color="var(--color-teal)" size={8} glow pulse={!completed} />
-          <span style={{ ...mono, fontSize: 12, color: "var(--color-muted)", whiteSpace: "nowrap" }}>
+          <span
+            style={{ ...mono, fontSize: 12, color: "var(--color-muted)", whiteSpace: "nowrap" }}
+          >
             {run.id} · {run.mode} · {run.pack.slug} {run.pack.version}
           </span>
           {streamChip && (

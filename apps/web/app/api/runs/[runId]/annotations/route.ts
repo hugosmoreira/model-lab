@@ -29,10 +29,7 @@ const AnnotationRequest = z.object({
     .optional(),
 });
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ runId: string }> },
-) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
 
   let body: unknown;
@@ -56,9 +53,7 @@ export async function POST(
     note: parsed.data.note,
     // persist an exact one-decimal value (strip IEEE noise like 8.299999…)
     scoreOverride:
-      parsed.data.scoreOverride != null
-        ? Math.round(parsed.data.scoreOverride * 10) / 10
-        : null,
+      parsed.data.scoreOverride != null ? Math.round(parsed.data.scoreOverride * 10) / 10 : null,
     author: "operator",
     at: new Date().toISOString(),
   };
@@ -75,10 +70,7 @@ export async function POST(
   return NextResponse.json({ annotation }, { status: 201 });
 }
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ runId: string }> },
-) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
   try {
     const store = await getStore();

@@ -98,7 +98,9 @@ export class AnthropicProvider implements Provider {
         if (stop !== null) finishReason = stop;
       } else if (type === "error") {
         throw new Error(
-          scrubSecrets(`anthropic stream error: ${JSON.stringify(msg?.error ?? msg).slice(0, 300)}`),
+          scrubSecrets(
+            `anthropic stream error: ${JSON.stringify(msg?.error ?? msg).slice(0, 300)}`,
+          ),
         );
       } else if (type === "message_stop") {
         break;

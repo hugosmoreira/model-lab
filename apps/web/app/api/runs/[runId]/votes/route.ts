@@ -40,10 +40,7 @@ async function isKnownRun(runId: string): Promise<boolean> {
   }
 }
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ runId: string }> },
-) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
   if (!(await isKnownRun(runId))) {
     return NextResponse.json({ error: `Unknown run: ${runId}` }, { status: 404 });
@@ -52,10 +49,7 @@ export async function GET(
   return NextResponse.json(queue);
 }
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ runId: string }> },
-) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
 
   let body: unknown;
@@ -81,7 +75,9 @@ export async function POST(
   const pair = queue.pairs.find((p) => p.pairIndex === parsed.data.pairIndex);
   if (!pair) {
     return NextResponse.json(
-      { error: `Unknown pair ${parsed.data.pairIndex} — this run has ${queue.pairs.length} pairs.` },
+      {
+        error: `Unknown pair ${parsed.data.pairIndex} — this run has ${queue.pairs.length} pairs.`,
+      },
       { status: 400 },
     );
   }

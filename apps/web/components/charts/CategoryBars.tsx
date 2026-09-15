@@ -63,7 +63,14 @@ export function CategoryBars({ categories }: { categories: CategoryRow[] }) {
                     flex: "0 1 auto",
                   }}
                 />
-                <span style={{ ...mono, fontSize: 11, color: "var(--color-muted)", whiteSpace: "nowrap" }}>
+                <span
+                  style={{
+                    ...mono,
+                    fontSize: 11,
+                    color: "var(--color-muted)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
                   {b.label}
                 </span>
               </div>

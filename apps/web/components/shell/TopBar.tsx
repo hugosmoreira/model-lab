@@ -98,21 +98,46 @@ export function TopBar({ title }: { title: string }) {
       >
         <span
           title="Providers connected"
-          style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-muted)" }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontFamily: "var(--font-mono)",
+            fontSize: 11,
+            color: "var(--color-muted)",
+          }}
         >
-          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--color-teal)" }} />
+          <span
+            style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--color-teal)" }}
+          />
           providers {stats.providersConnected.connected}/{stats.providersConnected.total}
         </span>
         <span
           title="Local runner"
-          style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-muted)" }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontFamily: "var(--font-mono)",
+            fontSize: 11,
+            color: "var(--color-muted)",
+          }}
         >
-          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--color-teal)" }} />
+          <span
+            style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--color-teal)" }}
+          />
           {stats.localRunner.engine} · {stats.localRunner.gpu}
         </span>
         <span
           title="Session spend vs budget"
-          style={{ display: "flex", alignItems: "center", gap: 7, fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-muted)" }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 7,
+            fontFamily: "var(--font-mono)",
+            fontSize: 11,
+            color: "var(--color-muted)",
+          }}
         >
           <span
             style={{

@@ -11,13 +11,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import type { ModelEndpoint, Provider, RunMode } from "@model-lab/schemas";
-import {
-  Callout,
-  EmptyState,
-  ModelDot,
-  ProgressBar,
-  StatusDot,
-} from "@/components/ui/primitives";
+import { Callout, EmptyState, ModelDot, ProgressBar, StatusDot } from "@/components/ui/primitives";
 import { fixtures, getModelForEndpoint } from "@/lib/data";
 import { usd } from "@/lib/format";
 import {
@@ -165,9 +159,7 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
   const toggleEndpoint = (id: string) =>
     setState((s) => ({
       ...s,
-      selected: s.selected.includes(id)
-        ? s.selected.filter((x) => x !== id)
-        : [...s.selected, id],
+      selected: s.selected.includes(id) ? s.selected.filter((x) => x !== id) : [...s.selected, id],
     }));
 
   const cfg = fixtures.runConfiguration;
@@ -189,7 +181,7 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
      Verified mode: per-model output = taskCount × ~200 tokens/task. */
   const estOut = isVerified
     ? taskCount * VERIFIED_EST_OUTPUT_TOKENS_PER_TASK
-    : pack?.estOutputTokensPerModel ?? 0;
+    : (pack?.estOutputTokensPerModel ?? 0);
   const cost = totalCostRange(selectedEndpoints, samples, estOut);
   const tok = tokenRange(n, samples, estOut);
   const costLabel = `${usd(cost.low)}–${usd(cost.high)}`;
@@ -199,7 +191,9 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
   /* Validation. */
   const modelCountOk = n >= 2 && n <= 8;
   const modelCountReason =
-    n < 2 ? `Select at least 2 models — ${n} selected.` : `Select at most 8 models — ${n} selected.`;
+    n < 2
+      ? `Select at least 2 models — ${n} selected.`
+      : `Select at most 8 models — ${n} selected.`;
   const canStart = modelCountOk && !budgetExceeded;
   const startBlockReason = !modelCountOk
     ? modelCountReason
@@ -266,9 +260,15 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
     return dupe || ep.deployment !== "cloud" ? `${ep.modelId}(${ep.providerId})` : ep.modelId;
   };
   const reviewRows: { k: string; v: string }[] = [
-    { k: "Mode", v: `${state.mode}${cfg.retryPolicy.generation === "none" ? " · first-shot" : ""}` },
+    {
+      k: "Mode",
+      v: `${state.mode}${cfg.retryPolicy.generation === "none" ? " · first-shot" : ""}`,
+    },
     { k: "Pack", v: pack ? `${pack.slug} ${pack.version} (${pack.source})` : "none selected" },
-    { k: "Models", v: n > 0 ? selectedEndpoints.map(modelReviewLabel).join(" · ") : "none selected" },
+    {
+      k: "Models",
+      v: n > 0 ? selectedEndpoints.map(modelReviewLabel).join(" · ") : "none selected",
+    },
     {
       k: "Expected calls",
       v: isVerified
@@ -443,7 +443,14 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
               >
                 {num}
               </span>
-              <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1 }}>
+              <span
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-start",
+                  gap: 1,
+                }}
+              >
                 <span>{name}</span>
                 <span style={{ fontSize: 11, color: "var(--color-faint)", fontWeight: 400 }}>
                   {stepSubs[i]}
@@ -541,7 +548,9 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                       <ModelDot color={t.dot} size={8} />
                       {t.label}
                       {sel && (
-                        <span style={{ marginLeft: "auto", color: "var(--color-amber)", fontSize: 12 }}>
+                        <span
+                          style={{ marginLeft: "auto", color: "var(--color-amber)", fontSize: 12 }}
+                        >
                           selected
                         </span>
                       )}
@@ -615,12 +624,16 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                         {p.version} · {p.source}
                       </span>
                       {sel && (
-                        <span style={{ marginLeft: "auto", color: "var(--color-amber)", fontSize: 12 }}>
+                        <span
+                          style={{ marginLeft: "auto", color: "var(--color-amber)", fontSize: 12 }}
+                        >
                           selected
                         </span>
                       )}
                     </span>
-                    <span style={{ fontSize: 12.5, color: "var(--color-muted)" }}>{p.description}</span>
+                    <span style={{ fontSize: 12.5, color: "var(--color-muted)" }}>
+                      {p.description}
+                    </span>
                     <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>
                       {metaParts.join(" · ")}
                     </span>
@@ -663,7 +676,14 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                     <span style={{ ...mono, fontSize: 11, color: "var(--color-disabled)" }}>
                       {p.version} · {p.source}
                     </span>
-                    <span style={{ ...mono, marginLeft: "auto", fontSize: 10.5, color: "var(--color-faint)" }}>
+                    <span
+                      style={{
+                        ...mono,
+                        marginLeft: "auto",
+                        fontSize: 10.5,
+                        color: "var(--color-faint)",
+                      }}
+                    >
                       {isVerified ? "build arena mode" : "verified mode"}
                     </span>
                   </span>
@@ -771,7 +791,14 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                   >
                     <StatusDot color="var(--color-teal)" size={7} />
                     {providerDisplayName(provider)}
-                    <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)", fontWeight: 400 }}>
+                    <span
+                      style={{
+                        ...mono,
+                        fontSize: 11,
+                        color: "var(--color-faint)",
+                        fontWeight: 400,
+                      }}
+                    >
                       {providerNote(provider)}
                     </span>
                   </div>
@@ -836,7 +863,14 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                             {endpointTags(ep)}
                           </span>
                         </span>
-                        <span style={{ ...mono, fontSize: 11, color: "var(--color-muted)", textAlign: "right" }}>
+                        <span
+                          style={{
+                            ...mono,
+                            fontSize: 11,
+                            color: "var(--color-muted)",
+                            textAlign: "right",
+                          }}
+                        >
                           {ctxLabel(model.contextWindowTokens)}
                         </span>
                         <span
@@ -877,7 +911,8 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                   {unseeded.map((ep) => (
                     <div key={ep.id} style={{ lineHeight: 1.5 }}>
                       <strong>{ep.modelId}</strong> ({ep.providerId}) does not support{" "}
-                      <code style={{ ...mono }}>seed</code> — runs unseeded, flagged in the manifest.
+                      <code style={{ ...mono }}>seed</code> — runs unseeded, flagged in the
+                      manifest.
                     </div>
                   ))}
                 </Callout>
@@ -915,7 +950,15 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                     gap: 10,
                   }}
                 >
-                  <span style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
+                  <span
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 2,
+                      flex: 1,
+                      minWidth: 0,
+                    }}
+                  >
                     <span style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</span>
                     <span style={{ fontSize: 11.5, color: "var(--color-faint)" }}>{p.sub}</span>
                   </span>
@@ -967,7 +1010,10 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                     ]
                   : cfg.scorers.map((s) => ({
                       key: s.type,
-                      badge: SCORER_BADGES[s.type] ?? { label: s.type.toUpperCase(), color: "var(--color-muted)" },
+                      badge: SCORER_BADGES[s.type] ?? {
+                        label: s.type.toUpperCase(),
+                        color: "var(--color-muted)",
+                      },
                       name: s.name,
                       desc: SCORER_DESCS[s.type] ?? "",
                       stateLabel: s.enabled ? "enabled" : "off",
@@ -1007,12 +1053,23 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                   >
                     {row.badge.label}
                   </span>
-                  <span style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 0 }}>
+                  <span
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 3,
+                      flex: 1,
+                      minWidth: 0,
+                    }}
+                  >
                     <span
                       style={{
                         fontSize: 13.5,
                         fontWeight: 500,
-                        color: row.key === "safeguard" ? "var(--color-text-secondary)" : "var(--color-text)",
+                        color:
+                          row.key === "safeguard"
+                            ? "var(--color-text-secondary)"
+                            : "var(--color-text)",
                       }}
                     >
                       {row.name}
@@ -1021,7 +1078,9 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                       {row.desc}
                     </span>
                   </span>
-                  <span style={{ ...mono, fontSize: 11, color: row.stateColor, whiteSpace: "nowrap" }}>
+                  <span
+                    style={{ ...mono, fontSize: 11, color: row.stateColor, whiteSpace: "nowrap" }}
+                  >
                     {row.stateLabel}
                   </span>
                 </div>
@@ -1060,7 +1119,12 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                       {r.k}
                     </span>
                     <span
-                      style={{ ...mono, fontSize: 12.5, color: "var(--color-text-secondary)", minWidth: 0 }}
+                      style={{
+                        ...mono,
+                        fontSize: 12.5,
+                        color: "var(--color-text-secondary)",
+                        minWidth: 0,
+                      }}
                     >
                       {r.v}
                     </span>
@@ -1139,8 +1203,8 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                 </button>
               )}
               <span style={{ fontSize: 11.5, color: "var(--color-faint)" }}>
-                Launching registers this configuration and opens its live stream — Phase 1
-                replays a simulated event script; the native runner lands in Phase 2.
+                Launching registers this configuration and opens its live stream — Phase 1 replays a
+                simulated event script; the native runner lands in Phase 2.
               </span>
             </div>
           </>
@@ -1189,7 +1253,9 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
             }}
           >
             <span style={{ color: "var(--color-muted)" }}>Est. cost</span>
-            <span style={{ ...mono, color: "var(--color-amber)", fontWeight: 600 }}>{costLabel}</span>
+            <span style={{ ...mono, color: "var(--color-amber)", fontWeight: 600 }}>
+              {costLabel}
+            </span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ color: "var(--color-muted)" }}>Budget ceiling</span>
@@ -1249,7 +1315,10 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
         {state.step < 6 && (
           <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
             {continueBlocked && (
-              <span role="alert" style={{ fontSize: 12, color: "var(--color-red)", lineHeight: 1.4 }}>
+              <span
+                role="alert"
+                style={{ fontSize: 12, color: "var(--color-red)", lineHeight: 1.4 }}
+              >
                 {modelCountReason}
               </span>
             )}

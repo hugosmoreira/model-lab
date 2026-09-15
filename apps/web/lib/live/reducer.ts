@@ -142,9 +142,7 @@ function visualIn(message: string): number | null {
 /** Tolerant "10/12 tests" / "12/12 browser tests" extraction. */
 function testsIn(message: string): { passed: number; total: number } | null {
   const m = /([0-9]+)\/([0-9]+)\s*(?:browser\s+)?tests?/i.exec(message);
-  return m?.[1] != null && m[2] != null
-    ? { passed: Number(m[1]), total: Number(m[2]) }
-    : null;
+  return m?.[1] != null && m[2] != null ? { passed: Number(m[1]), total: Number(m[2]) } : null;
 }
 
 function sumSettled(models: Record<string, LiveModelState>, samplesPerModel: number): number {
@@ -160,8 +158,7 @@ export function reduceRunEvent(state: LiveRunState, event: RunEvent): LiveRunSta
 
   /* Clock: elapsed = span of event timestamps seen so far. */
   const tMs = Date.parse(event.t);
-  const firstEventAtMs =
-    state.firstEventAtMs ?? (Number.isFinite(tMs) ? tMs : null);
+  const firstEventAtMs = state.firstEventAtMs ?? (Number.isFinite(tMs) ? tMs : null);
   const elapsedSec =
     firstEventAtMs != null && Number.isFinite(tMs)
       ? Math.max(state.elapsedSec, Math.round((tMs - firstEventAtMs) / 1000))
@@ -237,10 +234,7 @@ export function reduceRunEvent(state: LiveRunState, event: RunEvent): LiveRunSta
           ...m,
           // The model KEEPS running — only the counter and bookkeeping move.
           failedSampleCount: m.failedSampleCount + 1,
-          settledSamples: Math.max(
-            m.settledSamples,
-            event.sampleIndex ?? m.settledSamples + 1,
-          ),
+          settledSamples: Math.max(m.settledSamples, event.sampleIndex ?? m.settledSamples + 1),
         }));
         lastFailure = { endpointId: eid, sampleIndex: event.sampleIndex ?? 0 };
       }
@@ -253,14 +247,9 @@ export function reduceRunEvent(state: LiveRunState, event: RunEvent): LiveRunSta
           const tests = testsIn(event.message);
           return {
             ...m,
-            settledSamples: Math.max(
-              m.settledSamples,
-              event.sampleIndex ?? m.settledSamples + 1,
-            ),
+            settledSamples: Math.max(m.settledSamples, event.sampleIndex ?? m.settledSamples + 1),
             visualScore:
-              visual != null
-                ? { value: visual, n: (m.visualScore?.n ?? 0) + 1 }
-                : m.visualScore,
+              visual != null ? { value: visual, n: (m.visualScore?.n ?? 0) + 1 } : m.visualScore,
             testsPassed: tests?.passed ?? m.testsPassed,
             testsTotal: tests?.total ?? m.testsTotal,
           };

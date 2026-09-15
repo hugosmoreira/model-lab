@@ -33,12 +33,7 @@ import type {
 } from "@model-lab/schemas";
 
 /** Every store failure is thrown as a StoreError with a stable `code`. */
-export type StoreErrorCode =
-  | "NOT_FOUND"
-  | "IMMUTABLE"
-  | "DUPLICATE"
-  | "CONFIG"
-  | "BACKEND";
+export type StoreErrorCode = "NOT_FOUND" | "IMMUTABLE" | "DUPLICATE" | "CONFIG" | "BACKEND";
 
 export class StoreError extends Error {
   readonly code: StoreErrorCode;

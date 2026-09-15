@@ -30,7 +30,10 @@ export function getProviderForEndpoint(endpointId: string) {
 /** "anthropic · cloud" / "ollama · local · RTX 4090" display string. */
 export function endpointProviderLabel(endpointId: string): string {
   const ep = getEndpoint(endpointId);
-  const parts: string[] = [ep.providerId, ep.deployment === "aggregator" ? "hosted" : ep.deployment];
+  const parts: string[] = [
+    ep.providerId,
+    ep.deployment === "aggregator" ? "hosted" : ep.deployment,
+  ];
   if (ep.hardware) parts.push(ep.hardware);
   return parts.join(" · ");
 }

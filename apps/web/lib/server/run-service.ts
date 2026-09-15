@@ -172,8 +172,10 @@ const globalStash = globalThis as typeof globalThis & {
   __modelLabRunService?: Map<string, ActiveRun>;
   __modelLabRegistrySeeded?: WeakSet<RunStore>;
 };
-const activeRuns: Map<string, ActiveRun> = (globalStash.__modelLabRunService ??=
-  new Map<string, ActiveRun>());
+const activeRuns: Map<string, ActiveRun> = (globalStash.__modelLabRunService ??= new Map<
+  string,
+  ActiveRun
+>());
 /* Store instances whose registry tables were seeded this process (once per
    process per instance; a store instance is a process-lifetime singleton). */
 const seededStores: WeakSet<RunStore> = (globalStash.__modelLabRegistrySeeded ??=
@@ -425,7 +427,9 @@ function synthesizeRun(cfg: RunnerConfig, startedAt: string): Run {
     promptHash: promptHash(cfg.pack.prompt),
     // verified runs: per-model sample count = task count (1 sample per task)
     samplesPerModel:
-      cfg.mode === "verified" ? cfg.pack.tasks?.length ?? cfg.samplesPerModel : cfg.samplesPerModel,
+      cfg.mode === "verified"
+        ? (cfg.pack.tasks?.length ?? cfg.samplesPerModel)
+        : cfg.samplesPerModel,
     modelCount: cfg.endpoints.length,
     budgetCeilingUsd: cfg.maxBudgetUsd,
     costSpentUsd: 0,
@@ -487,9 +491,7 @@ function synthesizeConfiguration(cfg: RunnerConfig): RunConfiguration {
           ],
     configDifferences: cfg.endpoints
       .filter((ep) => cfg.seed !== null && !ep.supportsSeed)
-      .map(
-        (ep) => `${ep.modelId} (${ep.providerId}) runs unseeded — provider lacks seed support`,
-      ),
+      .map((ep) => `${ep.modelId} (${ep.providerId}) runs unseeded — provider lacks seed support`),
   };
 }
 
@@ -682,9 +684,7 @@ export async function startRun(input: StartRunInput): Promise<{ runId: string }>
   const endpoints = selected.map((ep) => toEndpointConfig(ep, mockFor(ep)));
   const runId = newRunId();
   const name =
-    input.name ??
-    benchmarkPacks.find((p) => p.slug === input.packSlug)?.name ??
-    input.packSlug;
+    input.name ?? benchmarkPacks.find((p) => p.slug === input.packSlug)?.name ?? input.packSlug;
 
   const cfg: RunnerConfig = {
     runId,
@@ -709,8 +709,7 @@ export async function startRun(input: StartRunInput): Promise<{ runId: string }>
   // Only a MOCKED qwen-ish endpoint qualifies: never sabotage a real run.
   if (!verified && input.samplesPerModel >= 2) {
     const qwenish = endpoints.find(
-      (ep) =>
-        ep.baseKind === "mock" && (ep.id.includes("qwen") || ep.modelId.includes("qwen")),
+      (ep) => ep.baseKind === "mock" && (ep.id.includes("qwen") || ep.modelId.includes("qwen")),
     );
     if (qwenish !== undefined) {
       cfg.failSample = { endpointId: qwenish.id, sampleIndex: 2 };

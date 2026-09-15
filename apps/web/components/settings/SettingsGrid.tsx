@@ -14,13 +14,25 @@ function settingRows(): SettingRow[] {
   const s = fixtures.workspaceSettings;
   return [
     { name: "Default run budget", sub: "hard ceiling per run", value: usd(s.defaultRunBudgetUsd) },
-    { name: "Default concurrency", sub: "parallel requests per run", value: String(s.defaultConcurrency) },
+    {
+      name: "Default concurrency",
+      sub: "parallel requests per run",
+      value: String(s.defaultConcurrency),
+    },
     { name: "Data retention", sub: "raw responses + artifacts", value: s.dataRetention },
     { name: "Artifact directory", sub: "local-first storage", value: s.artifactDirectory },
-    { name: "Local hardware profile", sub: "recorded with local runs", value: s.localHardwareProfile ?? "—" },
+    {
+      name: "Local hardware profile",
+      sub: "recorded with local runs",
+      value: s.localHardwareProfile ?? "—",
+    },
     { name: "Telemetry", sub: "fully local by default", value: s.telemetry },
     { name: "Artifact network policy", sub: "sandbox default", value: s.artifactNetworkPolicy },
-    { name: "Default scoring policy", sub: "objective before judges", value: s.defaultScoringPolicy },
+    {
+      name: "Default scoring policy",
+      sub: "objective before judges",
+      value: s.defaultScoringPolicy,
+    },
     { name: "Export branding", sub: "footer on share cards", value: s.exportBranding },
     { name: "Theme & accessibility", sub: "reduced motion respected", value: s.themeAccessibility },
   ];

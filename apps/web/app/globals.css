@@ -104,8 +104,13 @@ a:hover {
 /* Single sanctioned animation; gated on motion preference */
 @media (prefers-reduced-motion: no-preference) {
   @keyframes mlPulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.35; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
   }
   .ml-pulse {
     animation: mlPulse 1.6s ease-in-out infinite;

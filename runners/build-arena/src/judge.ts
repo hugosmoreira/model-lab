@@ -227,12 +227,7 @@ export function rubricPrompt(
   );
 }
 
-function pairPrompt(
-  brief: string,
-  htmlA: string,
-  htmlB: string,
-  sawRender: boolean,
-): string {
+function pairPrompt(brief: string, htmlA: string, htmlB: string, sawRender: boolean): string {
   return (
     "Two anonymous builds — Build A and Build B — attempt the same challenge " +
     "brief:\n\n<brief>\n" +
@@ -277,7 +272,10 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
       return Math.max(...callCosts); // observed worst case beats a guess
     }
     const estTokensIn = Math.ceil(promptChars / 4) + 200;
-    return (estTokensIn * judge.priceInPerMtokUsd + JUDGE_MAX_TOKENS * judge.priceOutPerMtokUsd) / 1_000_000;
+    return (
+      (estTokensIn * judge.priceInPerMtokUsd + JUDGE_MAX_TOKENS * judge.priceOutPerMtokUsd) /
+      1_000_000
+    );
   };
   const budgetAllows = (promptChars: number, imageCount = 0): boolean => {
     if (budgetExhausted) return false;
@@ -413,7 +411,10 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
     };
     const renderable = own.filter((a) => a.renderOk);
     const pool = renderable.length > 0 ? renderable : own;
-    const best = pool.reduce((acc, a) => (scoreOf(a) > scoreOf(acc) ? a : acc), pool[0] as StoredArtifact);
+    const best = pool.reduce(
+      (acc, a) => (scoreOf(a) > scoreOf(acc) ? a : acc),
+      pool[0] as StoredArtifact,
+    );
     let html: string;
     try {
       html = readFileSync(join(options.artifactRoot, ...best.path.split("/")), "utf8");
@@ -516,8 +517,10 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
        * rather than one seen and one imagined.
        */
       const bothSeen = a.capture !== null && b.capture !== null && visionEnabled;
-      const slot = (m: JudgedModel, name: string): RequestImage =>
-        ({ ...(m.capture as RequestImage), label: `Rendered frame of Build ${name}:` });
+      const slot = (m: JudgedModel, name: string): RequestImage => ({
+        ...(m.capture as RequestImage),
+        label: `Rendered frame of Build ${name}:`,
+      });
       const imagesAB = bothSeen ? [slot(a, "A"), slot(b, "B")] : [];
       const imagesBA = bothSeen ? [slot(b, "A"), slot(a, "B")] : [];
       const promptAB = pairPrompt(brief, a.html, b.html, bothSeen);

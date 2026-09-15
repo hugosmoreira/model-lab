@@ -42,100 +42,207 @@ import {
 // row shapes (Postgres column names; jsonb arrives pre-parsed as unknown)
 
 interface RunRow {
-  id: string; fingerprint: string; name: string; mode: string; status: string;
-  pack_slug: string; pack_version: string; prompt_hash: string;
-  samples_per_model: number; model_count: number;
-  budget_ceiling_usd: number; cost_spent_usd: number;
-  est_cost_low_usd: number | null; est_cost_high_usd: number | null;
-  started_at: string; completed_at: string | null; elapsed_sec: number | null;
-  runner_version: string; git_commit: string | null;
-  composite_browser_pct: number; composite_visual_pct: number;
+  id: string;
+  fingerprint: string;
+  name: string;
+  mode: string;
+  status: string;
+  pack_slug: string;
+  pack_version: string;
+  prompt_hash: string;
+  samples_per_model: number;
+  model_count: number;
+  budget_ceiling_usd: number;
+  cost_spent_usd: number;
+  est_cost_low_usd: number | null;
+  est_cost_high_usd: number | null;
+  started_at: string;
+  completed_at: string | null;
+  elapsed_sec: number | null;
+  runner_version: string;
+  git_commit: string | null;
+  composite_browser_pct: number;
+  composite_visual_pct: number;
   composite_efficiency_pct: number;
-  verdict_label: string | null; verdict_narrative: string | null;
-  judge_reversal_count: number; configuration: unknown;
+  verdict_label: string | null;
+  verdict_narrative: string | null;
+  judge_reversal_count: number;
+  configuration: unknown;
 }
 
 interface RunModelRow {
-  run_id: string; endpoint_id: string; status: string;
-  failed_sample_count: number; progress_pct: number; current_task: string | null;
-  tokens_out: number; ttft_ms: number | null; total_latency_ms: number | null;
-  cost_usd: number; visual_score_value: number | null; visual_score_n: number | null;
-  tests_passed: number | null; tests_total: number | null; retries: number;
-  unseeded: boolean; flag: string | null;
+  run_id: string;
+  endpoint_id: string;
+  status: string;
+  failed_sample_count: number;
+  progress_pct: number;
+  current_task: string | null;
+  tokens_out: number;
+  ttft_ms: number | null;
+  total_latency_ms: number | null;
+  cost_usd: number;
+  visual_score_value: number | null;
+  visual_score_n: number | null;
+  tests_passed: number | null;
+  tests_total: number | null;
+  retries: number;
+  unseeded: boolean;
+  flag: string | null;
 }
 
 interface SampleRow {
-  run_id: string; endpoint_id: string; sample_index: number; global_index: number;
-  status: string; score_value: number | null; score_failed: boolean;
-  primary_scorer: string | null; cost_usd: number; latency_ms: number | null;
-  ttft_ms: number | null; seed: number | null; has_artifact: boolean;
-  tokens_out: number | null; raw_ref: string | null; raw_excerpt: string;
-  scorer_trace: unknown; judge_reversed: boolean; human_reviewed: boolean;
+  run_id: string;
+  endpoint_id: string;
+  sample_index: number;
+  global_index: number;
+  status: string;
+  score_value: number | null;
+  score_failed: boolean;
+  primary_scorer: string | null;
+  cost_usd: number;
+  latency_ms: number | null;
+  ttft_ms: number | null;
+  seed: number | null;
+  has_artifact: boolean;
+  tokens_out: number | null;
+  raw_ref: string | null;
+  raw_excerpt: string;
+  scorer_trace: unknown;
+  judge_reversed: boolean;
+  human_reviewed: boolean;
   human_note: string | null;
 }
 
 interface ArtifactRow {
-  run_id: string; endpoint_id: string; sample_index: number;
-  path: string; filename: string; size_kb: number; render_ok: boolean;
-  is_best_of_model: boolean; source_ref: string | null;
-  source_inline: string | null; screenshot_ref: string | null;
-  console_lines: unknown; checks: unknown; judge_commentary: string | null;
-  sandbox_isolated_origin: boolean; sandbox_network_blocked: boolean;
-  sandbox_exec_limit_sec: number; sandbox_size_limit_mb: number;
+  run_id: string;
+  endpoint_id: string;
+  sample_index: number;
+  path: string;
+  filename: string;
+  size_kb: number;
+  render_ok: boolean;
+  is_best_of_model: boolean;
+  source_ref: string | null;
+  source_inline: string | null;
+  screenshot_ref: string | null;
+  console_lines: unknown;
+  checks: unknown;
+  judge_commentary: string | null;
+  sandbox_isolated_origin: boolean;
+  sandbox_network_blocked: boolean;
+  sandbox_exec_limit_sec: number;
+  sandbox_size_limit_mb: number;
 }
 
 interface EventRow {
-  id: number; run_id: string; t: string; type: string;
-  endpoint_id: string | null; sample_index: number | null;
-  level: string; message: string; payload: unknown;
+  id: number;
+  run_id: string;
+  t: string;
+  type: string;
+  endpoint_id: string | null;
+  sample_index: number | null;
+  level: string;
+  message: string;
+  payload: unknown;
 }
 
 interface AnnotationRow {
-  id: number; run_id: string; endpoint_id: string; sample_index: number;
-  note: string; score_override: number | null; author: string; at: string;
+  id: number;
+  run_id: string;
+  endpoint_id: string;
+  sample_index: number;
+  note: string;
+  score_override: number | null;
+  author: string;
+  at: string;
 }
 
 interface VoteRow {
-  run_id: string; pair_index: number; endpoint_a: string; endpoint_b: string;
-  criterion: string; order_swapped: boolean; vote: string | null;
-  confidence: string; voted_at: string | null; final: boolean;
+  run_id: string;
+  pair_index: number;
+  endpoint_a: string;
+  endpoint_b: string;
+  criterion: string;
+  order_swapped: boolean;
+  vote: string | null;
+  confidence: string;
+  voted_at: string | null;
+  final: boolean;
 }
 
 interface JudgePairRow {
-  run_id: string; pair_index: number; endpoint_a: string; endpoint_b: string;
-  verdict_ab: string | null; verdict_ba: string | null; reversed: boolean;
-  excluded_from_tally: boolean; commentary: string | null;
+  run_id: string;
+  pair_index: number;
+  endpoint_a: string;
+  endpoint_b: string;
+  verdict_ab: string | null;
+  verdict_ba: string | null;
+  reversed: boolean;
+  excluded_from_tally: boolean;
+  commentary: string | null;
 }
 
 interface ProviderRow {
-  id: string; name: string; kind: string; is_local: boolean; status: string;
-  health_latency_ms: number | null; models_available: number | null;
-  models_loaded: number | null; last_tested_at: string | null;
-  credential_masked: string; credential_store: string;
-  warning_message: string | null; local_endpoint: string | null;
+  id: string;
+  name: string;
+  kind: string;
+  is_local: boolean;
+  status: string;
+  health_latency_ms: number | null;
+  models_available: number | null;
+  models_loaded: number | null;
+  last_tested_at: string | null;
+  credential_masked: string;
+  credential_store: string;
+  warning_message: string | null;
+  local_endpoint: string | null;
   local_hardware: string | null;
 }
 
 interface ModelDefinitionRow {
-  id: string; family: string; short_name: string; identity_color: string;
-  context_window_tokens: number; capabilities: string[]; supports_seed: boolean;
+  id: string;
+  family: string;
+  short_name: string;
+  identity_color: string;
+  context_window_tokens: number;
+  capabilities: string[];
+  supports_seed: boolean;
 }
 
 interface EndpointRow {
-  id: string; model_id: string; provider_id: string; deployment: string;
-  quantization: string | null; hardware: string | null;
-  price_in_per_mtok_usd: number | null; price_out_per_mtok_usd: number | null;
-  status: string; runs_count: number; reliability_pct: number | null;
-  avg_visual_score: number | null; last_tested_at: string | null;
+  id: string;
+  model_id: string;
+  provider_id: string;
+  deployment: string;
+  quantization: string | null;
+  hardware: string | null;
+  price_in_per_mtok_usd: number | null;
+  price_out_per_mtok_usd: number | null;
+  status: string;
+  runs_count: number;
+  reliability_pct: number | null;
+  avg_visual_score: number | null;
+  last_tested_at: string | null;
 }
 
 interface PackRow {
-  slug: string; version: string; name: string; kind: string; source: string;
-  description: string; task_count: number; browser_check_count: number | null;
-  eval_scorer: string | null; scorers_summary: string;
-  est_cost_per_model_usd: number | null; est_output_tokens_per_model: number | null;
-  category: string | null; license: string; prompt: string | null;
-  content_hash: string | null; last_run_at: string | null;
+  slug: string;
+  version: string;
+  name: string;
+  kind: string;
+  source: string;
+  description: string;
+  task_count: number;
+  browser_check_count: number | null;
+  eval_scorer: string | null;
+  scorers_summary: string;
+  est_cost_per_model_usd: number | null;
+  est_output_tokens_per_model: number | null;
+  category: string | null;
+  license: string;
+  prompt: string | null;
+  content_hash: string | null;
+  last_run_at: string | null;
 }
 
 const TERMINAL_SAMPLE_STATUSES = new Set<string>(["scored", "failed"]);
@@ -172,14 +279,19 @@ export class SupabaseStore implements RunStore {
 
   async listRuns(): Promise<Run[]> {
     const { data, error } = await this.client
-      .from("runs").select("*").order("started_at", { ascending: false });
+      .from("runs")
+      .select("*")
+      .order("started_at", { ascending: false });
     this.must(error, "listRuns");
     return ((data ?? []) as RunRow[]).map(rowToRun);
   }
 
   async getRun(runId: string): Promise<RunWithConfig | null> {
     const { data, error } = await this.client
-      .from("runs").select("*").eq("id", runId).maybeSingle();
+      .from("runs")
+      .select("*")
+      .eq("id", runId)
+      .maybeSingle();
     this.must(error, "getRun");
     if (!data) return null;
     const row = data as RunRow;
@@ -191,7 +303,10 @@ export class SupabaseStore implements RunStore {
 
   async createRun(run: Run, config: RunConfiguration): Promise<void> {
     const { data: existing, error: selErr } = await this.client
-      .from("runs").select("id").eq("id", run.id).maybeSingle();
+      .from("runs")
+      .select("id")
+      .eq("id", run.id)
+      .maybeSingle();
     this.must(selErr, "createRun");
     if (existing) throw new StoreError("DUPLICATE", `run ${run.id} already exists`);
     const { error } = await this.client.from("runs").insert(runToRow(run, config));
@@ -229,7 +344,9 @@ export class SupabaseStore implements RunStore {
 
   async listRunModels(runId: string): Promise<RunModel[]> {
     const { data, error } = await this.client
-      .from("run_models").select("*").eq("run_id", runId)
+      .from("run_models")
+      .select("*")
+      .eq("run_id", runId)
       .order("endpoint_id", { ascending: true });
     this.must(error, "listRunModels");
     return ((data ?? []) as RunModelRow[]).map(rowToRunModel);
@@ -239,9 +356,12 @@ export class SupabaseStore implements RunStore {
 
   async insertSample(s: SampleResult): Promise<void> {
     const { data: existing, error: selErr } = await this.client
-      .from("samples").select("status")
-      .eq("run_id", s.runId).eq("endpoint_id", s.endpointId)
-      .eq("sample_index", s.sampleIndex).maybeSingle();
+      .from("samples")
+      .select("status")
+      .eq("run_id", s.runId)
+      .eq("endpoint_id", s.endpointId)
+      .eq("sample_index", s.sampleIndex)
+      .maybeSingle();
     this.must(selErr, "insertSample");
     const priorStatus = (existing as Pick<SampleRow, "status"> | null)?.status;
     if (priorStatus !== undefined && TERMINAL_SAMPLE_STATUSES.has(priorStatus)) {
@@ -258,9 +378,12 @@ export class SupabaseStore implements RunStore {
 
   async insertArtifact(a: Artifact): Promise<void> {
     const { data: existing, error: selErr } = await this.client
-      .from("artifacts").select("path")
-      .eq("run_id", a.runId).eq("endpoint_id", a.endpointId)
-      .eq("sample_index", a.sampleIndex).maybeSingle();
+      .from("artifacts")
+      .select("path")
+      .eq("run_id", a.runId)
+      .eq("endpoint_id", a.endpointId)
+      .eq("sample_index", a.sampleIndex)
+      .maybeSingle();
     this.must(selErr, "insertArtifact");
     if (existing) {
       throw new StoreError(
@@ -274,7 +397,10 @@ export class SupabaseStore implements RunStore {
 
   async appendEvent(e: RunEvent): Promise<StoredRunEvent> {
     const { data, error } = await this.client
-      .from("run_events").insert(eventToRow(e)).select("id").single();
+      .from("run_events")
+      .insert(eventToRow(e))
+      .select("id")
+      .single();
     this.must(error, "appendEvent");
     const id = (data as Pick<EventRow, "id"> | null)?.id;
     if (id === undefined) {
@@ -285,15 +411,20 @@ export class SupabaseStore implements RunStore {
 
   async listEvents(runId: string, afterId?: number): Promise<StoredRunEvent[]> {
     const { data, error } = await this.client
-      .from("run_events").select("*").eq("run_id", runId)
-      .gt("id", afterId ?? 0).order("id", { ascending: true });
+      .from("run_events")
+      .select("*")
+      .eq("run_id", runId)
+      .gt("id", afterId ?? 0)
+      .order("id", { ascending: true });
     this.must(error, "listEvents");
     return ((data ?? []) as EventRow[]).map(rowToEvent);
   }
 
   async listSamples(runId: string): Promise<SampleResult[]> {
     const { data, error } = await this.client
-      .from("samples").select("*").eq("run_id", runId)
+      .from("samples")
+      .select("*")
+      .eq("run_id", runId)
       .order("global_index", { ascending: true });
     this.must(error, "listSamples");
     return ((data ?? []) as SampleRow[]).map(rowToSample);
@@ -301,7 +432,9 @@ export class SupabaseStore implements RunStore {
 
   async listArtifacts(runId: string): Promise<Artifact[]> {
     const { data, error } = await this.client
-      .from("artifacts").select("*").eq("run_id", runId)
+      .from("artifacts")
+      .select("*")
+      .eq("run_id", runId)
       .order("endpoint_id", { ascending: true })
       .order("sample_index", { ascending: true });
     this.must(error, "listArtifacts");
@@ -325,13 +458,20 @@ export class SupabaseStore implements RunStore {
 
   async listAnnotations(runId: string): Promise<HumanAnnotation[]> {
     const { data, error } = await this.client
-      .from("annotations").select("*").eq("run_id", runId)
+      .from("annotations")
+      .select("*")
+      .eq("run_id", runId)
       .order("id", { ascending: true });
     this.must(error, "listAnnotations");
     return ((data ?? []) as AnnotationRow[]).map((r) =>
       HumanAnnotation.parse({
-        runId: r.run_id, endpointId: r.endpoint_id, sampleIndex: r.sample_index,
-        note: r.note, scoreOverride: r.score_override, author: r.author, at: r.at,
+        runId: r.run_id,
+        endpointId: r.endpoint_id,
+        sampleIndex: r.sample_index,
+        note: r.note,
+        scoreOverride: r.score_override,
+        author: r.author,
+        at: r.at,
       }),
     );
   }
@@ -361,16 +501,24 @@ export class SupabaseStore implements RunStore {
 
   async listVotes(runId: string): Promise<PairwiseVote[]> {
     const { data, error } = await this.client
-      .from("pairwise_votes").select("*").eq("run_id", runId)
+      .from("pairwise_votes")
+      .select("*")
+      .eq("run_id", runId)
       .order("pair_index", { ascending: true });
     this.must(error, "listVotes");
     const rows = (data ?? []) as VoteRow[];
     return rows.map((r) =>
       PairwiseVote.parse({
-        runId: r.run_id, pairIndex: r.pair_index, pairTotal: rows.length,
-        pairing: [r.endpoint_a, r.endpoint_b], criterion: r.criterion,
-        orderSwapped: r.order_swapped, vote: r.vote, confidence: r.confidence,
-        votedAt: r.voted_at, final: r.final,
+        runId: r.run_id,
+        pairIndex: r.pair_index,
+        pairTotal: rows.length,
+        pairing: [r.endpoint_a, r.endpoint_b],
+        criterion: r.criterion,
+        orderSwapped: r.order_swapped,
+        vote: r.vote,
+        confidence: r.confidence,
+        votedAt: r.voted_at,
+        final: r.final,
       }),
     );
   }
@@ -397,15 +545,20 @@ export class SupabaseStore implements RunStore {
 
   async listJudgePairs(runId: string): Promise<JudgePairResult[]> {
     const { data, error } = await this.client
-      .from("judge_pairs").select("*").eq("run_id", runId)
+      .from("judge_pairs")
+      .select("*")
+      .eq("run_id", runId)
       .order("pair_index", { ascending: true });
     this.must(error, "listJudgePairs");
     return ((data ?? []) as JudgePairRow[]).map((r) =>
       JudgePairResult.parse({
-        runId: r.run_id, pairIndex: r.pair_index,
+        runId: r.run_id,
+        pairIndex: r.pair_index,
         pairing: [r.endpoint_a, r.endpoint_b],
-        verdictAB: r.verdict_ab, verdictBA: r.verdict_ba,
-        reversed: r.reversed, excludedFromTally: r.excluded_from_tally,
+        verdictAB: r.verdict_ab,
+        verdictBA: r.verdict_ba,
+        reversed: r.reversed,
+        excludedFromTally: r.excluded_from_tally,
         commentary: r.commentary,
       }),
     );
@@ -415,65 +568,98 @@ export class SupabaseStore implements RunStore {
 
   async listProviders(): Promise<Provider[]> {
     const { data, error } = await this.client
-      .from("providers").select("*").order("id", { ascending: true });
+      .from("providers")
+      .select("*")
+      .order("id", { ascending: true });
     this.must(error, "listProviders");
     return ((data ?? []) as ProviderRow[]).map((r) =>
       Provider.parse({
-        id: r.id, name: r.name, kind: r.kind, status: r.status,
-        isLocal: r.is_local, healthLatencyMs: r.health_latency_ms,
-        modelsAvailable: r.models_available, modelsLoaded: r.models_loaded,
-        lastTestedAt: r.last_tested_at, credentialMasked: r.credential_masked,
+        id: r.id,
+        name: r.name,
+        kind: r.kind,
+        status: r.status,
+        isLocal: r.is_local,
+        healthLatencyMs: r.health_latency_ms,
+        modelsAvailable: r.models_available,
+        modelsLoaded: r.models_loaded,
+        lastTestedAt: r.last_tested_at,
+        credentialMasked: r.credential_masked,
         credentialStore: r.credential_store,
         warning: r.warning_message === null ? null : { message: r.warning_message },
-        localEndpoint: r.local_endpoint, localHardware: r.local_hardware,
+        localEndpoint: r.local_endpoint,
+        localHardware: r.local_hardware,
       }),
     );
   }
 
   async listModelDefinitions(): Promise<ModelDefinition[]> {
     const { data, error } = await this.client
-      .from("model_definitions").select("*").order("id", { ascending: true });
+      .from("model_definitions")
+      .select("*")
+      .order("id", { ascending: true });
     this.must(error, "listModelDefinitions");
     return ((data ?? []) as ModelDefinitionRow[]).map((r) =>
       ModelDefinition.parse({
-        id: r.id, family: r.family, shortName: r.short_name,
+        id: r.id,
+        family: r.family,
+        shortName: r.short_name,
         identityColor: r.identity_color,
         contextWindowTokens: r.context_window_tokens,
-        capabilities: r.capabilities, supportsSeed: r.supports_seed,
+        capabilities: r.capabilities,
+        supportsSeed: r.supports_seed,
       }),
     );
   }
 
   async listEndpoints(): Promise<ModelEndpoint[]> {
     const { data, error } = await this.client
-      .from("model_endpoints").select("*").order("id", { ascending: true });
+      .from("model_endpoints")
+      .select("*")
+      .order("id", { ascending: true });
     this.must(error, "listEndpoints");
     return ((data ?? []) as EndpointRow[]).map((r) =>
       ModelEndpoint.parse({
-        id: r.id, modelId: r.model_id, providerId: r.provider_id,
-        deployment: r.deployment, quantization: r.quantization,
-        hardware: r.hardware, priceInPerMtokUsd: r.price_in_per_mtok_usd,
-        priceOutPerMtokUsd: r.price_out_per_mtok_usd, status: r.status,
-        runsCount: r.runs_count, reliabilityPct: r.reliability_pct,
-        avgVisualScore: r.avg_visual_score, lastTestedAt: r.last_tested_at,
+        id: r.id,
+        modelId: r.model_id,
+        providerId: r.provider_id,
+        deployment: r.deployment,
+        quantization: r.quantization,
+        hardware: r.hardware,
+        priceInPerMtokUsd: r.price_in_per_mtok_usd,
+        priceOutPerMtokUsd: r.price_out_per_mtok_usd,
+        status: r.status,
+        runsCount: r.runs_count,
+        reliabilityPct: r.reliability_pct,
+        avgVisualScore: r.avg_visual_score,
+        lastTestedAt: r.last_tested_at,
       }),
     );
   }
 
   async listPacks(): Promise<BenchmarkPack[]> {
     const { data, error } = await this.client
-      .from("benchmark_packs").select("*")
-      .order("slug", { ascending: true }).order("version", { ascending: true });
+      .from("benchmark_packs")
+      .select("*")
+      .order("slug", { ascending: true })
+      .order("version", { ascending: true });
     this.must(error, "listPacks");
     return ((data ?? []) as PackRow[]).map((r) =>
       BenchmarkPack.parse({
-        slug: r.slug, name: r.name, version: r.version, kind: r.kind,
-        source: r.source, description: r.description, taskCount: r.task_count,
-        browserCheckCount: r.browser_check_count, evalScorer: r.eval_scorer,
+        slug: r.slug,
+        name: r.name,
+        version: r.version,
+        kind: r.kind,
+        source: r.source,
+        description: r.description,
+        taskCount: r.task_count,
+        browserCheckCount: r.browser_check_count,
+        evalScorer: r.eval_scorer,
         scorersSummary: r.scorers_summary,
         estCostPerModelUsd: r.est_cost_per_model_usd,
         estOutputTokensPerModel: r.est_output_tokens_per_model,
-        category: r.category, license: r.license, prompt: r.prompt,
+        category: r.category,
+        license: r.license,
+        prompt: r.prompt,
         lastRunAt: r.last_run_at,
       }),
     );
@@ -495,11 +681,7 @@ export class SupabaseStore implements RunStore {
     // Upsert order matters for FKs: model_endpoints references both
     // providers(id) and model_definitions(id).
     await upsert("providers", reg.providers.map(providerToRow), "id");
-    await upsert(
-      "model_definitions",
-      reg.modelDefinitions.map(modelDefinitionToRow),
-      "id",
-    );
+    await upsert("model_definitions", reg.modelDefinitions.map(modelDefinitionToRow), "id");
     await upsert("model_endpoints", reg.endpoints.map(endpointToRow), "id");
     await upsert("benchmark_packs", reg.packs.map(packToRow), "slug,version");
   }
@@ -512,8 +694,14 @@ export class SupabaseStore implements RunStore {
     // Replace prior demo-run data wholesale.
     const runId = fixtures.run.id;
     for (const table of [
-      "annotations", "pairwise_votes", "judge_pairs", "run_events",
-      "artifacts", "samples", "run_models", "share_exports",
+      "annotations",
+      "pairwise_votes",
+      "judge_pairs",
+      "run_events",
+      "artifacts",
+      "samples",
+      "run_models",
+      "share_exports",
     ]) {
       const { error } = await this.client.from(table).delete().eq("run_id", runId);
       this.must(error, `seedDemo:delete:${table}`);
@@ -526,17 +714,18 @@ export class SupabaseStore implements RunStore {
     await this.createRun(fixtures.run, fixtures.configuration);
     if (fixtures.runModels.length > 0) {
       const { error } = await this.client
-        .from("run_models").insert(fixtures.runModels.map(runModelToRow));
+        .from("run_models")
+        .insert(fixtures.runModels.map(runModelToRow));
       this.must(error, "seedDemo:run_models");
     }
     if (fixtures.samples.length > 0) {
-      const { error } = await this.client
-        .from("samples").insert(fixtures.samples.map(sampleToRow));
+      const { error } = await this.client.from("samples").insert(fixtures.samples.map(sampleToRow));
       this.must(error, "seedDemo:samples");
     }
     if (fixtures.artifacts.length > 0) {
       const { error } = await this.client
-        .from("artifacts").insert(fixtures.artifacts.map(artifactToRow));
+        .from("artifacts")
+        .insert(fixtures.artifacts.map(artifactToRow));
       this.must(error, "seedDemo:artifacts");
     }
     for (const e of fixtures.events) await this.appendEvent(e); // ordered ids
@@ -556,15 +745,24 @@ export class SupabaseStore implements RunStore {
 
 function runToRow(run: Run, config: RunConfiguration): Record<string, unknown> {
   return {
-    id: run.id, fingerprint: run.fingerprint, name: run.name, mode: run.mode,
-    status: run.status, pack_slug: run.pack.slug, pack_version: run.pack.version,
-    prompt_hash: run.promptHash, samples_per_model: run.samplesPerModel,
-    model_count: run.modelCount, budget_ceiling_usd: run.budgetCeilingUsd,
+    id: run.id,
+    fingerprint: run.fingerprint,
+    name: run.name,
+    mode: run.mode,
+    status: run.status,
+    pack_slug: run.pack.slug,
+    pack_version: run.pack.version,
+    prompt_hash: run.promptHash,
+    samples_per_model: run.samplesPerModel,
+    model_count: run.modelCount,
+    budget_ceiling_usd: run.budgetCeilingUsd,
     cost_spent_usd: run.costSpentUsd,
     est_cost_low_usd: run.estCostRangeUsd?.[0] ?? null,
     est_cost_high_usd: run.estCostRangeUsd?.[1] ?? null,
-    started_at: run.startedAt, completed_at: run.completedAt,
-    elapsed_sec: run.elapsedSec, runner_version: run.runnerVersion,
+    started_at: run.startedAt,
+    completed_at: run.completedAt,
+    elapsed_sec: run.elapsedSec,
+    runner_version: run.runnerVersion,
     git_commit: run.gitCommit,
     composite_browser_pct: run.compositeWeighting.browser,
     composite_visual_pct: run.compositeWeighting.visual,
@@ -578,39 +776,66 @@ function runToRow(run: Run, config: RunConfiguration): Record<string, unknown> {
 
 function runModelToRow(rm: RunModel): Record<string, unknown> {
   return {
-    run_id: rm.runId, endpoint_id: rm.endpointId, status: rm.status,
-    failed_sample_count: rm.failedSampleCount, progress_pct: rm.progressPct,
-    current_task: rm.currentTask, tokens_out: rm.tokensOut, ttft_ms: rm.ttftMs,
-    total_latency_ms: rm.totalLatencyMs, cost_usd: rm.costUsd,
+    run_id: rm.runId,
+    endpoint_id: rm.endpointId,
+    status: rm.status,
+    failed_sample_count: rm.failedSampleCount,
+    progress_pct: rm.progressPct,
+    current_task: rm.currentTask,
+    tokens_out: rm.tokensOut,
+    ttft_ms: rm.ttftMs,
+    total_latency_ms: rm.totalLatencyMs,
+    cost_usd: rm.costUsd,
     visual_score_value: rm.visualScore?.value ?? null,
     visual_score_n: rm.visualScore?.n ?? null,
-    tests_passed: rm.testsPassed, tests_total: rm.testsTotal,
-    retries: rm.retries, unseeded: rm.unseeded, flag: rm.flag,
+    tests_passed: rm.testsPassed,
+    tests_total: rm.testsTotal,
+    retries: rm.retries,
+    unseeded: rm.unseeded,
+    flag: rm.flag,
   };
 }
 
 function sampleToRow(s: SampleResult): Record<string, unknown> {
   return {
-    run_id: s.runId, endpoint_id: s.endpointId, sample_index: s.sampleIndex,
-    global_index: s.globalIndex, status: s.status,
+    run_id: s.runId,
+    endpoint_id: s.endpointId,
+    sample_index: s.sampleIndex,
+    global_index: s.globalIndex,
+    status: s.status,
     score_value: s.score !== null && "value" in s.score ? s.score.value : null,
     score_failed: s.score !== null && "failed" in s.score,
-    primary_scorer: s.primaryScorer, cost_usd: s.costUsd,
-    latency_ms: s.latencyMs, ttft_ms: s.ttftMs, seed: s.seed,
-    has_artifact: s.hasArtifact, tokens_out: s.tokensOut,
-    raw_ref: null, raw_excerpt: s.rawExcerpt, scorer_trace: s.scorerTrace,
-    judge_reversed: s.judgeReversed, human_reviewed: s.humanReviewed,
+    primary_scorer: s.primaryScorer,
+    cost_usd: s.costUsd,
+    latency_ms: s.latencyMs,
+    ttft_ms: s.ttftMs,
+    seed: s.seed,
+    has_artifact: s.hasArtifact,
+    tokens_out: s.tokensOut,
+    raw_ref: null,
+    raw_excerpt: s.rawExcerpt,
+    scorer_trace: s.scorerTrace,
+    judge_reversed: s.judgeReversed,
+    human_reviewed: s.humanReviewed,
     human_note: s.humanNote,
   };
 }
 
 function artifactToRow(a: Artifact): Record<string, unknown> {
   return {
-    run_id: a.runId, endpoint_id: a.endpointId, sample_index: a.sampleIndex,
-    path: a.path, filename: a.filename, size_kb: a.sizeKb,
-    render_ok: a.renderOk, is_best_of_model: a.isBestOfModel,
-    source_ref: null, source_inline: a.source, screenshot_ref: a.screenshotRef,
-    console_lines: a.consoleLines, checks: a.checks,
+    run_id: a.runId,
+    endpoint_id: a.endpointId,
+    sample_index: a.sampleIndex,
+    path: a.path,
+    filename: a.filename,
+    size_kb: a.sizeKb,
+    render_ok: a.renderOk,
+    is_best_of_model: a.isBestOfModel,
+    source_ref: null,
+    source_inline: a.source,
+    screenshot_ref: a.screenshotRef,
+    console_lines: a.consoleLines,
+    checks: a.checks,
     judge_commentary: a.judgeCommentary,
     sandbox_isolated_origin: a.sandbox.isolatedOrigin,
     sandbox_network_blocked: a.sandbox.networkBlocked,
@@ -621,29 +846,45 @@ function artifactToRow(a: Artifact): Record<string, unknown> {
 
 function eventToRow(e: RunEvent): Record<string, unknown> {
   return {
-    run_id: e.runId, t: e.t, type: e.type, endpoint_id: e.endpointId,
-    sample_index: e.sampleIndex, level: e.level, message: e.message,
+    run_id: e.runId,
+    t: e.t,
+    type: e.type,
+    endpoint_id: e.endpointId,
+    sample_index: e.sampleIndex,
+    level: e.level,
+    message: e.message,
     payload: e.payload,
   };
 }
 
 function providerToRow(p: Provider): Record<string, unknown> {
   return {
-    id: p.id, name: p.name, kind: p.kind, is_local: p.isLocal, status: p.status,
-    health_latency_ms: p.healthLatencyMs, models_available: p.modelsAvailable,
-    models_loaded: p.modelsLoaded, last_tested_at: isoOrNull(p.lastTestedAt),
-    credential_masked: p.credentialMasked, credential_store: p.credentialStore,
+    id: p.id,
+    name: p.name,
+    kind: p.kind,
+    is_local: p.isLocal,
+    status: p.status,
+    health_latency_ms: p.healthLatencyMs,
+    models_available: p.modelsAvailable,
+    models_loaded: p.modelsLoaded,
+    last_tested_at: isoOrNull(p.lastTestedAt),
+    credential_masked: p.credentialMasked,
+    credential_store: p.credentialStore,
     warning_message: p.warning?.message ?? null,
-    local_endpoint: p.localEndpoint, local_hardware: p.localHardware,
+    local_endpoint: p.localEndpoint,
+    local_hardware: p.localHardware,
   };
 }
 
 function modelDefinitionToRow(m: ModelDefinition): Record<string, unknown> {
   return {
-    id: m.id, family: m.family, short_name: m.shortName,
+    id: m.id,
+    family: m.family,
+    short_name: m.shortName,
     identity_color: m.identityColor,
     context_window_tokens: m.contextWindowTokens,
-    capabilities: m.capabilities, supports_seed: m.supportsSeed,
+    capabilities: m.capabilities,
+    supports_seed: m.supportsSeed,
   };
 }
 
@@ -651,12 +892,19 @@ function endpointToRow(e: ModelEndpoint): Record<string, unknown> {
   // apiModel is intentionally omitted: the DB has no column for it and
   // registry persistence doesn't need it; rowTo parse defaults it to null.
   return {
-    id: e.id, model_id: e.modelId, provider_id: e.providerId,
-    deployment: e.deployment, quantization: e.quantization, hardware: e.hardware,
+    id: e.id,
+    model_id: e.modelId,
+    provider_id: e.providerId,
+    deployment: e.deployment,
+    quantization: e.quantization,
+    hardware: e.hardware,
     price_in_per_mtok_usd: e.priceInPerMtokUsd,
-    price_out_per_mtok_usd: e.priceOutPerMtokUsd, status: e.status,
-    runs_count: e.runsCount, reliability_pct: e.reliabilityPct,
-    avg_visual_score: e.avgVisualScore, last_tested_at: isoOrNull(e.lastTestedAt),
+    price_out_per_mtok_usd: e.priceOutPerMtokUsd,
+    status: e.status,
+    runs_count: e.runsCount,
+    reliability_pct: e.reliabilityPct,
+    avg_visual_score: e.avgVisualScore,
+    last_tested_at: isoOrNull(e.lastTestedAt),
   };
 }
 
@@ -672,14 +920,23 @@ function isoOrNull(value: string | null): string | null {
 
 function packToRow(p: BenchmarkPack): Record<string, unknown> {
   return {
-    slug: p.slug, version: p.version, name: p.name, kind: p.kind,
-    source: p.source, description: p.description, task_count: p.taskCount,
-    browser_check_count: p.browserCheckCount, eval_scorer: p.evalScorer,
+    slug: p.slug,
+    version: p.version,
+    name: p.name,
+    kind: p.kind,
+    source: p.source,
+    description: p.description,
+    task_count: p.taskCount,
+    browser_check_count: p.browserCheckCount,
+    eval_scorer: p.evalScorer,
     scorers_summary: p.scorersSummary,
     est_cost_per_model_usd: p.estCostPerModelUsd,
     est_output_tokens_per_model: p.estOutputTokensPerModel,
-    category: p.category, license: p.license, prompt: p.prompt,
-    content_hash: null, last_run_at: isoOrNull(p.lastRunAt),
+    category: p.category,
+    license: p.license,
+    prompt: p.prompt,
+    content_hash: null,
+    last_run_at: isoOrNull(p.lastRunAt),
   };
 }
 
@@ -688,17 +945,25 @@ function packToRow(p: BenchmarkPack): Record<string, unknown> {
 
 function rowToRun(r: RunRow): Run {
   return Run.parse({
-    id: r.id, fingerprint: r.fingerprint, name: r.name, mode: r.mode,
-    status: r.status, pack: { slug: r.pack_slug, version: r.pack_version },
-    promptHash: r.prompt_hash, samplesPerModel: r.samples_per_model,
-    modelCount: r.model_count, budgetCeilingUsd: r.budget_ceiling_usd,
+    id: r.id,
+    fingerprint: r.fingerprint,
+    name: r.name,
+    mode: r.mode,
+    status: r.status,
+    pack: { slug: r.pack_slug, version: r.pack_version },
+    promptHash: r.prompt_hash,
+    samplesPerModel: r.samples_per_model,
+    modelCount: r.model_count,
+    budgetCeilingUsd: r.budget_ceiling_usd,
     costSpentUsd: r.cost_spent_usd,
     estCostRangeUsd:
       r.est_cost_low_usd === null || r.est_cost_high_usd === null
         ? null
         : [r.est_cost_low_usd, r.est_cost_high_usd],
-    startedAt: r.started_at, completedAt: r.completed_at,
-    elapsedSec: r.elapsed_sec, runnerVersion: r.runner_version,
+    startedAt: r.started_at,
+    completedAt: r.completed_at,
+    elapsedSec: r.elapsed_sec,
+    runnerVersion: r.runner_version,
     gitCommit: r.git_commit,
     compositeWeighting: {
       browser: r.composite_browser_pct,
@@ -715,44 +980,69 @@ function rowToRun(r: RunRow): Run {
 
 function rowToRunModel(r: RunModelRow): RunModel {
   return RunModel.parse({
-    runId: r.run_id, endpointId: r.endpoint_id, status: r.status,
-    failedSampleCount: r.failed_sample_count, progressPct: r.progress_pct,
-    currentTask: r.current_task, tokensOut: r.tokens_out, ttftMs: r.ttft_ms,
-    totalLatencyMs: r.total_latency_ms, costUsd: r.cost_usd,
+    runId: r.run_id,
+    endpointId: r.endpoint_id,
+    status: r.status,
+    failedSampleCount: r.failed_sample_count,
+    progressPct: r.progress_pct,
+    currentTask: r.current_task,
+    tokensOut: r.tokens_out,
+    ttftMs: r.ttft_ms,
+    totalLatencyMs: r.total_latency_ms,
+    costUsd: r.cost_usd,
     visualScore:
       r.visual_score_value === null || r.visual_score_n === null
         ? null
         : { value: r.visual_score_value, n: r.visual_score_n },
-    testsPassed: r.tests_passed, testsTotal: r.tests_total, retries: r.retries,
-    unseeded: r.unseeded, flag: r.flag,
+    testsPassed: r.tests_passed,
+    testsTotal: r.tests_total,
+    retries: r.retries,
+    unseeded: r.unseeded,
+    flag: r.flag,
   });
 }
 
 function rowToSample(r: SampleRow): SampleResult {
   return SampleResult.parse({
-    runId: r.run_id, endpointId: r.endpoint_id, sampleIndex: r.sample_index,
-    globalIndex: r.global_index, status: r.status,
+    runId: r.run_id,
+    endpointId: r.endpoint_id,
+    sampleIndex: r.sample_index,
+    globalIndex: r.global_index,
+    status: r.status,
     score: r.score_failed
       ? { failed: true }
       : r.score_value === null
         ? null
         : { value: r.score_value },
-    primaryScorer: r.primary_scorer, costUsd: r.cost_usd,
-    latencyMs: r.latency_ms, ttftMs: r.ttft_ms, seed: r.seed,
-    hasArtifact: r.has_artifact, tokensOut: r.tokens_out,
-    rawExcerpt: r.raw_excerpt, scorerTrace: r.scorer_trace,
-    judgeReversed: r.judge_reversed, humanReviewed: r.human_reviewed,
+    primaryScorer: r.primary_scorer,
+    costUsd: r.cost_usd,
+    latencyMs: r.latency_ms,
+    ttftMs: r.ttft_ms,
+    seed: r.seed,
+    hasArtifact: r.has_artifact,
+    tokensOut: r.tokens_out,
+    rawExcerpt: r.raw_excerpt,
+    scorerTrace: r.scorer_trace,
+    judgeReversed: r.judge_reversed,
+    humanReviewed: r.human_reviewed,
     humanNote: r.human_note,
   });
 }
 
 function rowToArtifact(r: ArtifactRow): Artifact {
   return Artifact.parse({
-    runId: r.run_id, endpointId: r.endpoint_id, sampleIndex: r.sample_index,
-    path: r.path, filename: r.filename, sizeKb: r.size_kb,
-    renderOk: r.render_ok, isBestOfModel: r.is_best_of_model,
-    source: r.source_inline ?? "", screenshotRef: r.screenshot_ref,
-    consoleLines: r.console_lines, checks: r.checks,
+    runId: r.run_id,
+    endpointId: r.endpoint_id,
+    sampleIndex: r.sample_index,
+    path: r.path,
+    filename: r.filename,
+    sizeKb: r.size_kb,
+    renderOk: r.render_ok,
+    isBestOfModel: r.is_best_of_model,
+    source: r.source_inline ?? "",
+    screenshotRef: r.screenshot_ref,
+    consoleLines: r.console_lines,
+    checks: r.checks,
     judgeCommentary: r.judge_commentary,
     sandbox: {
       isolatedOrigin: r.sandbox_isolated_origin,
@@ -766,8 +1056,13 @@ function rowToArtifact(r: ArtifactRow): Artifact {
 function rowToEvent(r: EventRow): StoredRunEvent {
   return {
     ...RunEvent.parse({
-      t: r.t, type: r.type, runId: r.run_id, endpointId: r.endpoint_id,
-      sampleIndex: r.sample_index, level: r.level, message: r.message,
+      t: r.t,
+      type: r.type,
+      runId: r.run_id,
+      endpointId: r.endpoint_id,
+      sampleIndex: r.sample_index,
+      level: r.level,
+      message: r.message,
       payload: r.payload,
     }),
     id: r.id,

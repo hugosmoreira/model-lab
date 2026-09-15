@@ -25,7 +25,13 @@ function Field({ k, v }: { k: string; v: string }) {
       >
         {k}
       </span>
-      <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-text-secondary)" }}>
+      <span
+        style={{
+          fontFamily: "var(--font-mono)",
+          fontSize: 11,
+          color: "var(--color-text-secondary)",
+        }}
+      >
         {v}
       </span>
     </span>
@@ -36,7 +42,12 @@ export function ReproStrip({ manifest }: { manifest: RunManifest }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
 
   async function copyManifest() {
     try {

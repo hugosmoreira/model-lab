@@ -12,18 +12,12 @@ const mono = { fontFamily: "var(--font-mono)" } as const;
 const FIXTURE_NOW_ISO = "2026-07-31T14:32:00Z";
 
 function minutesAgo(iso: string): string {
-  const mins = Math.max(
-    0,
-    Math.round((Date.parse(FIXTURE_NOW_ISO) - Date.parse(iso)) / 60_000),
-  );
+  const mins = Math.max(0, Math.round((Date.parse(FIXTURE_NOW_ISO) - Date.parse(iso)) / 60_000));
   return mins === 0 ? "just now" : `${mins} min ago`;
 }
 
 /** Status → circle-dot color + status-text color (never model colors). */
-const STATUS_META: Record<
-  Provider["status"],
-  { dot: string; text: string }
-> = {
+const STATUS_META: Record<Provider["status"], { dot: string; text: string }> = {
   connected: { dot: "var(--color-teal)", text: "var(--color-teal)" },
   "rate-limited": { dot: "var(--color-amber)", text: "var(--color-amber)" },
   disconnected: { dot: "var(--color-disabled)", text: "var(--color-faint)" },
@@ -44,17 +38,14 @@ function lastTestLabel(p: Provider): string {
 }
 
 function credentialLabel(p: Provider): string {
-  return p.credentialStore === "keychain"
-    ? `${p.credentialMasked} (keychain)`
-    : p.credentialMasked;
+  return p.credentialStore === "keychain" ? `${p.credentialMasked} (keychain)` : p.credentialMasked;
 }
 
 const DISABLED_TITLE = "wired in Phase 2";
 
 export function ProviderCard({ provider: p }: { provider: Provider }) {
   const meta = STATUS_META[p.status];
-  const statusText =
-    p.status === "connected" && p.isLocal ? "connected · local" : p.status;
+  const statusText = p.status === "connected" && p.isLocal ? "connected · local" : p.status;
   const contextAction = p.status === "disconnected" ? "Connect" : "Disable";
 
   return (
@@ -72,9 +63,7 @@ export function ProviderCard({ provider: p }: { provider: Provider }) {
       <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
         <StatusDot color={meta.dot} size={8} />
         <span style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</span>
-        <span
-          style={{ ...mono, fontSize: 11, color: meta.text, marginLeft: "auto" }}
-        >
+        <span style={{ ...mono, fontSize: 11, color: meta.text, marginLeft: "auto" }}>
           {statusText}
         </span>
       </div>

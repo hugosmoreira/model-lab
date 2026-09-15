@@ -28,8 +28,10 @@ const globalStash = globalThis as typeof globalThis & {
   __modelLabRunRegistry?: Map<string, RunRecord>;
 };
 
-const registry: Map<string, RunRecord> =
-  (globalStash.__modelLabRunRegistry ??= new Map<string, RunRecord>());
+const registry: Map<string, RunRecord> = (globalStash.__modelLabRunRegistry ??= new Map<
+  string,
+  RunRecord
+>());
 
 export function registerRun(record: RunRecord): RunRecord {
   registry.set(record.id, record);
@@ -42,7 +44,5 @@ export function getRun(id: string): RunRecord | undefined {
 
 /** Newest first. */
 export function listRuns(): RunRecord[] {
-  return [...registry.values()].sort((a, b) =>
-    b.createdAt.localeCompare(a.createdAt),
-  );
+  return [...registry.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }

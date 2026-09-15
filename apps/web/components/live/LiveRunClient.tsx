@@ -114,13 +114,9 @@ export function LiveRunClient({
 
   const samplesTotal = models.length * samplesPerModel;
 
-  const liveSampleIndex = Math.max(
-    1,
-    ...liveModels.map((m) => m.currentSampleIndex ?? 0),
-  );
+  const liveSampleIndex = Math.max(1, ...liveModels.map((m) => m.currentSampleIndex ?? 0));
 
-  const modelIdFor = (endpointId: string): string =>
-    modelMeta[endpointId]?.modelId ?? endpointId;
+  const modelIdFor = (endpointId: string): string => modelMeta[endpointId]?.modelId ?? endpointId;
 
   const failure: LiveFailure | null = state.lastFailure
     ? {
@@ -136,8 +132,7 @@ export function LiveRunClient({
      the model scope. */
   const consoleLines: ConsoleLineVM[] = state.consoleLines.map((e) => {
     const scope = e.endpointId ? modelIdFor(e.endpointId) : null;
-    const detail =
-      scope && !e.message.startsWith(scope) ? `${scope} · ${e.message}` : e.message;
+    const detail = scope && !e.message.startsWith(scope) ? `${scope} · ${e.message}` : e.message;
     return { t: e.t, level: e.level, text: `${e.type.padEnd(16)} ${detail}` };
   });
 

@@ -97,10 +97,7 @@ export function ModelsRegistry({
     () => new Map(modelDefinitions.map((m) => [m.id, m])),
     [modelDefinitions],
   );
-  const providerById = useMemo(
-    () => new Map(providers.map((p) => [p.id, p])),
-    [providers],
-  );
+  const providerById = useMemo(() => new Map(providers.map((p) => [p.id, p])), [providers]);
 
   /** Newest lastTestedAt across the registry = the fixture dataset's "today". */
   const anchorIso = useMemo(() => {
@@ -200,10 +197,7 @@ export function ModelsRegistry({
         <span style={{ fontSize: 12, color: "var(--color-faint)" }}>
           Same model on different providers = separate endpoints — never merged.
         </span>
-        <span
-          role="status"
-          style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}
-        >
+        <span role="status" style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>
           {filtered.length}/{endpoints.length} endpoints
         </span>
         <button
@@ -281,7 +275,9 @@ export function ModelsRegistry({
                     >
                       {ep.modelId}
                     </span>
-                    <span style={{ fontSize: 11, color: "var(--color-faint)" }}>{identityLine}</span>
+                    <span style={{ fontSize: 11, color: "var(--color-faint)" }}>
+                      {identityLine}
+                    </span>
                   </span>
                 </span>
 

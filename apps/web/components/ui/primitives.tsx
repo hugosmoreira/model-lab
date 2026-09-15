@@ -1,13 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 
 /** Panel card: bg panel, 1px border, radius 8. */
-export function Panel({
-  children,
-  style,
-}: {
-  children: ReactNode;
-  style?: CSSProperties;
-}) {
+export function Panel({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   return (
     <section className="panel" style={style}>
       {children}
@@ -128,7 +122,7 @@ export function ProgressBar({
           width: `${Math.min(100, Math.max(0, pct))}%`,
           background: gradient
             ? "linear-gradient(90deg,#e8a33d,#d16ba0)"
-            : color ?? "var(--color-amber)",
+            : (color ?? "var(--color-amber)"),
         }}
       />
     </span>

@@ -16,10 +16,7 @@ import { humanVisualByEndpoint } from "@/lib/human-score";
 
 const mono = { fontFamily: "var(--font-mono)" } as const;
 
-type SaveState =
-  | { kind: "idle" }
-  | { kind: "saved"; msg: string }
-  | { kind: "error"; msg: string };
+type SaveState = { kind: "idle" } | { kind: "saved"; msg: string } | { kind: "error"; msg: string };
 
 export function RateBuildPanel({
   runId,

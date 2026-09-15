@@ -146,13 +146,13 @@ export function getBuilds(data: RunArtifactData): BuildVM[] {
       costLabel,
       latencyLabel: rm?.totalLatencyMs != null ? seconds(rm.totalLatencyMs) : "—",
       consoleLabel:
-        errors > 0 ? `${errors} error${errors === 1 ? "" : "s"}` : warns > 0 ? `${warns} warn` : "0",
-      consoleColor:
         errors > 0
-          ? "var(--color-red)"
+          ? `${errors} error${errors === 1 ? "" : "s"}`
           : warns > 0
-            ? "var(--color-amber)"
-            : "var(--color-teal)",
+            ? `${warns} warn`
+            : "0",
+      consoleColor:
+        errors > 0 ? "var(--color-red)" : warns > 0 ? "var(--color-amber)" : "var(--color-teal)",
       railMeta:
         tally.gateName != null
           ? `gate ${tally.gateName} · ${costLabel}`
