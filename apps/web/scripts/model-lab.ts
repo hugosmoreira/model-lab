@@ -22,7 +22,7 @@ const USAGE = `Model Lab — run a benchmark from the terminal
 
 usage
   pnpm cli run --pack <slug> --models <endpoint,endpoint,…> [options]
-  pnpm cli models
+  pnpm cli models [--check]   # --check probes every provider (free, read-only)
   pnpm cli packs
 
 run options
@@ -91,6 +91,7 @@ async function main(): Promise<void> {
       store: { type: "string" },
       "no-bundle": { type: "boolean", default: false },
       quiet: { type: "boolean", default: false },
+      check: { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
   });
@@ -111,7 +112,8 @@ async function main(): Promise<void> {
   const runService = await import("../lib/server/run-service");
   const { benchmarkPacks } = await import("@model-lab/schemas/fixtures");
   const { loadPackFromDisk } = await import("../lib/server/packs");
-  const { FsRunStore, exportBundle } = await import("@model-lab/build-arena-runner");
+  const { FsRunStore, exportBundle, checkProvidersHealth } =
+    await import("@model-lab/build-arena-runner");
 
   if (command === "models") {
     const rows = runService.listEndpointAvailability();
@@ -123,6 +125,22 @@ async function main(): Promise<void> {
           ? "real (local server, keyless)"
           : "real (key present)";
       console.log(`${pad(r.id, 40)}${pad(r.deployment, 12)}${status}`);
+    }
+    if (values.check) {
+      // One read-only model-list request per provider — proves the key works
+      // and the endpoint answers; spends nothing.
+      const ids = [...new Set(rows.map((r) => r.providerId))];
+      const health = await checkProvidersHealth(ids, { timeoutMs: 6000 });
+      console.log("");
+      console.log(
+        `${pad("provider", 14)}${pad("status", 14)}${pad("latency", 9)}${pad("models", 8)}detail`,
+      );
+      for (const h of health) {
+        if (h.status === "unsupported") continue;
+        console.log(
+          `${pad(h.providerId, 14)}${pad(h.status, 14)}${pad(h.latencyMs != null ? `${h.latencyMs}ms` : "—", 9)}${pad(h.modelsAvailable != null ? String(h.modelsAvailable) : "—", 8)}${h.detail ?? ""}`,
+        );
+      }
     }
     return;
   }

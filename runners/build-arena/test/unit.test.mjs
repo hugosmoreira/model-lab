@@ -15,6 +15,29 @@ const { normalizeFinishReason } = await import("../src/providers/util.ts");
 const { BROWSER_CHECK_NAMES, CHECK_CATEGORY, categoryOf, capabilityChecks, failedGates } =
   await import("../src/checks/browser-checks.ts");
 const { decidePair, normalizeSwappedVerdict } = await import("../src/judge.ts");
+const { credentialEnvFor, statusForHttp } = await import("../src/providers/health.ts");
+
+// ---------------------------------------------------------------------------
+// Provider health probes: pure parts.
+// ---------------------------------------------------------------------------
+test("health: HTTP status maps to connected / rate-limited / disconnected", () => {
+  assert.equal(statusForHttp(200), "connected");
+  assert.equal(statusForHttp(204), "connected");
+  assert.equal(statusForHttp(429), "rate-limited");
+  assert.equal(statusForHttp(401), "disconnected");
+  assert.equal(statusForHttp(500), "disconnected");
+});
+
+test("health: each provider names the one env var that must hold its key", () => {
+  assert.equal(credentialEnvFor("anthropic"), "ANTHROPIC_API_KEY");
+  assert.equal(credentialEnvFor("deepseek"), "DEEPSEEK_API_KEY");
+  assert.equal(credentialEnvFor("ollama"), null, "Ollama is keyless by design");
+  assert.equal(
+    credentialEnvFor("my-proxy"),
+    "MY_PROXY_API_KEY",
+    "custom providers follow the convention",
+  );
+});
 
 // ---------------------------------------------------------------------------
 // Order-swapped pairwise judging: a verdict that flips with presentation order

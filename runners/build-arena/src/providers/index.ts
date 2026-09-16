@@ -32,6 +32,13 @@ export {
 } from "./mock";
 export type { MockProviderOptions } from "./mock";
 export { OllamaProvider, DEFAULT_OLLAMA_BASE_URL } from "./ollama";
+export {
+  checkProviderHealth,
+  checkProvidersHealth,
+  credentialEnvFor,
+  statusForHttp,
+} from "./health";
+export type { HealthOptions, ProviderHealth, ProviderHealthStatus } from "./health";
 export { OpenAiCompatibleProvider, resolveOpenAiCompatible } from "./openai-compatible";
 export type { OpenAiCompatibleOptions } from "./openai-compatible";
 export { approxTokens, errorMessage, readSse, scrubSecrets, sleep } from "./util";

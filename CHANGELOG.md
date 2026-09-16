@@ -34,6 +34,10 @@ All notable changes to Model Lab are recorded here. The format follows
   says where it came from. Rows stored before the field existed are inferred
   from the run mode when read.
 - Samples per model is selectable in the New Run wizard (1, 2, 3 or 5).
+- Live provider health: `GET /api/providers/health` probes each provider's
+  model list with the server's key (read-only, free, cached for a minute);
+  the Providers page uses it on a persistent store, with a working "Test
+  connection" button, and `pnpm cli models --check` prints the same.
 - A command line: `pnpm cli run --pack … --models …` with `--samples`,
   `--budget`, `--fail-under`, `--mock`, `--no-judge`, `--store`; plus
   `pnpm cli models` and `pnpm cli packs`. Runs go through the same service as

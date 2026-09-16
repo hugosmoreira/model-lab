@@ -39,14 +39,19 @@ recorded result, but each one is a reason to read a headline with care.
   run under an established harness.
 - **More packs**: a second build-arena challenge that is not a raycaster, and
   larger objective packs.
-- **Live provider health checks** on the Providers page, and a head-to-head
-  queue for runs with more than one sample.
+- **A head-to-head queue** for runs with more than one sample.
 - **An installable `model-lab` binary.** The CLI exists (`pnpm cli …`) but
   runs from the checkout; a published package needs a build step for the
   runner.
 
 ## Done since 0.1.0
 
+- **Live provider health.** On a persistent store the Providers page probes
+  each provider's model list with the server's key (`GET
+  /api/providers/health`, cached for a minute, "Test connection" refreshes)
+  and shows reachability, latency, model count and whether the key is set.
+  The in-memory demo keeps its fixture cards. `pnpm cli models --check` does
+  the same from the terminal.
 - **A command line.** `pnpm cli run --pack … --models … [--samples n]
   [--budget usd] [--fail-under ratio]` starts a run through the same service
   the UI uses, streams its events, prints a capability / cost / latency

@@ -51,8 +51,19 @@ export {
   resolveOpenAiCompatible,
   DEFAULT_OLLAMA_BASE_URL,
   scrubSecrets,
+  checkProviderHealth,
+  checkProvidersHealth,
+  credentialEnvFor,
+  statusForHttp,
 } from "./providers";
-export type { AnthropicOptions, MockProviderOptions, OpenAiCompatibleOptions } from "./providers";
+export type {
+  AnthropicOptions,
+  HealthOptions,
+  MockProviderOptions,
+  OpenAiCompatibleOptions,
+  ProviderHealth,
+  ProviderHealthStatus,
+} from "./providers";
 export {
   runBrowserChecks,
   closeBrowserChecks,
