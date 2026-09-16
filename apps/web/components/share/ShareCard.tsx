@@ -36,9 +36,9 @@ export interface ShareCardRow {
   id: string;
   /** model identity color — square dot + bar + scatter point share one hue */
   color: string;
-  /** formatted visual score, e.g. "9.2" or footnoted "6.8*" */
+  /** formatted score for the labelled score column, e.g. "9.2" or footnoted "6.8*" */
   visual: string;
-  /** bar width % = visualScore × 10 — the bar encodes VISUAL·HUMAN, not tests */
+  /** bar width % = score × 10 — the bar encodes the score column (see scoreLabel), not tests */
   pct: number;
   /** capability ratio, "4/5" — gates and diagnostics are not scored */
   tests: string;
@@ -123,8 +123,17 @@ const SANS = "'IBM Plex Sans', system-ui, sans-serif";
 
 const GRID: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "150px 1fr 64px 66px 58px",
+  // name · bar · score · capability · cost — the score and capability columns
+  // are wide enough for their labels (JUDGE·RUBRIC, CAPABILITY) to sit inside.
+  gridTemplateColumns: "150px 1fr 78px 74px 58px",
   gap: 10,
+};
+
+/** Column caption under the scorecard rows — small, spaced, never wider than its column. */
+const COLUMN_LABEL: CSSProperties = {
+  fontSize: 8.5,
+  letterSpacing: "0.05em",
+  whiteSpace: "nowrap",
 };
 
 function ModelSquare({ color }: { color: string }) {
@@ -140,7 +149,15 @@ function ModelSquare({ color }: { color: string }) {
  * Template: new-model-scorecard (Phase 0 design, unchanged)
  * ------------------------------------------------------------------------- */
 
-function ScorecardBody({ rows, t }: { rows: ShareCardRow[]; t: ThemeTokens }) {
+function ScorecardBody({
+  rows,
+  t,
+  scoreLabel,
+}: {
+  rows: ShareCardRow[];
+  t: ThemeTokens;
+  scoreLabel: string;
+}) {
   const testsColor: Record<ShareCardRow["testsState"], string> = {
     ok: t.testsOk,
     warn: t.testsWarn,
@@ -204,11 +221,9 @@ function ScorecardBody({ rows, t }: { rows: ShareCardRow[]; t: ThemeTokens }) {
       <div style={{ ...GRID, marginTop: -2 }}>
         <span />
         <span />
-        <span style={{ fontSize: 9.5, letterSpacing: "0.08em", color: t.faint }}>VISUAL·HUMAN</span>
-        <span style={{ fontSize: 9.5, letterSpacing: "0.08em", color: t.faint }}>
-          TESTS·BROWSER
-        </span>
-        <span style={{ fontSize: 9.5, letterSpacing: "0.08em", color: t.faint }}>COST</span>
+        <span style={{ ...COLUMN_LABEL, color: t.faint }}>{scoreLabel}</span>
+        <span style={{ ...COLUMN_LABEL, color: t.faint }}>CAPABILITY</span>
+        <span style={{ ...COLUMN_LABEL, color: t.faint }}>COST</span>
       </div>
     </div>
   );
@@ -218,7 +233,15 @@ function ScorecardBody({ rows, t }: { rows: ShareCardRow[]; t: ThemeTokens }) {
  * Template: cost-vs-quality — compact SVG scatter with pareto dashes
  * ------------------------------------------------------------------------- */
 
-function CostQualityBody({ rows, t }: { rows: ShareCardRow[]; t: ThemeTokens }) {
+function CostQualityBody({
+  rows,
+  t,
+  scoreLabel,
+}: {
+  rows: ShareCardRow[];
+  t: ThemeTokens;
+  scoreLabel: string;
+}) {
   const pts = rows.flatMap((r) =>
     r.visualValue === null ? [] : [{ row: r, score: r.visualValue }],
   );
@@ -381,7 +404,7 @@ function CostQualityBody({ rows, t }: { rows: ShareCardRow[]; t: ThemeTokens }) 
         })}
         {/* axis captions */}
         <text x={ML} y={10} fontFamily={MONO} fontSize={9} letterSpacing="1" fill={t.faint}>
-          VISUAL·HUMAN
+          {scoreLabel}
         </text>
         <text
           x={ML + plotW}
@@ -535,12 +558,15 @@ export function ShareCard({
   theme,
   aspect,
   template = "new-model-scorecard",
+  scoreLabel = "VISUAL·HUMAN",
 }: {
   rows: ShareCardRow[];
   content: ShareCardContent;
   theme: ShareCardTheme;
   aspect: ShareAspect;
   template?: ShareCardTemplateId;
+  /** what the score column and bars are: VISUAL·HUMAN, JUDGE·RUBRIC, or BROWSER·CAPABILITY */
+  scoreLabel?: string;
 }) {
   const t = THEMES[theme];
   const { w, h } = SIZES[aspect];
@@ -603,11 +629,11 @@ export function ShareCard({
 
       {/* Template body */}
       {template === "cost-vs-quality" ? (
-        <CostQualityBody rows={rows} t={t} />
+        <CostQualityBody rows={rows} t={t} scoreLabel={scoreLabel} />
       ) : template === "surprise-failure" ? (
         <SurpriseFailureBody rows={rows} t={t} />
       ) : (
-        <ScorecardBody rows={rows} t={t} />
+        <ScorecardBody rows={rows} t={t} scoreLabel={scoreLabel} />
       )}
 
       {/* Methodology footer — never hidden */}

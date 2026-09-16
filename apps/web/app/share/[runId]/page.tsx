@@ -47,23 +47,51 @@ export default async function Page({
     return check?.note ?? null;
   };
 
+  /**
+   * One score column, one source, named on the card: a person's rating when
+   * anyone rated a build; otherwise the judge's rubric grade when the run was
+   * judged; otherwise the browser capability ratio ×10. A browser number is
+   * never presented under a "visual" label.
+   */
+  const humanScoreOf = (rm: (typeof models)[number]) =>
+    rm.visualSource === "human" && rm.visualScore != null ? rm.visualScore : null;
+  const rubric = view.judge?.briefScores ?? {};
+  const scoreMode: "human" | "rubric" | "browser" = models.some((rm) => humanScoreOf(rm) != null)
+    ? "human"
+    : models.some((rm) => rubric[rm.endpointId] != null)
+      ? "rubric"
+      : "browser";
+  const scoreLabel =
+    scoreMode === "human"
+      ? "VISUAL·HUMAN"
+      : scoreMode === "rubric"
+        ? "JUDGE·RUBRIC"
+        : "BROWSER·CAPABILITY";
+
   const rows: ShareCardRow[] = models.map((rm) => {
-    // Asterisk when the visual mean covers fewer samples than configured.
-    const partialSamples = rm.visualScore != null && rm.visualScore.n < config.samplesPerModel;
     // Same headline number the Results page shows: capability checks only,
     // zeroed by a failed gate (see lib/checks.ts).
     const cap = capabilityForModel(
       view.artifacts.filter((a) => a.endpointId === rm.endpointId).map((a) => a.checks),
       { passed: rm.testsPassed, total: rm.testsTotal ?? view.capabilityTotal },
     );
+    const human = humanScoreOf(rm);
+    const browserScore =
+      cap.passed != null && cap.total > 0 ? Math.round((cap.passed / cap.total) * 100) / 10 : null;
+    const scoreValue =
+      scoreMode === "human"
+        ? (human?.value ?? null)
+        : scoreMode === "rubric"
+          ? (rubric[rm.endpointId] ?? null)
+          : browserScore;
+    // Asterisk when a human mean covers fewer samples than configured.
+    const partialSamples =
+      scoreMode === "human" && human != null && human.n < config.samplesPerModel;
     return {
       id: modelIdOf(rm.endpointId),
       color: modelColor(rm.endpointId),
-      visual:
-        rm.visualScore != null
-          ? `${rm.visualScore.value.toFixed(1)}${partialSamples ? "*" : ""}`
-          : "—",
-      pct: rm.visualScore != null ? Math.round(rm.visualScore.value * 10) : 0,
+      visual: scoreValue != null ? `${scoreValue.toFixed(1)}${partialSamples ? "*" : ""}` : "—",
+      pct: scoreValue != null ? Math.round(scoreValue * 10) : 0,
       tests: cap.passed != null ? `${cap.passed}/${cap.total}` : "—",
       testsState:
         cap.gateName != null || rm.failedSampleCount > 0
@@ -72,8 +100,9 @@ export default async function Page({
             ? "ok"
             : "partial",
       cost: usd(rm.costUsd),
-      visualValue: rm.visualScore?.value ?? null,
-      visualN: rm.visualScore?.n ?? null,
+      visualValue: scoreValue,
+      visualN:
+        scoreMode === "human" ? (human?.n ?? null) : (rm.visualScore?.n ?? config.samplesPerModel),
       costUsd: rm.costUsd,
       latencyMs: rm.totalLatencyMs,
       sampleCount: config.samplesPerModel,
@@ -83,9 +112,13 @@ export default async function Page({
   });
 
   // Footnote for the asterisked score, e.g. "* mean of n=2 — one sample failed".
-  const flagged = models.find(
-    (rm) => rm.visualScore != null && rm.visualScore.n < config.samplesPerModel,
-  );
+  const flagged =
+    scoreMode === "human"
+      ? models.find((rm) => {
+          const human = humanScoreOf(rm);
+          return human != null && human.n < config.samplesPerModel;
+        })
+      : undefined;
   const footnote =
     flagged?.visualScore != null
       ? `* mean of n=${flagged.visualScore.n} — ${
@@ -129,6 +162,7 @@ export default async function Page({
           methodology={methodology}
           footnote={footnote}
           runLink={`${run.id} · ${fixtures.workspaceSettings.repoUrl}`}
+          scoreLabel={scoreLabel}
           initialTemplate={parsedTemplate.success ? parsedTemplate.data : undefined}
         />
       </main>

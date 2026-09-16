@@ -517,6 +517,7 @@ async function persistRunCreation(
       totalLatencyMs: null,
       costUsd: 0,
       visualScore: null,
+      visualSource: null,
       testsPassed: null,
       testsTotal: null,
       retries: 0,

@@ -74,6 +74,8 @@ function toRunModel(runId: string, m: LiveModelState): RunModel {
     totalLatencyMs: null,
     costUsd: m.costUsd,
     visualScore: m.visualScore,
+    // Live rows carry the runner's number, which is a browser result.
+    visualSource: m.visualScore != null ? "browser" : null,
     testsPassed: m.testsPassed,
     testsTotal: m.testsTotal,
     retries: 0,

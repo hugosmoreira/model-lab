@@ -17,10 +17,13 @@ export function CostQualityScatter({
   points,
   showPareto = false,
   footnote,
+  yLabel = "visual",
 }: {
   points: ScatterPoint[];
   showPareto?: boolean;
   footnote?: string;
+  /** what the y axis actually is — "visual" only when a person rated the builds */
+  yLabel?: string;
 }) {
   const W = 300;
   const H = 180;
@@ -49,7 +52,7 @@ export function CostQualityScatter({
         viewBox={`0 0 ${W} ${H}`}
         style={{ width: "100%", height: "auto", display: "block" }}
         role="img"
-        aria-label={`Cost versus visual quality scatter plot: ${points
+        aria-label={`Cost versus ${yLabel} scatter plot: ${points
           .map((p) => `${p.label} at $${p.costUsd.toFixed(2)}, score ${p.score}`)
           .join("; ")}`}
       >
@@ -103,7 +106,7 @@ export function CostQualityScatter({
           transform={`rotate(-90 ${X0 - 22} ${(Y0 + Y1) / 2})`}
           textAnchor="middle"
         >
-          visual ↑
+          {yLabel} ↑
         </text>
 
         {showPareto && frontier.length >= 2 && (

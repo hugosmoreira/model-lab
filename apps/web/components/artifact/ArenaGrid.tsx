@@ -267,7 +267,7 @@ export function ArenaGrid({ data }: { data: ArenaData }) {
                     fontSize: 11.5,
                   }}
                 >
-                  <Metric label="VISUAL" value={b.visualLabel} color="var(--color-text)" />
+                  <Metric label="HUMAN" value={b.visualLabel} color="var(--color-text)" />
                   {/* Capability ratio — gates zero it, diagnostics never count. */}
                   <Metric
                     label={b.testsGate != null ? "GATE FAILED" : "CAPABILITY"}

@@ -586,7 +586,12 @@ export default async function ResultsPage({ params }: { params: Promise<{ runId:
                     · n={n}/model
                   </span>
                 </div>
-                <CostQualityScatter points={scatterPoints} showPareto footnote={scatterFootnote} />
+                <CostQualityScatter
+                  points={scatterPoints}
+                  showPareto
+                  footnote={scatterFootnote}
+                  yLabel={humanScored ? "visual (human)" : isVerified ? "score" : "browser score"}
+                />
               </Panel>
 
               <Panel
@@ -733,10 +738,12 @@ export default async function ResultsPage({ params }: { params: Promise<{ runId:
                   >
                     <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                       <span style={{ color: "var(--color-faint)", fontSize: 10 }}>
-                        {isVerified ? "SCORE" : "VISUAL"}
+                        {isVerified ? "SCORE" : "HUMAN"}
                       </span>
                       <span>
-                        {rm.visualScore != null ? (
+                        {/* Only a human rating is shown as one; the browser ratio
+                            already sits in the CAPABILITY column beside it. */}
+                        {rm.visualScore != null && (isVerified || rm.visualSource === "human") ? (
                           `${rm.visualScore.value.toFixed(1)}/10${rm.visualScore.n < n ? ` (n=${rm.visualScore.n})` : ""}`
                         ) : (
                           <span style={{ color: "var(--color-faint)" }}>—</span>

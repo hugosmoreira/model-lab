@@ -45,9 +45,11 @@ export interface BuildVM {
   /** fixed identity color (square dots only — never status) */
   color: string;
   renderOk: boolean;
-  /** grid metric: "9.2" | "6.8 (n=2)" | "—" */
+  /** true when a person rated this build; the browser ratio is never shown as "visual" */
+  humanRated: boolean;
+  /** grid metric — human rating mean: "9.2" | "6.8 (n=2)" | "—" when nobody rated */
   visualLabel: string;
-  /** inspector stat: "9.2/10" | "6.8/10 (n=2)" | "—" */
+  /** inspector stat — human rating mean: "9.2/10" | "6.8/10 (n=2)" | "—" when nobody rated */
   visualStatLabel: string;
   /** capability ratio, "4/5" — gates and diagnostics are not scored */
   testsLabel: string;
@@ -103,7 +105,14 @@ export function getBuilds(data: RunArtifactData): BuildVM[] {
 
   return bestArtifactPerEndpoint(data.artifacts).map((a) => {
     const rm = models.find((m) => m.endpointId === a.endpointId);
-    const vs = rm?.visualScore ?? null;
+    /**
+     * Only a human rating is a visual score. The runner's visualScore is the
+     * browser capability ratio ×10 — the same evidence as the CAPABILITY
+     * column — and showing it under a "visual" label was the conflation the
+     * roadmap listed as the top open defect.
+     */
+    const humanRated = rm?.visualSource === "human" && rm.visualScore != null;
+    const vs = humanRated ? rm.visualScore : null;
     const reducedN = vs != null && vs.n < cfg.samplesPerModel ? ` (n=${vs.n})` : "";
     /**
      * The headline number is the CAPABILITY ratio of this build's own trace —
@@ -132,6 +141,7 @@ export function getBuilds(data: RunArtifactData): BuildVM[] {
       provider: endpointProviderLabel(a.endpointId),
       color: modelColor(a.endpointId),
       renderOk: a.renderOk,
+      humanRated,
       visualLabel: vs ? `${vs.value.toFixed(1)}${reducedN}` : "—",
       visualStatLabel: vs ? `${vs.value.toFixed(1)}/10${reducedN}` : "—",
       testsLabel,
@@ -165,7 +175,10 @@ export function getBuilds(data: RunArtifactData): BuildVM[] {
       sandboxChipLabel: sandboxParts.join(" · "),
       sandboxBadgeLabel: [...sandboxParts, `${a.sandbox.execLimitSec}s limit`].join(" · "),
       artifact: a,
-      sortScore: vs?.value ?? -1,
+      // "score" sort: human rating when there is one, else the capability ratio.
+      sortScore:
+        vs?.value ??
+        (tally.passed != null && tally.total > 0 ? (tally.passed / tally.total) * 10 : -1),
       sortCost: rm?.costUsd ?? Number.MAX_SAFE_INTEGER,
       sortLatency: rm?.totalLatencyMs ?? Number.MAX_SAFE_INTEGER,
       sortTests: tally.passed ?? -1,

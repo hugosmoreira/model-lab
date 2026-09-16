@@ -270,6 +270,9 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       totalLatencyMs: meanLatency,
       costUsd: round4(st.costUsd),
       visualScore: meanScore !== null ? { value: meanScore, n: st.scores.length } : null,
+      // The runner never produces a visual judgement: this is a browser
+      // result (or task accuracy in verified mode), and it is labelled so.
+      visualSource: meanScore !== null ? (cfg.mode === "verified" ? "objective" : "browser") : null,
       testsPassed: st.bestPassed,
       testsTotal: st.testsTotal,
       retries: st.retries,

@@ -403,7 +403,17 @@ export async function getRunView(runId: string): Promise<RunView> {
   const scoredSamples = latestOverrideBySample(annotations);
   const runModelsView = runModels.map((rm) => {
     const hv = humanVisual.get(rm.endpointId);
-    return hv !== undefined ? { ...rm, visualScore: hv } : rm;
+    if (hv !== undefined) return { ...rm, visualScore: hv, visualSource: "human" as const };
+    // Rows stored before visualSource existed: the runner's number is the
+    // browser capability ratio (or task accuracy in verified mode), never a
+    // visual judgement — say so rather than leave it ambiguous.
+    if (rm.visualScore != null && rm.visualSource == null) {
+      return {
+        ...rm,
+        visualSource: run.mode === "verified" ? ("objective" as const) : ("browser" as const),
+      };
+    }
+    return rm;
   });
   const samplesView = samples.map((s) =>
     scoredSamples.has(sampleKey(s.endpointId, s.sampleIndex))

@@ -188,6 +188,8 @@ export interface ShareStudioProps {
   footnote: string | null;
   /** "run_8f3ac21e · github.com/hugosmoreira/model-lab" */
   runLink: string;
+  /** what the card's score column is — VISUAL·HUMAN, JUDGE·RUBRIC, or BROWSER·CAPABILITY */
+  scoreLabel: string;
   /** ?template= deep-link preselect (validated by the page) */
   initialTemplate?: ShareTemplate;
 }
@@ -202,6 +204,7 @@ export function ShareStudio({
   methodology,
   footnote,
   runLink,
+  scoreLabel,
   initialTemplate,
 }: ShareStudioProps) {
   const [template, setTemplate] = useState<ShareTemplate>(initialTemplate ?? "new-model-scorecard");
@@ -543,6 +546,7 @@ export function ShareStudio({
               content={content}
               theme={theme}
               aspect={aspect}
+              scoreLabel={scoreLabel}
             />
           </div>
         ) : (

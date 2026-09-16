@@ -71,6 +71,14 @@ export const RunModel = z.object({
   totalLatencyMs: z.number().nullable().default(null),
   costUsd: z.number().default(0),
   visualScore: z.object({ value: z.number(), n: z.number() }).nullable().default(null),
+  /**
+   * What produced `visualScore`, so no UI can present one source as another:
+   * "human" — mean of the latest 0–10 ratings per sample (append-only trail);
+   * "browser" — the capability pass-ratio ×10, a browser result and not a
+   * visual judgement; "objective" — verified-mode task accuracy. null on rows
+   * stored before this field existed; readers infer it from the run mode.
+   */
+  visualSource: z.enum(["human", "browser", "objective"]).nullable().default(null),
   testsPassed: z.number().nullable().default(null),
   testsTotal: z.number().nullable().default(null),
   retries: z.number().default(0),
