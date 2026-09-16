@@ -51,11 +51,12 @@ the GPU box is your own machine, so this profile usually runs there with
 
 ## What the image contains
 
-- Base: `mcr.microsoft.com/playwright:<version>-noble` — Node, Chromium and
-  its system libraries. **The tag must match the `playwright` version in
-  `pnpm-lock.yaml`**; bump them together.
-- The production build of `apps/web` plus the runner and store packages, with
-  dev dependencies pruned.
+- Base: `node:22-bookworm-slim`, plus exactly the browser the checks launch —
+  Playwright's headless Chromium shell for the `playwright` version in
+  `pnpm-lock.yaml`, installed with its system libraries at image build time.
+  About 2 GB in total; the full Playwright base image with three browsers was
+  over 4 GB.
+- The production build of `apps/web` plus the runner and store packages.
 - Defaults: `MODEL_LAB_STORE=sqlite`, `MODEL_LAB_DATA_DIR=/data`,
   `MODEL_LAB_SQLITE_PATH=/data/model-lab.db`, port `3000`, a health check on
   `/api/health/store`.

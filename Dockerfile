@@ -1,11 +1,11 @@
 # syntax=docker/dockerfile:1
 #
-# Model Lab — one container: Next.js server + native runner + Chromium.
+# Model Lab — one container: Next.js server + native runner + headless Chromium.
 #
-# The base image ships the exact Chromium build that the `playwright` npm
-# package in pnpm-lock.yaml expects; bump the tag and the package together.
-# Everything Model Lab needs at runtime lives in this image: Node, pnpm,
-# Chromium with its system libraries, the built app, and the runner.
+# Built on the official Node image plus exactly the browser the checks use:
+# Playwright's headless Chromium shell for the version pinned in pnpm-lock.yaml,
+# with its system libraries. (The full Playwright base image ships three
+# browsers and weighs about 4 GB; this one is a fraction of that.)
 #
 #   docker build -t model-lab .
 #   docker run --rm -p 3000:3000 -v model-lab-data:/data \
@@ -13,10 +13,11 @@
 #
 # See docs/DEPLOY.md for the two deployment profiles.
 
-FROM mcr.microsoft.com/playwright:v1.62.1-noble AS base
+FROM node:22-bookworm-slim AS base
 ENV CI=true \
     PNPM_HOME=/pnpm \
-    PATH=/pnpm:$PATH
+    PATH=/pnpm:$PATH \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN corepack enable
 WORKDIR /app
 
@@ -33,7 +34,7 @@ COPY . .
 # The build never talks to a provider: keys are absent and mocks are forced.
 RUN MODEL_LAB_MOCK_PROVIDERS=1 MODEL_LAB_STORE=memory pnpm build
 # Dev dependencies stay: `pnpm prune --prod` drops the workspace's bin links
-# (next itself), and the browsers in the base image dwarf them anyway.
+# (next itself), and they are small next to the browser.
 
 # ---------------------------------------------------------------------------
 FROM base AS runtime
@@ -44,6 +45,10 @@ ENV NODE_ENV=production \
     MODEL_LAB_STORE=sqlite \
     MODEL_LAB_SQLITE_PATH=/data/model-lab.db
 COPY --from=build /app /app
+# The browser the checks launch (headless: true → the headless shell), at the
+# exact version the playwright package expects, plus its system libraries.
+RUN pnpm --filter @model-lab/build-arena-runner exec playwright install --with-deps chromium-headless-shell \
+  && rm -rf /var/lib/apt/lists/* /root/.cache
 RUN mkdir -p /data
 VOLUME /data
 EXPOSE 3000
