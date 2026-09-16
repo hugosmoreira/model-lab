@@ -12,12 +12,11 @@ recorded result, but each one is a reason to read a headline with care.
 
 - **Every published run so far is n=1.** The wizard now offers 1, 2, 3 or 5
   samples per model; publishing an n=3 run is the next benchmarking milestone.
-- **Local hardware is not recorded.** The manifest now carries Node, platform,
-  the Chromium build and the served model ids, but not the GPU or the
-  quantization a local model ran with; those still have to be written down by
-  hand. A `seed` is dropped for providers that do not support it (the gpt-5
-  family, Anthropic) — it is flagged per model as "unseeded", not in the
-  fingerprint.
+- **Local hardware is self-reported.** The manifest carries the quantization
+  of every local model from the registry, and the hardware only if the
+  operator sets `MODEL_LAB_LOCAL_HARDWARE`; nothing detects the GPU. A `seed`
+  is dropped for providers that do not support it (the gpt-5 family,
+  Anthropic) — it is flagged per model as "unseeded", not in the fingerprint.
 - **Gemini token accounting under-reports.** Google's OpenAI-compatible surface
   omits reasoning tokens from usage, so cost derived from it is a lower bound;
   `finishReason` remains reliable.

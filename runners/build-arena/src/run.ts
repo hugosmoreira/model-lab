@@ -197,6 +197,15 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     runner: RUNNER_VERSION,
     chromium: null,
     servedModels: {},
+    // Only the operator knows what a local model ran on; the registry knows how it was quantized.
+    localHardware: (process.env["MODEL_LAB_LOCAL_HARDWARE"] ?? "").trim() || null,
+    quantizations: Object.fromEntries(
+      cfg.endpoints
+        .filter(
+          (ep): ep is EndpointConfig & { quantization: string } => ep.quantization !== undefined,
+        )
+        .map((ep) => [ep.id, ep.quantization]),
+    ),
     recordedAt: startedAtIso,
   };
 

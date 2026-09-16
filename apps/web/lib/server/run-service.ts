@@ -314,6 +314,7 @@ function toEndpointConfig(ep: ModelEndpoint, mock: boolean): EndpointConfig {
     supportsSeed: def?.supportsSeed ?? false,
   };
   if ("baseUrl" in base && base.baseUrl !== undefined) config.baseUrl = base.baseUrl;
+  if (ep.quantization != null && ep.quantization !== "") config.quantization = ep.quantization;
   return config;
 }
 

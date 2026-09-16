@@ -114,12 +114,22 @@ export async function exportBundle(
       `- date: ${manifest.date} · ${manifest.modelCount} models × ${manifest.samplesPerModel} samples`,
       ...(snapshot.environment
         ? [
-            `- environment: node ${snapshot.environment.node} · ${snapshot.environment.platform} · ${snapshot.environment.chromium ?? "browser checks did not run"}`,
+            `- environment: node ${snapshot.environment.node} · ${snapshot.environment.platform} · ${snapshot.environment.chromium ?? "browser checks did not run"}` +
+              (snapshot.environment.localHardware
+                ? ` · local hardware ${snapshot.environment.localHardware}`
+                : ""),
             `- served models: ${
               Object.entries(snapshot.environment.servedModels)
                 .map(([id, model]) => `${id} → ${model}`)
                 .join(", ") || "not reported by the providers"
             }`,
+            ...(Object.keys(snapshot.environment.quantizations).length > 0
+              ? [
+                  `- quantizations: ${Object.entries(snapshot.environment.quantizations)
+                    .map(([id, q]) => `${id} → ${q}`)
+                    .join(", ")}`,
+                ]
+              : []),
           ]
         : ["- environment: not recorded (run predates provenance capture)"]),
       "",

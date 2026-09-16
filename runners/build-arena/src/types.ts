@@ -34,6 +34,8 @@ export interface EndpointConfig {
   supportsSeed: boolean;
   /** explicit base URL override (openai-compatible / ollama) */
   baseUrl?: string;
+  /** quantization tag for local models, e.g. "q4_K_M" — provenance only */
+  quantization?: string;
 }
 
 /** Objective scorer kinds for verified-benchmark tasks. */
@@ -238,6 +240,10 @@ export interface RunEnvironment {
   chromium: string | null;
   /** endpoint id → model identifier the provider reported serving */
   servedModels: Record<string, string>;
+  /** MODEL_LAB_LOCAL_HARDWARE as the operator set it, e.g. "RTX 4090 · 24 GB"; null when unset */
+  localHardware: string | null;
+  /** endpoint id → quantization tag from the registry, for the local models that have one */
+  quantizations: Record<string, string>;
   /** ISO timestamp of the run start */
   recordedAt: string;
 }

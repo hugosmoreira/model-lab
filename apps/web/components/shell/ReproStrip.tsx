@@ -85,7 +85,10 @@ export function ReproStrip({ manifest }: { manifest: RunManifest }) {
       {manifest.environment != null && (
         <Field
           k="environment"
-          v={`node ${manifest.environment.node} · ${manifest.environment.chromium ?? "no browser"}`}
+          v={
+            `node ${manifest.environment.node} · ${manifest.environment.chromium ?? "no browser"}` +
+            (manifest.environment.localHardware ? ` · ${manifest.environment.localHardware}` : "")
+          }
         />
       )}
       {manifest.environment != null &&

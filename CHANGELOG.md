@@ -47,10 +47,11 @@ All notable changes to Model Lab are recorded here. The format follows
   the UI, so they persist and show up there. `POST /api/runs` accepts an
   optional `maxBudgetUsd`.
 - Run provenance: the runner records Node version, platform, runner version,
-  the Chromium build the checks executed in, and the model id each provider
-  reported serving. It ships in the bundle's `manifest.json` and README, and
-  the reproducibility strip shows it when the run data is local. The selftest
-  asserts it.
+  the Chromium build the checks executed in, the model id each provider
+  reported serving, each local model's quantization from the registry, and
+  the hardware named by `MODEL_LAB_LOCAL_HARDWARE`. It ships in the bundle's
+  `manifest.json` and README, and the reproducibility strip shows it when the
+  run data is local. The selftest asserts it.
 
 ### Fixed
 

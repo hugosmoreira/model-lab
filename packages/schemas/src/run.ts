@@ -237,6 +237,8 @@ export const RunEnvironment = z.object({
   runner: z.string(), // "build-arena-runner v0.1.0"
   chromium: z.string().nullable(), // "chromium 141.0.7390.37", null if checks never ran
   servedModels: z.record(z.string(), z.string()), // endpoint id → model the provider reported serving
+  localHardware: z.string().nullable().default(null), // MODEL_LAB_LOCAL_HARDWARE, e.g. "RTX 4090 · 24 GB"
+  quantizations: z.record(z.string(), z.string()).default({}), // endpoint id → "q4_K_M"
   recordedAt: z.string(),
 });
 export type RunEnvironment = z.infer<typeof RunEnvironment>;
