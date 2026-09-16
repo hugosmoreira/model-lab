@@ -21,6 +21,7 @@ import type {
   JudgePairResult,
   Run,
   RunConfiguration,
+  RunEnvironment,
   RunManifest,
   RunMode,
   RunModel,
@@ -29,6 +30,7 @@ import type {
   WtlCell,
 } from "@model-lab/schemas";
 import * as fx from "@model-lab/schemas/fixtures";
+import { FsRunStore } from "@model-lab/build-arena-runner";
 import { getStore, type RunStore } from "@model-lab/store";
 import { BROWSER_CHECK_COUNT, CAPABILITY_CHECK_COUNT, capabilityChecksOf } from "@/lib/checks";
 import { humanVisualByEndpoint, latestOverrideBySample, sampleKey } from "@/lib/human-score";
@@ -307,7 +309,21 @@ function manifestFor(run: Run, configuration: RunConfiguration): RunManifest {
     modelCount: run.modelCount,
     scorers: configuration.scorers.filter((s) => s.enabled).map((s) => s.type),
     gitCommit: run.gitCommit,
+    environment: localEnvironment(run.id),
   };
+}
+
+/**
+ * Provenance (Node, platform, Chromium build, served model ids) lives in the
+ * runner's local snapshot, not in the store: it describes the machine that
+ * ran the benchmark, and only that machine has it.
+ */
+function localEnvironment(runId: string): RunEnvironment | null {
+  try {
+    return new FsRunStore().loadSnapshot(runId)?.environment ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Largest non-zero value of `pick` over `items` — 0 when there is nothing to read. */

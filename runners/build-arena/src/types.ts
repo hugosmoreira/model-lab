@@ -107,6 +107,11 @@ export type ProviderChunk =
       finishReason?: FinishReason | null;
       /** hidden reasoning tokens billed inside tokensOut (0 when none/unknown) */
       reasoningTokens?: number;
+      /**
+       * The model identifier the provider says it served — a dated snapshot
+       * behind an alias, or the alias itself. null when the API reports none.
+       */
+      servedModel?: string | null;
     };
 
 /** A rendered capture attached to a request, for judges that can see. */
@@ -217,6 +222,26 @@ export interface StoredArtifact {
   judgeCommentary?: string | null;
 }
 
+/**
+ * Where a run actually executed — the provenance a fingerprint cannot carry,
+ * because two identical configurations can run on different machines against
+ * different model snapshots.
+ */
+export interface RunEnvironment {
+  /** process.version, e.g. "v22.20.0" */
+  node: string;
+  /** "win32 x64 10.0.26200" */
+  platform: string;
+  /** RUNNER_VERSION */
+  runner: string;
+  /** "chromium 141.0.7390.37" once the browser checks launched; null when they never ran */
+  chromium: string | null;
+  /** endpoint id → model identifier the provider reported serving */
+  servedModels: Record<string, string>;
+  /** ISO timestamp of the run start */
+  recordedAt: string;
+}
+
 export interface StoredRunResults {
   run: Run;
   models: RunModel[];
@@ -226,6 +251,8 @@ export interface StoredRunResults {
   /** LLM-judge pairwise verdicts (empty when the run was not judged; may be
    *  absent in snapshots written before the judge phase existed) */
   judgePairs: JudgePairResult[];
+  /** absent in snapshots written before provenance was recorded */
+  environment?: RunEnvironment;
 }
 
 export interface BundleResult {

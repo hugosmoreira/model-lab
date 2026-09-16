@@ -146,6 +146,16 @@ version, and git commit. The exported bundle contains `manifest.json`, `models.j
 `benchmark.json`, `samples.jsonl`, `scores.json`, `artifacts/`, `screenshots/`, and a
 README with replay instructions.
 
+The fingerprint identifies a configuration; it cannot identify where that
+configuration ran. So the runner also records an **environment** alongside the run:
+Node version, platform, runner version, the exact Chromium build the checks executed
+in, and — per endpoint — the model identifier the provider reported serving (OpenAI
+and Anthropic return the resolved id behind an alias such as `gpt-5-mini`). It ships
+in `manifest.json`, is summarised in the bundle README, and appears in the
+reproducibility strip of the run pages when the run's data directory is on the
+machine serving the UI. Two bundles with the same fingerprint and different
+environments are comparable configurations, not identical experiments.
+
 ## Frontend conventions
 
 Design tokens live in `apps/web/app/globals.css` — every color is a token; JetBrains

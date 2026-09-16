@@ -71,6 +71,7 @@ export async function exportBundle(
     modelCount: snapshot.run.modelCount,
     scorers: ["browser"],
     gitCommit: snapshot.run.gitCommit,
+    environment: snapshot.environment ?? null,
   };
   write("manifest.json", JSON.stringify(manifest, null, 2));
   write("models.json", JSON.stringify(snapshot.models, null, 2));
@@ -111,6 +112,16 @@ export async function exportBundle(
       `- prompt hash: ${manifest.promptHash}`,
       `- runner: ${manifest.runnerVersion}`,
       `- date: ${manifest.date} · ${manifest.modelCount} models × ${manifest.samplesPerModel} samples`,
+      ...(snapshot.environment
+        ? [
+            `- environment: node ${snapshot.environment.node} · ${snapshot.environment.platform} · ${snapshot.environment.chromium ?? "browser checks did not run"}`,
+            `- served models: ${
+              Object.entries(snapshot.environment.servedModels)
+                .map(([id, model]) => `${id} → ${model}`)
+                .join(", ") || "not reported by the providers"
+            }`,
+          ]
+        : ["- environment: not recorded (run predates provenance capture)"]),
       "",
       "## Contents",
       "",

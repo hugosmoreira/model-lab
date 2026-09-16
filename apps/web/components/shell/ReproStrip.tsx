@@ -82,6 +82,16 @@ export function ReproStrip({ manifest }: { manifest: RunManifest }) {
       <Field k="date" v={manifest.date} />
       <Field k="samples" v={`n=${manifest.samplesPerModel} × ${manifest.modelCount} models`} />
       <Field k="scorers" v={manifest.scorers.join(" + ")} />
+      {manifest.environment != null && (
+        <Field
+          k="environment"
+          v={`node ${manifest.environment.node} · ${manifest.environment.chromium ?? "no browser"}`}
+        />
+      )}
+      {manifest.environment != null &&
+        Object.keys(manifest.environment.servedModels).length > 0 && (
+          <Field k="served" v={Object.values(manifest.environment.servedModels).join(" · ")} />
+        )}
       <span style={{ marginLeft: "auto", paddingLeft: 14, display: "flex", gap: 8 }}>
         <button
           type="button"

@@ -75,6 +75,7 @@ export class AnthropicProvider implements Provider {
     let tokensIn = 0;
     let tokensOut = 0;
     let finishReason: FinishReason | null = null;
+    let servedModel: string | null = null;
     for await (const sse of readSse(res.body)) {
       let parsed: unknown;
       try {
@@ -87,6 +88,11 @@ export class AnthropicProvider implements Provider {
       const type: string | undefined = msg?.type;
       if (type === "message_start") {
         tokensIn = Number(msg?.message?.usage?.input_tokens ?? 0);
+        // The message names the model that is answering — the resolved id
+        // behind an alias — which is provenance the request cannot know.
+        if (typeof msg?.message?.model === "string" && msg.message.model !== "") {
+          servedModel = msg.message.model as string;
+        }
       } else if (type === "content_block_delta") {
         if (msg?.delta?.type === "text_delta" && typeof msg?.delta?.text === "string") {
           yield { type: "delta", text: msg.delta.text as string };
@@ -106,6 +112,6 @@ export class AnthropicProvider implements Provider {
         break;
       }
     }
-    yield { type: "usage", tokensIn, tokensOut, finishReason, reasoningTokens: 0 };
+    yield { type: "usage", tokensIn, tokensOut, finishReason, reasoningTokens: 0, servedModel };
   }
 }

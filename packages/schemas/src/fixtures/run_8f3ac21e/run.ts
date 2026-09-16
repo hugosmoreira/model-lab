@@ -263,6 +263,7 @@ export const runManifest: RunManifest = {
   modelCount: 4,
   scorers: ["browser", "human", "llm-judge"],
   gitCommit: "41c7f2a",
+  environment: null,
 };
 
 export const challengePrompt =

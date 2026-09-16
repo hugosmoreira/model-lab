@@ -215,19 +215,30 @@ export function unmeasuredGates(results: readonly BrowserTestResult[]): BrowserT
 }
 
 let browserPromise: Promise<Browser | null> | null = null;
+let browserVersion: string | null = null;
 
 async function getBrowser(): Promise<Browser | null> {
   if (browserPromise === null) {
     browserPromise = (async () => {
       try {
         const { chromium } = await import("playwright");
-        return await chromium.launch({ headless: true });
+        const browser = await chromium.launch({ headless: true });
+        browserVersion = `chromium ${browser.version()}`;
+        return browser;
       } catch {
         return null;
       }
     })();
   }
   return browserPromise;
+}
+
+/**
+ * "chromium 141.0.7390.37" once a browser has launched in this process — the
+ * exact build every check in the run executed in — or null before that.
+ */
+export function getBrowserVersion(): string | null {
+  return browserVersion;
 }
 
 /**

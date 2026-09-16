@@ -14,10 +14,12 @@ recorded result, but each one is a reason to read a headline with care.
   samples per model; publishing an n=3 run is the next benchmarking milestone.
 - **No null baseline.** Nothing establishes what an empty or trivial artifact
   scores, so there is no floor to compare a weak build against.
-- **Provenance gaps.** The served model snapshot, the Chromium version that
-  ran the checks, and local GPU / quantization are not recorded in the run
-  manifest. A `seed` is silently dropped for providers that do not support it
-  (the gpt-5 family, Anthropic) instead of being flagged in the fingerprint.
+- **Local hardware is not recorded.** The manifest now carries Node, platform,
+  the Chromium build and the served model ids, but not the GPU or the
+  quantization a local model ran with; those still have to be written down by
+  hand. A `seed` is dropped for providers that do not support it (the gpt-5
+  family, Anthropic) — it is flagged per model as "unseeded", not in the
+  fingerprint.
 - **Gemini token accounting under-reports.** Google's OpenAI-compatible surface
   omits reasoning tokens from usage, so cost derived from it is a lower bound;
   `finishReason` remains reliable.
@@ -47,6 +49,10 @@ recorded result, but each one is a reason to read a headline with care.
 
 ## Done since 0.1.0
 
+- **Runs record their environment.** Node version, platform, runner version,
+  the exact Chromium build the checks ran in, and the model id each provider
+  reported serving are captured at run time, shipped in `manifest.json` and
+  the bundle README, and shown in the reproducibility strip.
 - **Scores carry their source.** `RunModel.visualSource` says whether a
   number came from a person, the browser checks, or an objective scorer. The
   arena grid, results cards, artifact viewer and share cards show a "visual"

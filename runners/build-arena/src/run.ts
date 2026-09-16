@@ -22,6 +22,7 @@
  *    (exact-match / contains / json-field → binary 10/0). Unevaluable output
  *    → sample.failed(reason "contract"). Events/persistence flow unchanged.
  */
+import { arch, platform, release } from "node:os";
 import type {
   BrowserTestResult,
   JudgePairResult,
@@ -39,6 +40,7 @@ import {
   capabilityChecks,
   closeBrowserChecks,
   failedGates,
+  getBrowserVersion,
   runBrowserChecks,
   unmeasuredGates,
   type BrowserChecksOutcome,
@@ -52,6 +54,7 @@ import { FsRunStore } from "./store-fs";
 import {
   RUNNER_VERSION,
   type EndpointConfig,
+  type RunEnvironment,
   type FinishReason,
   type GenerateRequest,
   type Provider,
@@ -121,6 +124,8 @@ interface GenResult {
   finishReason: FinishReason | null;
   /** hidden reasoning tokens billed inside tokensOut */
   reasoningTokens: number;
+  /** the model the provider reported serving, when it reports one */
+  servedModel: string | null;
 }
 
 /** "16.0k" / "950" — token counts read the same everywhere they surface. */
@@ -180,6 +185,20 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
   const samplesPerEndpoint = verified ? tasks.length : cfg.samplesPerModel;
   const totalPlanned = cfg.endpoints.length * samplesPerEndpoint;
   const hash = promptHash(cfg.pack.prompt);
+
+  /**
+   * Provenance the fingerprint cannot carry: the machine, the runtime, the
+   * exact browser the checks ran in, and which model each provider actually
+   * served behind the alias the config named. Filled in as the run learns it.
+   */
+  const environment: RunEnvironment = {
+    node: process.version,
+    platform: `${platform()} ${arch()} ${release()}`,
+    runner: RUNNER_VERSION,
+    chromium: null,
+    servedModels: {},
+    recordedAt: startedAtIso,
+  };
 
   let cancelled = false;
   let budgetStopped = false;
@@ -319,6 +338,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
         artifacts: [...artifacts],
         config: cfg,
         judgePairs: [...judgePairs],
+        environment,
       });
     } catch {
       // snapshot persistence is best-effort
@@ -346,6 +366,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     let tokensOut = 0;
     let finishReason: FinishReason | null = null;
     let reasoningTokens = 0;
+    let servedModel: string | null = null;
     const req: GenerateRequest = {
       prompt: task !== undefined ? task.prompt : cfg.pack.prompt,
       model: ep.model,
@@ -367,9 +388,15 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
         tokensOut = chunk.tokensOut;
         finishReason = chunk.finishReason ?? null;
         reasoningTokens = chunk.reasoningTokens ?? 0;
+        servedModel = chunk.servedModel ?? null;
       }
     }
     if (tokensOut === 0 && text.length > 0) tokensOut = Math.ceil(text.length / 4);
+    // First answer wins: the served model is a property of the endpoint, and a
+    // provider that changes it mid-run would be a finding, not a data point.
+    if (servedModel !== null && environment.servedModels[ep.id] === undefined) {
+      environment.servedModels[ep.id] = servedModel;
+    }
     return {
       text,
       ttftMs,
@@ -378,6 +405,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       tokensOut,
       finishReason,
       reasoningTokens,
+      servedModel,
     };
   };
 
@@ -588,6 +616,8 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
           ? { watchdogMs: options.browserWatchdogMs }
           : {}),
       });
+      // The exact browser build the checks executed in, once it exists.
+      environment.chromium ??= getBrowserVersion();
     } catch (err) {
       outcome = {
         checks: [],

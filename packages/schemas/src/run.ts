@@ -227,6 +227,20 @@ export const HumanAnnotation = z.object({
 });
 export type HumanAnnotation = z.infer<typeof HumanAnnotation>;
 
+/**
+ * Where a run executed: the provenance a configuration fingerprint cannot
+ * carry. Recorded by the runner at run time and shipped in the bundle.
+ */
+export const RunEnvironment = z.object({
+  node: z.string(), // "v22.20.0"
+  platform: z.string(), // "linux x64 6.8.0"
+  runner: z.string(), // "build-arena-runner v0.1.0"
+  chromium: z.string().nullable(), // "chromium 141.0.7390.37", null if checks never ran
+  servedModels: z.record(z.string(), z.string()), // endpoint id → model the provider reported serving
+  recordedAt: z.string(),
+});
+export type RunEnvironment = z.infer<typeof RunEnvironment>;
+
 export const RunManifest = z.object({
   runId: z.string(),
   fingerprint: z.string(),
@@ -238,5 +252,7 @@ export const RunManifest = z.object({
   modelCount: z.number(),
   scorers: z.array(ScorerType),
   gitCommit: z.string().nullable().default(null),
+  /** null for runs recorded before provenance existed, and for the fixture demo */
+  environment: RunEnvironment.nullable().default(null),
 });
 export type RunManifest = z.infer<typeof RunManifest>;

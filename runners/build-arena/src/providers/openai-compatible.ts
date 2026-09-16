@@ -147,6 +147,7 @@ export class OpenAiCompatibleProvider implements Provider {
     let reasoningLength = 0;
     let reasoningTokens = 0;
     let finishReason: FinishReason | null = null;
+    let servedModel: string | null = null;
     for await (const sse of readSse(res.body)) {
       if (sse.data === "[DONE]") break;
       let parsed: unknown;
@@ -161,6 +162,11 @@ export class OpenAiCompatibleProvider implements Provider {
         throw new Error(
           scrubSecrets(`${this.kind} stream error: ${JSON.stringify(chunk.error).slice(0, 300)}`),
         );
+      }
+      // Every chunk names the model that produced it — a dated snapshot behind
+      // an alias like "gpt-5-mini" — which is provenance the request cannot know.
+      if (servedModel === null && typeof chunk?.model === "string" && chunk.model !== "") {
+        servedModel = chunk.model as string;
       }
       const delta: unknown = chunk?.choices?.[0]?.delta?.content;
       if (typeof delta === "string" && delta.length > 0) {
@@ -199,6 +205,6 @@ export class OpenAiCompatibleProvider implements Provider {
     if (reasoningTokens === 0 && reasoningLength > 0) {
       reasoningTokens = Math.min(tokensOut, Math.ceil(reasoningLength / 4));
     }
-    yield { type: "usage", tokensIn, tokensOut, finishReason, reasoningTokens };
+    yield { type: "usage", tokensIn, tokensOut, finishReason, reasoningTokens, servedModel };
   }
 }

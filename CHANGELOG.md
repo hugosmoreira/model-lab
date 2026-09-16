@@ -34,6 +34,11 @@ All notable changes to Model Lab are recorded here. The format follows
   says where it came from. Rows stored before the field existed are inferred
   from the run mode when read.
 - Samples per model is selectable in the New Run wizard (1, 2, 3 or 5).
+- Run provenance: the runner records Node version, platform, runner version,
+  the Chromium build the checks executed in, and the model id each provider
+  reported serving. It ships in the bundle's `manifest.json` and README, and
+  the reproducibility strip shows it when the run data is local. The selftest
+  asserts it.
 
 ### Fixed
 
