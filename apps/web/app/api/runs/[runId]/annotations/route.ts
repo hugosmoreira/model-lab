@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import type { HumanAnnotation } from "@model-lab/schemas";
 import { getStore, StoreError } from "@model-lab/store";
+import { isReadOnly, readOnlyResponse } from "@/lib/server/read-only";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ const AnnotationRequest = z.object({
 });
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ runId: string }> }) {
+  if (isReadOnly()) return readOnlyResponse();
   const { runId } = await params;
 
   let body: unknown;

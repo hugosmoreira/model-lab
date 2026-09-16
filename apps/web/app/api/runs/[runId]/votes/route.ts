@@ -20,6 +20,7 @@ import type { PairwiseVote } from "@model-lab/schemas";
 import { getStore, StoreError } from "@model-lab/store";
 import { DEMO_RUN_ID, getRunView } from "@/lib/server/loaders";
 import { buildPairQueue } from "@/lib/server/pairs";
+import { isReadOnly, readOnlyResponse } from "@/lib/server/read-only";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ run
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ runId: string }> }) {
+  if (isReadOnly()) return readOnlyResponse();
   const { runId } = await params;
 
   let body: unknown;

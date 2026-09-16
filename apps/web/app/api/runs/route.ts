@@ -17,6 +17,7 @@ import { z } from "zod";
 import { RunMode } from "@model-lab/schemas";
 import { getStore } from "@model-lab/store";
 import { listRuns as listRegistryRuns, type RunRecord } from "@/lib/live/run-registry";
+import { isReadOnly, readOnlyResponse } from "@/lib/server/read-only";
 import { RunServiceError, startRun } from "@/lib/server/run-service";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +32,8 @@ const CreateRunRequest = z.object({
 export type CreateRunRequest = z.infer<typeof CreateRunRequest>;
 
 export async function POST(req: NextRequest) {
+  if (isReadOnly()) return readOnlyResponse();
+
   let body: unknown;
   try {
     body = await req.json();
