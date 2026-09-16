@@ -14,6 +14,50 @@ register("./ts-resolve.mjs", import.meta.url);
 const { normalizeFinishReason } = await import("../src/providers/util.ts");
 const { BROWSER_CHECK_NAMES, CHECK_CATEGORY, categoryOf, capabilityChecks, failedGates } =
   await import("../src/checks/browser-checks.ts");
+const { decidePair, normalizeSwappedVerdict } = await import("../src/judge.ts");
+
+// ---------------------------------------------------------------------------
+// Order-swapped pairwise judging: a verdict that flips with presentation order
+// is flagged and excluded from the tally.
+// ---------------------------------------------------------------------------
+test("pairwise: the swapped call's winner maps back to canonical slots", () => {
+  assert.equal(normalizeSwappedVerdict("A"), "B");
+  assert.equal(normalizeSwappedVerdict("B"), "A");
+  assert.equal(normalizeSwappedVerdict("tie"), "tie");
+});
+
+test("pairwise: the same build winning in both orders is a stable, tallied verdict", () => {
+  // Order 1 picked A. In the swapped order the same build sits in slot B.
+  assert.deepEqual(decidePair("A", "B"), {
+    verdictBA: "A",
+    reversed: false,
+    excludedFromTally: false,
+  });
+  assert.deepEqual(decidePair("B", "A"), {
+    verdictBA: "B",
+    reversed: false,
+    excludedFromTally: false,
+  });
+  assert.deepEqual(decidePair("tie", "tie"), {
+    verdictBA: "tie",
+    reversed: false,
+    excludedFromTally: false,
+  });
+});
+
+test("pairwise: picking whichever build came first is a reversal, excluded from the tally", () => {
+  // "A" in both calls means the judge liked the first-shown build both times.
+  const r = decidePair("A", "A");
+  assert.equal(r.verdictBA, "B");
+  assert.equal(r.reversed, true);
+  assert.equal(r.excludedFromTally, true);
+});
+
+test("pairwise: a tie in one order and a winner in the other is a reversal", () => {
+  assert.equal(decidePair("tie", "A").reversed, true);
+  assert.equal(decidePair("A", "tie").reversed, true);
+  assert.equal(decidePair("tie", "A").excludedFromTally, true);
+});
 
 // ---------------------------------------------------------------------------
 // Truncation is a harness limit, not a model result: every provider's way of

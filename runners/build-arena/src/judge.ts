@@ -172,6 +172,22 @@ export function normalizeSwappedVerdict(winner: PairWinner): PairWinner {
   return winner === "A" ? "B" : winner === "B" ? "A" : "tie";
 }
 
+/**
+ * Position-bias control. The same pair is judged in both presentation orders;
+ * the B/A call's winner is normalized back to canonical slots, and if the two
+ * calls do not name the same build the verdict depended on order — it is
+ * flagged `reversed` and excluded from the aggregate tally. A tie is a verdict
+ * like any other: tie in one order and a winner in the other is a reversal.
+ */
+export function decidePair(
+  verdictAB: PairWinner,
+  swappedVerdictBA: PairWinner,
+): { verdictBA: PairWinner; reversed: boolean; excludedFromTally: boolean } {
+  const verdictBA = normalizeSwappedVerdict(swappedVerdictBA);
+  const reversed = verdictAB !== verdictBA;
+  return { verdictBA, reversed, excludedFromTally: reversed };
+}
+
 /* ------------------------------------------------------------------------- *
  * Prompts — model identities never appear; builds are "Build A"/"Build B".
  * ------------------------------------------------------------------------- */
@@ -552,9 +568,8 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
         continue;
       }
       const verdictAB = ab.value.winner;
-      // The B/A call saw the builds swapped — normalize back to canonical slots.
-      const verdictBA = normalizeSwappedVerdict(ba.value.winner);
-      const reversed = verdictAB !== verdictBA;
+      // The B/A call saw the builds swapped — decidePair normalizes it back.
+      const { verdictBA, reversed, excludedFromTally } = decidePair(verdictAB, ba.value.winner);
       // A pair is only "seen" if BOTH directions were: a mixed pair is a
       // source-only comparison, because the two calls did not see the same thing.
       const sawRender = ab.sawRender && ba.sawRender;
@@ -569,7 +584,7 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
         verdictAB,
         verdictBA,
         reversed,
-        excludedFromTally: reversed,
+        excludedFromTally,
         commentary,
       });
       emit("judge.vote", {

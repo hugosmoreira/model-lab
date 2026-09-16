@@ -70,6 +70,9 @@ jobs:
       - name: Check-taxonomy regression (real artifacts through the browser checks)
         run: pnpm --filter @model-lab/build-arena-runner test:checks
 
+      - name: Budget ceiling (mock run that must stop as partial)
+        run: pnpm --filter @model-lab/build-arena-runner test:budget
+
       - name: Runner selftest (mock end-to-end run)
         run: pnpm --filter @model-lab/build-arena-runner selftest
 

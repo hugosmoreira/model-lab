@@ -14,8 +14,9 @@
     "lint": "pnpm -w exec eslint runners/build-arena",
     "test:checks": "node --experimental-strip-types --disable-warning=ExperimentalWarning test/check-taxonomy.test.mjs",
     "selftest": "tsx src/selftest.ts",
-    "test": "pnpm run test:unit && pnpm run test:checks && pnpm run selftest",
-    "test:unit": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test test/unit.test.mjs"
+    "test": "pnpm run test:unit && pnpm run test:checks && pnpm run test:budget && pnpm run selftest",
+    "test:unit": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test test/unit.test.mjs",
+    "test:budget": "node --experimental-strip-types --disable-warning=ExperimentalWarning test/budget.test.mjs"
   },
   "dependencies": {
     "@model-lab/schemas": "workspace:*",
