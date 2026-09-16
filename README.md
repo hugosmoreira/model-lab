@@ -125,6 +125,14 @@ CI runs the same gates on every push and pull request, all zero-spend.
 [`docs/ROADMAP.md`](docs/ROADMAP.md) what is planned and what is known to be wrong, and
 [`CHANGELOG.md`](CHANGELOG.md) what shipped when.
 
+## Deploying
+
+Model Lab runs as one container with a volume — it needs a real Chromium, local disk,
+and a long-lived process, so serverless hosts are out. A public demo runs read-only on
+mock providers (`MODEL_LAB_READ_ONLY=1`, `MODEL_LAB_MOCK_PROVIDERS=1`, no keys); a
+private instance with real keys belongs behind authentication, because the API has none.
+See [`docs/DEPLOY.md`](docs/DEPLOY.md).
+
 ## Honest limitations
 
 - One-shot visual benchmarks measure *one-shot visual building* — they are vivid and

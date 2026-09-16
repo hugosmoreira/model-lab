@@ -20,6 +20,16 @@ All notable changes to Model Lab are recorded here. The format follows
   citation metadata, a public roadmap with known issues, Dependabot.
 - A root `.env.example` documenting every variable the code reads, including
   the judge and output-cap settings.
+- `MODEL_LAB_READ_ONLY=1`: an instance that serves results but answers 403 to
+  new runs, votes, and annotations, for public demos. `/api/health/store`
+  reports it.
+- A Dockerfile on the Playwright base image and `docs/DEPLOY.md` with a
+  read-only demo profile and a private profile.
+- The Build Arena grid shows each build's real captured frame when the run has
+  one, falling back to the identity-coloured placeholder only for fixtures.
+- Tests for the two remaining README claims: the order-swapped pairwise
+  decision (`decidePair`, pure) and the hard budget ceiling (a mock run that
+  must stop as `partial` after its first sample).
 
 ### Changed
 
@@ -33,6 +43,10 @@ All notable changes to Model Lab are recorded here. The format follows
   instead of the exporter's absolute path.
 - SECURITY.md names a private reporting channel and states plainly that the
   HTTP API ships without authentication.
+- The top bar shows the "demo data" chip and the fixture statistics only for
+  the in-memory demo workspace; a live instance shows how many providers have
+  a key, a "read-only" chip when applicable, and a disabled New Run button in
+  read-only mode.
 
 ## [0.1.0] — 2026-08-03
 

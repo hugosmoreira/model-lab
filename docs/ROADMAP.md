@@ -41,15 +41,25 @@ recorded result, but each one is a reason to read a headline with care.
   agreement statistics between judge, browser checks, and human ratings.
 - **Formal eval-engine adapters** (Inspect, OpenBench) so objective packs can
   run under an established harness.
-- **Read-only mode** (`MODEL_LAB_READ_ONLY=1`) so a public demo instance can
-  serve results without accepting new runs, votes, or annotations.
 - **A CLI** (`model-lab run --pack … --models …`) for scripted and CI use, and
   a `--fail-under` gate.
 - **More packs**: a second build-arena challenge that is not a raycaster, and
   larger objective packs.
-- **Arena grid thumbnails** from the real screenshots, live provider health
-  checks, and a head-to-head queue for runs with more than one sample.
-- **Docker image** on the Playwright base image for one-command self-hosting.
+- **Live provider health checks** on the Providers page, and a head-to-head
+  queue for runs with more than one sample.
+- **A slimmer container image**: the current one builds on the full Playwright
+  base image (all three browsers) and weighs about 4 GB; a Chromium-only base
+  would roughly halve that.
+
+## Done since 0.1.0
+
+- Read-only mode (`MODEL_LAB_READ_ONLY=1`) for public demo instances.
+- A Dockerfile and [deployment guide](DEPLOY.md) with a demo profile and a
+  private profile.
+- The Build Arena grid shows the real captured frame of every build instead of
+  a placeholder scene.
+- The top bar labels the demo workspace as demo data and, on a live instance,
+  shows only facts about that environment.
 
 ## Not planned
 

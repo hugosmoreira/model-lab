@@ -1,0 +1,25 @@
+# never ship secrets, local state, or build output into the image
+.env
+.env.*
+!.env.example
+artifacts-data
+node_modules
+**/node_modules
+**/.next
+**/dist
+**/*.tsbuildinfo
+.git
+.github
+.claude
+.vscode
+.idea
+Dockerfile
+docker-compose*.yml
+
+# docs and evidence are not needed at runtime
+docs
+CHANGELOG.md
+CITATION.cff
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+SECURITY.md
