@@ -102,9 +102,14 @@ interface WizardState {
   mode: RunMode;
   packSlug: string;
   selected: string[]; // endpoint ids
+  /** build-arena samples per model; verified mode runs one sample per task instead */
+  samplesPerModel: number;
   search: string;
   deployment: DeploymentFilter;
 }
+
+/** n=1 is an anecdote; the wizard offers the sizes worth paying for. */
+const SAMPLE_OPTIONS: readonly number[] = [1, 2, 3, 5];
 
 function providerDisplayName(p: Provider): string {
   return p.isLocal ? `${p.name} · local${p.localHardware ? ` ${p.localHardware}` : ""}` : p.name;
@@ -151,6 +156,7 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
     packSlug:
       fixtures.benchmarkPacks.find((p) => p.kind === "build-arena")?.slug ?? "raycaster-oneshot",
     selected: [...fixtures.RUN_ENDPOINT_IDS],
+    samplesPerModel: 1,
     search: "",
     deployment: "all",
   }));
@@ -173,7 +179,7 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
   const selectedEndpoints = fixtures.endpoints.filter((ep) => state.selected.includes(ep.id));
   const n = selectedEndpoints.length;
   /* Verified MVP: 1 sample per task — the runner iterates the pack's tasks. */
-  const samples = isVerified ? 1 : cfg.samplesPerModel;
+  const samples = isVerified ? 1 : state.samplesPerModel;
   const callsPerModel = isVerified ? taskCount : samples;
   const calls = n * callsPerModel;
 
@@ -289,13 +295,19 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
     RUN_TYPES[state.mode].label,
     pack ? `${pack.name} ${pack.version}` : "none selected",
     `${n} selected`,
-    "locked",
+    isVerified ? "1 per task" : `n=${samples}`,
     `${(isVerified ? 1 : enabledScorers.length) + 1} scorers`, // +1 always-on safeguard row
     costLabel,
   ];
 
-  /* Shared generation settings (step 4) — read-only value chips this phase. */
-  const params: { name: string; sub: string; val: string }[] = [
+  /* Shared generation settings (step 4) — value chips; samples per model is a choice. */
+  const params: {
+    name: string;
+    sub: string;
+    val: string;
+    options?: readonly number[];
+    onSelect?: (value: number) => void;
+  }[] = [
     { name: "Temperature", sub: "identical across models", val: String(cfg.temperature) },
     {
       name: "Max output tokens",
@@ -309,8 +321,18 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
     },
     {
       name: "Samples per model",
-      sub: cfg.retryPolicy.generation === "none" ? "first-shot only" : "with retries",
-      val: String(cfg.samplesPerModel),
+      sub: isVerified
+        ? "verified mode runs one sample per task"
+        : samples === 1
+          ? "n=1 is an anecdote — raise it before publishing a claim"
+          : `${cfg.retryPolicy.generation === "none" ? "first-shot only" : "with retries"} · mean and min–max across samples`,
+      val: String(samples),
+      ...(isVerified
+        ? {}
+        : {
+            options: SAMPLE_OPTIONS,
+            onSelect: (value: number) => set({ samplesPerModel: value }),
+          }),
     },
     { name: "Concurrency", sub: "parallel requests", val: String(cfg.concurrency) },
     {
@@ -962,20 +984,49 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                     <span style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</span>
                     <span style={{ fontSize: 11.5, color: "var(--color-faint)" }}>{p.sub}</span>
                   </span>
-                  <span
-                    style={{
-                      ...mono,
-                      fontSize: 13,
-                      color: "var(--color-amber)",
-                      background: "var(--color-raised)",
-                      border: "1px solid var(--color-border)",
-                      borderRadius: 5,
-                      padding: "4px 10px",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {p.val}
-                  </span>
+                  {p.options && p.onSelect ? (
+                    <span role="group" aria-label={p.name} style={{ display: "flex", gap: 4 }}>
+                      {p.options.map((opt) => {
+                        const active = String(opt) === p.val;
+                        return (
+                          <button
+                            key={opt}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => p.onSelect?.(opt)}
+                            className={active ? undefined : "hover-border"}
+                            style={{
+                              ...mono,
+                              fontSize: 13,
+                              color: active ? "var(--color-amber)" : "var(--color-muted)",
+                              background: active ? "var(--color-raised)" : "none",
+                              border: `1px solid ${active ? "var(--color-amber)" : "var(--color-border)"}`,
+                              borderRadius: 5,
+                              padding: "4px 10px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            {opt}
+                          </button>
+                        );
+                      })}
+                    </span>
+                  ) : (
+                    <span
+                      style={{
+                        ...mono,
+                        fontSize: 13,
+                        color: "var(--color-amber)",
+                        background: "var(--color-raised)",
+                        border: "1px solid var(--color-border)",
+                        borderRadius: 5,
+                        padding: "4px 10px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {p.val}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
