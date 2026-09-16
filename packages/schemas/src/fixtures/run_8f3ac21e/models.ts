@@ -162,6 +162,22 @@ export const providers: Provider[] = [
     localEndpoint: null,
     localHardware: null,
   },
+  {
+    id: "baseline",
+    name: "Baseline (control)",
+    kind: "custom",
+    status: "connected",
+    isLocal: true,
+    healthLatencyMs: null,
+    modelsAvailable: 1,
+    modelsLoaded: null,
+    lastTestedAt: null,
+    credentialMasked: "none needed (deterministic)",
+    credentialStore: "none",
+    warning: null,
+    localEndpoint: null,
+    localHardware: null,
+  },
 ];
 
 export const modelDefinitions: ModelDefinition[] = [
@@ -281,6 +297,15 @@ export const modelDefinitions: ModelDefinition[] = [
     identityColor: MODEL_COLORS["qwen3-coder-32b"],
     contextWindowTokens: 256_000,
     capabilities: ["code", "local"],
+    supportsSeed: false,
+  },
+  {
+    id: "blank-html",
+    family: "Baseline",
+    shortName: "blank",
+    identityColor: MODEL_COLORS.neutral,
+    contextWindowTokens: 0,
+    capabilities: ["control"],
     supportsSeed: false,
   },
 ];
@@ -507,6 +532,24 @@ export const endpoints: ModelEndpoint[] = [
     hardware: null,
     priceInPerMtokUsd: 0.3,
     priceOutPerMtokUsd: 2.5,
+    status: "healthy",
+    runsCount: 0,
+    reliabilityPct: null,
+    avgVisualScore: null,
+    lastTestedAt: null,
+  },
+  {
+    // Null baseline: a deterministic document that renders nothing. Include it
+    // in a run to see the floor of every scorer next to the contenders.
+    id: "baseline/blank-html",
+    modelId: "blank-html",
+    apiModel: null,
+    providerId: "baseline",
+    deployment: "local",
+    quantization: null,
+    hardware: null,
+    priceInPerMtokUsd: null,
+    priceOutPerMtokUsd: null,
     status: "healthy",
     runsCount: 0,
     reliabilityPct: null,

@@ -77,7 +77,7 @@ jobs:
         run: pnpm --filter @model-lab/build-arena-runner selftest
 
       - name: CLI (mock run through the run service, with the fail-under gate)
-        run: pnpm cli run --pack raycaster-oneshot --models anthropic/claude-sonnet-4-6,openai/gpt-5-mini --mock --store memory --quiet --fail-under 0.5
+        run: pnpm cli run --pack raycaster-oneshot --models anthropic/claude-sonnet-4-6,openai/gpt-5-mini,baseline/blank-html --mock --store memory --quiet --fail-under 0.5
 
       - name: Build
         run: pnpm build

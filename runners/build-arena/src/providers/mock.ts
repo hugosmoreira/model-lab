@@ -29,6 +29,32 @@ function hashSeed(input: string): number {
   return h >>> 0;
 }
 
+/**
+ * The null baseline's model name. An endpoint on the "baseline" provider asks
+ * the mock for this model and gets a document that intentionally renders
+ * nothing — no canvas, no script — so a run can show the floor of every
+ * scorer next to the real contenders.
+ */
+export const BLANK_MODEL = "blank-html";
+
+export function buildBlankHtml(): string {
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Baseline — renders nothing</title>
+<style>
+html,body{margin:0;height:100%;background:#06060c;color:#948da3;font:14px/1.5 monospace}
+p{padding:16px;max-width:60ch}
+</style>
+</head>
+<body>
+<p>Baseline control: this document intentionally renders nothing. Whatever a scorer gives this page is its floor.</p>
+</body>
+</html>
+`;
+}
+
 export function buildMockRaycasterHtml(
   model: string,
   sampleIndex: number,
@@ -161,7 +187,9 @@ export class MockProvider implements Provider {
     const text =
       req.task !== undefined
         ? buildMockVerifiedAnswer(req.task, req.answerWrong === true)
-        : buildMockRaycasterHtml(req.model, req.sampleIndex ?? 1, req.injectFailure === true);
+        : req.model === BLANK_MODEL
+          ? buildBlankHtml()
+          : buildMockRaycasterHtml(req.model, req.sampleIndex ?? 1, req.injectFailure === true);
     const chunks = req.task !== undefined ? Math.min(12, this.chunkCount) : this.chunkCount;
     const chunkSize = Math.max(1, Math.ceil(text.length / chunks));
     for (let i = 0; i < text.length; i += chunkSize) {

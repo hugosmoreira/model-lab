@@ -53,6 +53,10 @@ Playwright checks across three categories probe it for real: does the canvas ren
 does it survive a resize, is the HUD readable. Failures are preserved as evidence —
 one failed model never halts a run.
 
+**Know the floor.** Add `baseline/blank-html` to any run: a deterministic document that
+renders nothing, free and keyless, so every scorer's floor sits next to the contenders
+instead of being assumed.
+
 **Score it — with labeled sources.** Objective browser checks, an LLM judge that grades
 each build against the brief *and* compares pairs anonymized in both presentation
 orders (verdicts that flip on order-swap are flagged ⟲ and excluded from the tally),

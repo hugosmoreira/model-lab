@@ -12,8 +12,6 @@ recorded result, but each one is a reason to read a headline with care.
 
 - **Every published run so far is n=1.** The wizard now offers 1, 2, 3 or 5
   samples per model; publishing an n=3 run is the next benchmarking milestone.
-- **No null baseline.** Nothing establishes what an empty or trivial artifact
-  scores, so there is no floor to compare a weak build against.
 - **Local hardware is not recorded.** The manifest now carries Node, platform,
   the Chromium build and the served model ids, but not the GPU or the
   quantization a local model ran with; those still have to be written down by
@@ -46,6 +44,11 @@ recorded result, but each one is a reason to read a headline with care.
 
 ## Done since 0.1.0
 
+- **A null baseline.** The registry has a `baseline/blank-html` endpoint: a
+  deterministic document that renders nothing, free, keyless, always the
+  mock. Add it to any run to see the floor of every scorer next to the
+  contenders (the selftest asserts it fails the render gate on every sample;
+  the CLI's `--fail-under` gate ignores it).
 - **Live provider health.** On a persistent store the Providers page probes
   each provider's model list with the server's key (`GET
   /api/providers/health`, cached for a minute, "Test connection" refreshes)

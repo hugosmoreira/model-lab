@@ -34,6 +34,9 @@ All notable changes to Model Lab are recorded here. The format follows
   says where it came from. Rows stored before the field existed are inferred
   from the run mode when read.
 - Samples per model is selectable in the New Run wizard (1, 2, 3 or 5).
+- A null baseline endpoint, `baseline/blank-html`: a deterministic document
+  that renders nothing, so any run can show the floor of every scorer. Free,
+  keyless, always the mock; excluded from the CLI's `--fail-under` gate.
 - Live provider health: `GET /api/providers/health` probes each provider's
   model list with the server's key (read-only, free, cached for a minute);
   the Providers page uses it on a persistent store, with a working "Test

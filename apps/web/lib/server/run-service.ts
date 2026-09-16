@@ -218,6 +218,8 @@ function requiredKeyEnv(providerId: string): string | null {
       return "DEEPSEEK_API_KEY";
     case "ollama":
       return null; // keyless by design
+    case "baseline":
+      return null; // deterministic control, never a real call
     default:
       // matches the runner's explicit-baseUrl convention: <PROVIDERID>_API_KEY
       return `${providerId.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_API_KEY`;
@@ -266,7 +268,7 @@ export function listEndpointAvailability(): EndpointAvailability[] {
     modelId: ep.modelId,
     deployment: ep.deployment,
     keyed: hasRequiredKey(ep.providerId),
-    mocked: mockFor(ep),
+    mocked: ep.providerId === "baseline" ? true : mockFor(ep),
   }));
 }
 
@@ -295,7 +297,11 @@ function baseFor(providerId: string): { baseKind: BaseKind; baseUrl?: string } {
 
 function toEndpointConfig(ep: ModelEndpoint, mock: boolean): EndpointConfig {
   const def = modelDefinitions.find((m) => m.id === ep.modelId);
-  const base = mock ? { baseKind: "mock" as BaseKind } : baseFor(ep.providerId);
+  // The baseline control is the mock's blank document whatever the policy says.
+  const base =
+    mock || ep.providerId === "baseline"
+      ? { baseKind: "mock" as BaseKind }
+      : baseFor(ep.providerId);
   const config: EndpointConfig = {
     id: ep.id,
     providerId: ep.providerId,

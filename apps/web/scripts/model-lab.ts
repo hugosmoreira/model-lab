@@ -112,18 +112,21 @@ async function main(): Promise<void> {
   const runService = await import("../lib/server/run-service");
   const { benchmarkPacks } = await import("@model-lab/schemas/fixtures");
   const { loadPackFromDisk } = await import("../lib/server/packs");
-  const { FsRunStore, exportBundle, checkProvidersHealth } =
+  const { FsRunStore, exportBundle, checkProvidersHealth, capabilityChecks, failedGates } =
     await import("@model-lab/build-arena-runner");
 
   if (command === "models") {
     const rows = runService.listEndpointAvailability();
     console.log(`${pad("endpoint", 40)}${pad("deployment", 12)}now`);
     for (const r of rows) {
-      const status = r.mocked
-        ? "mock (no key in this environment)"
-        : r.providerId === "ollama"
-          ? "real (local server, keyless)"
-          : "real (key present)";
+      const status =
+        r.providerId === "baseline"
+          ? "control (deterministic blank page, free)"
+          : r.mocked
+            ? "mock (no key in this environment)"
+            : r.providerId === "ollama"
+              ? "real (local server, keyless)"
+              : "real (key present)";
       console.log(`${pad(r.id, 40)}${pad(r.deployment, 12)}${status}`);
     }
     if (values.check) {
@@ -234,20 +237,33 @@ async function main(): Promise<void> {
   const served = snapshot.environment?.servedModels ?? {};
   console.log("");
   console.log(
-    `${pad("model", 36)}${pad("capability", 12)}${pad("cost", 9)}${pad("latency", 9)}served as`,
+    `${pad("model", 36)}${pad("capability", 28)}${pad("cost", 9)}${pad("latency", 9)}served as`,
   );
   let minRatio = 1;
   for (const m of snapshot.models) {
+    // A model whose every sample failed a gate has no rollup ratio; read the
+    // gate off its traces so it counts as 0 rather than disappearing.
+    const own = snapshot.artifacts.filter((a) => a.endpointId === m.endpointId);
+    const gate =
+      own.map((a) => failedGates(a.checks)[0]?.name ?? null).find((g) => g !== null) ?? null;
+    const capTotal = own.reduce((n, a) => Math.max(n, capabilityChecks(a.checks).length), 0) || 5;
+    const passed = m.testsPassed;
+    const total = m.testsTotal;
     const ratio =
-      m.testsPassed != null && m.testsTotal != null && m.testsTotal > 0
-        ? m.testsPassed / m.testsTotal
-        : null;
-    if (ratio !== null) minRatio = Math.min(minRatio, ratio);
+      passed != null && total != null && total > 0 ? passed / total : gate !== null ? 0 : null;
+    // The baseline control is the floor by definition; it never trips the gate.
+    if (ratio !== null && !m.endpointId.startsWith("baseline/")) {
+      minRatio = Math.min(minRatio, ratio);
+    }
     const capability =
-      m.testsPassed != null && m.testsTotal != null ? `${m.testsPassed}/${m.testsTotal}` : "—";
+      passed != null && total != null
+        ? `${passed}/${total}`
+        : gate !== null
+          ? `0/${capTotal} · gate ${gate}`
+          : "—";
     const latency = m.totalLatencyMs != null ? `${(m.totalLatencyMs / 1000).toFixed(1)}s` : "—";
     console.log(
-      `${pad(m.endpointId, 36)}${pad(capability, 12)}${pad(usd(m.costUsd), 9)}${pad(latency, 9)}${served[m.endpointId] ?? "—"}`,
+      `${pad(m.endpointId, 36)}${pad(capability, 28)}${pad(usd(m.costUsd), 9)}${pad(latency, 9)}${served[m.endpointId] ?? "—"}`,
     );
   }
   const env = snapshot.environment;

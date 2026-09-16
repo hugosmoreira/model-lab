@@ -45,6 +45,7 @@ export const ModelCapability = z.enum([
   "fast",
   "cheap",
   "local",
+  "control", // the null baseline: a deterministic page that renders nothing
   "hosted",
   "general",
 ]);
