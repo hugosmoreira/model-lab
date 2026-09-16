@@ -10,20 +10,22 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "pnpm -r --if-present test"
+    "test": "pnpm -r --if-present test",
+    "cli": "tsx --tsconfig apps/web/tsconfig.json apps/web/scripts/model-lab.ts"
   },
   "engines": {
     "node": ">=22.13",
     "pnpm": ">=10"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.0",
     "@eslint/js": "^9.0.0",
     "eslint": "^9.0.0",
     "eslint-config-next": "^15.5.25",
     "globals": "^16.0.0",
     "prettier": "^3.9.6",
-    "typescript-eslint": "^8.70.0",
-    "@eslint/eslintrc": "^3.3.0"
+    "tsx": "^4.23.13",
+    "typescript-eslint": "^8.70.0"
   },
   "pnpm": {
     "overrides": {

@@ -101,6 +101,21 @@ MODEL_LAB_STORE=memory         # or sqlite | supabase (see docs/SUPABASE_SETUP.m
 MODEL_LAB_JUDGE_MODEL=claude-sonnet-4-6  # LLM judge (MODEL_LAB_JUDGE=0 disables)
 ```
 
+## From the terminal
+
+The same run, without the browser — for scripts and CI:
+
+```bash
+pnpm cli models                                   # what this environment can run, and what would be mocked
+pnpm cli run --pack raycaster-oneshot \
+  --models anthropic/claude-sonnet-4-6,openai/gpt-5-mini,ollama/qwen3.5-abliterated \
+  --samples 3 --budget 2 --fail-under 0.8         # exit 1 if any model scores below 4/5
+```
+
+It streams the run's events, prints capability, cost, latency and the model id each
+provider actually served, exports the bundle, and exits non-zero on a partial run.
+`--mock` guarantees zero spend; the run shows up in the UI like any other.
+
 ## Architecture
 
 pnpm workspace: `apps/web` (Next.js 15, App Router — UI + local API + SSE),

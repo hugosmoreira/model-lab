@@ -37,18 +37,24 @@ recorded result, but each one is a reason to read a headline with care.
   agreement statistics between judge, browser checks, and human ratings.
 - **Formal eval-engine adapters** (Inspect, OpenBench) so objective packs can
   run under an established harness.
-- **A CLI** (`model-lab run --pack … --models …`) for scripted and CI use, and
-  a `--fail-under` gate.
 - **More packs**: a second build-arena challenge that is not a raycaster, and
   larger objective packs.
 - **Live provider health checks** on the Providers page, and a head-to-head
   queue for runs with more than one sample.
-- **A slimmer container image**: the current one builds on the full Playwright
-  base image (all three browsers) and weighs about 4 GB; a Chromium-only base
-  would roughly halve that.
+- **An installable `model-lab` binary.** The CLI exists (`pnpm cli …`) but
+  runs from the checkout; a published package needs a build step for the
+  runner.
 
 ## Done since 0.1.0
 
+- **A command line.** `pnpm cli run --pack … --models … [--samples n]
+  [--budget usd] [--fail-under ratio]` starts a run through the same service
+  the UI uses, streams its events, prints a capability / cost / latency
+  summary with the served model ids, exports the bundle, and exits non-zero
+  on a partial run or a failed gate. `pnpm cli models` and `pnpm cli packs`
+  show what this environment can run.
+- **A 2 GB container image** on the Node base with only the headless Chromium
+  shell, instead of 4 GB with three browsers.
 - **Runs record their environment.** Node version, platform, runner version,
   the exact Chromium build the checks ran in, and the model id each provider
   reported serving are captured at run time, shipped in `manifest.json` and

@@ -86,6 +86,8 @@ export interface StartRunInput {
   packSlug: string;
   endpointIds: string[];
   samplesPerModel: number;
+  /** hard ceiling in USD; the workspace default when omitted */
+  maxBudgetUsd?: number;
 }
 
 /** Configuration/lookup failures the API maps to HTTP 400. */
@@ -241,6 +243,31 @@ function resolveMockPolicy(selected: ModelEndpoint[]): (ep: ModelEndpoint) => bo
   if (flag === "0") return () => false;
   if (selected.every((ep) => !hasRequiredKey(ep.providerId))) return () => true;
   return (ep) => requiredKeyEnv(ep.providerId) !== null && !hasRequiredKey(ep.providerId);
+}
+
+/** One registry endpoint with what this environment can do with it (the CLI's `models`). */
+export interface EndpointAvailability {
+  id: string;
+  providerId: string;
+  modelId: string;
+  deployment: ModelEndpoint["deployment"];
+  /** the provider's key is present (always false for keyless Ollama) */
+  keyed: boolean;
+  /** what a run started right now would do with it */
+  mocked: boolean;
+}
+
+/** Every registry endpoint, resolved under the current mock policy. */
+export function listEndpointAvailability(): EndpointAvailability[] {
+  const mockFor = resolveMockPolicy(endpointCatalog);
+  return endpointCatalog.map((ep) => ({
+    id: ep.id,
+    providerId: ep.providerId,
+    modelId: ep.modelId,
+    deployment: ep.deployment,
+    keyed: hasRequiredKey(ep.providerId),
+    mocked: mockFor(ep),
+  }));
 }
 
 /** providerId → runner baseKind (+ explicit baseUrl where needed). */
@@ -699,7 +726,7 @@ export async function startRun(input: StartRunInput): Promise<{ runId: string }>
     maxOutputTokens: resolveMaxOutputTokens(),
     seed: defaultRunConfiguration.seed,
     concurrency: workspaceSettings.defaultConcurrency,
-    maxBudgetUsd: workspaceSettings.defaultRunBudgetUsd,
+    maxBudgetUsd: input.maxBudgetUsd ?? workspaceSettings.defaultRunBudgetUsd,
     transportRetries: defaultRunConfiguration.retryPolicy.transportRetries,
   };
   // LLM-judge phase (build-arena + ANTHROPIC_API_KEY + not opted out/mocked)

@@ -28,6 +28,8 @@ const CreateRunRequest = z.object({
   packSlug: z.string().min(1),
   endpointIds: z.array(z.string().min(1)).min(1),
   samplesPerModel: z.number().int().min(1),
+  /** hard ceiling in USD; the workspace default when omitted */
+  maxBudgetUsd: z.number().positive().max(1000).optional(),
 });
 export type CreateRunRequest = z.infer<typeof CreateRunRequest>;
 
@@ -56,6 +58,7 @@ export async function POST(req: NextRequest) {
       packSlug: parsed.data.packSlug,
       endpointIds: parsed.data.endpointIds,
       samplesPerModel: parsed.data.samplesPerModel,
+      ...(parsed.data.maxBudgetUsd !== undefined ? { maxBudgetUsd: parsed.data.maxBudgetUsd } : {}),
     });
     return NextResponse.json({ runId }, { status: 201 });
   } catch (err) {

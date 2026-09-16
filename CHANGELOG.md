@@ -23,8 +23,8 @@ All notable changes to Model Lab are recorded here. The format follows
 - `MODEL_LAB_READ_ONLY=1`: an instance that serves results but answers 403 to
   new runs, votes, and annotations, for public demos. `/api/health/store`
   reports it.
-- A Dockerfile on the Playwright base image and `docs/DEPLOY.md` with a
-  read-only demo profile and a private profile.
+- A Dockerfile (Node base plus the headless Chromium shell, about 2 GB) and
+  `docs/DEPLOY.md` with a read-only demo profile and a private profile.
 - The Build Arena grid shows each build's real captured frame when the run has
   one, falling back to the identity-coloured placeholder only for fixtures.
 - Tests for the two remaining README claims: the order-swapped pairwise
@@ -34,6 +34,11 @@ All notable changes to Model Lab are recorded here. The format follows
   says where it came from. Rows stored before the field existed are inferred
   from the run mode when read.
 - Samples per model is selectable in the New Run wizard (1, 2, 3 or 5).
+- A command line: `pnpm cli run --pack … --models …` with `--samples`,
+  `--budget`, `--fail-under`, `--mock`, `--no-judge`, `--store`; plus
+  `pnpm cli models` and `pnpm cli packs`. Runs go through the same service as
+  the UI, so they persist and show up there. `POST /api/runs` accepts an
+  optional `maxBudgetUsd`.
 - Run provenance: the runner records Node version, platform, runner version,
   the Chromium build the checks executed in, and the model id each provider
   reported serving. It ships in the bundle's `manifest.json` and README, and
