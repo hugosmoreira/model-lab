@@ -10,14 +10,8 @@ moving one up.
 These are real defects in the current scoring story. None of them changes a
 recorded result, but each one is a reason to read a headline with care.
 
-- **`visualScore` is three constructs in one field.** The runner derives it
-  from the browser capability ratio (×10), the results loader overrides it
-  with a human rating when one exists, and the share card labels it
-  `VISUAL·HUMAN`. The three should be separate, separately labelled fields.
-- **Every judged run so far is n=1.** The New Run wizard hard-locks
-  `samplesPerModel`; the README's own limitations section says n=1 is an
-  anecdote. Unlocking it and publishing an n=3 run is the next benchmarking
-  milestone.
+- **Every published run so far is n=1.** The wizard now offers 1, 2, 3 or 5
+  samples per model; publishing an n=3 run is the next benchmarking milestone.
 - **No null baseline.** Nothing establishes what an empty or trivial artifact
   scores, so there is no floor to compare a weak build against.
 - **Provenance gaps.** The served model snapshot, the Chromium version that
@@ -53,6 +47,15 @@ recorded result, but each one is a reason to read a headline with care.
 
 ## Done since 0.1.0
 
+- **Scores carry their source.** `RunModel.visualSource` says whether a
+  number came from a person, the browser checks, or an objective scorer. The
+  arena grid, results cards, artifact viewer and share cards show a "visual"
+  or "human" score only when a person rated the build; the share card's score
+  column is labelled `VISUAL·HUMAN`, `JUDGE·RUBRIC` or `BROWSER·CAPABILITY`
+  according to what it holds. A browser ratio is never presented as a visual
+  judgement again.
+- **Samples per model is a choice** in the New Run wizard (1, 2, 3 or 5),
+  defaulting to 1 with the anecdote warning next to it.
 - Read-only mode (`MODEL_LAB_READ_ONLY=1`) for public demo instances.
 - A Dockerfile and [deployment guide](DEPLOY.md) with a demo profile and a
   private profile.

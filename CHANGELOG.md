@@ -30,6 +30,19 @@ All notable changes to Model Lab are recorded here. The format follows
 - Tests for the two remaining README claims: the order-swapped pairwise
   decision (`decidePair`, pure) and the hard budget ceiling (a mock run that
   must stop as `partial` after its first sample).
+- `RunModel.visualSource` (`human` · `browser` · `objective`): every score
+  says where it came from. Rows stored before the field existed are inferred
+  from the run mode when read.
+- Samples per model is selectable in the New Run wizard (1, 2, 3 or 5).
+
+### Fixed
+
+- A browser-derived number was shown under "VISUAL" and "VISUAL (HUMAN)"
+  labels on the arena grid, the results cards, the artifact viewer and the
+  share card, next to "no human rating yet". Those places now show a human
+  rating only when one exists; the share card's score column is labelled
+  `VISUAL·HUMAN`, `JUDGE·RUBRIC` or `BROWSER·CAPABILITY` by what it holds, and
+  the results scatter names its y axis.
 
 ### Changed
 
