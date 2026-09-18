@@ -6,6 +6,13 @@ actually passed. These procedures do not publish a release by themselves.
 
 ## Source release before container publication
 
+**Current private-repository limitation (2026-09-18):** GitHub rejects branch
+rules and required environment reviewers on the available plan. The
+[prepared configurations and private draft procedure](github-protection/README.md)
+record this explicitly. Do not describe them as configured. A maintainer may
+prepare the verified source packet and private draft manually; the protected
+workflow remains available for use after its actual prerequisites are enabled.
+
 The source release can proceed independently once the reviewed source commit's
 application and secret checks pass. Native image findings remain visible in PR
 CI and continue to block the container publication workflow.

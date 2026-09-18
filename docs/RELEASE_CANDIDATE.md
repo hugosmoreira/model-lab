@@ -133,6 +133,12 @@ rehearsals are development evidence, not proof for a later immutable image.
 
 ## Publication steps
 
+The current private-repository plan does not support the intended branch rules
+or required environment reviewers. See the
+[protection preflight](github-protection/README.md). The maintainer has authorized
+the source-only merge/tag/private-draft preparation, with explicit check and
+source verification. Protected publication and public visibility remain pending.
+
 1. Review the source candidate in private PR #3. Obtain passing application and
    secret checks on its exact revision. Container findings remain independently
    visible and block the container release, not the source-only workflow.

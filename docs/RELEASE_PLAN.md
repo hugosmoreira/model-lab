@@ -410,6 +410,24 @@ works; no private results are exposed.
 
 ## Release decision and progress record
 
+### Source release authorization and protection preflight (2026-09-18)
+
+The maintainer approved proceeding with the source-only path: merge the
+verified candidate, create `v0.2.0-rc.1` on main and prepare a private draft for
+review. Repository visibility and public release publication remain unchanged
+until the actual draft is reviewed. The application/build and secret gates pass
+for PR #3; the image's functional checks pass and native advisory gate remains
+blocked. Verify any new PR head before merging.
+
+GitHub rejected private-repository branch/ruleset configuration (HTTP 403) and
+required release reviewers (HTTP 422) on the current plan. Its partially created
+empty environment was removed. Prepared, reviewable
+[protection configurations](github-protection/README.md) record the exact
+intended rules and their activation requirements. They are not active safeguards.
+Use the documented maintainer-driven private draft preparation when the protected
+workflow is unavailable; record its exact tag, source tree, checksums and passing
+verification. Protection activation remains a public-publication gate.
+
 ### Packaging and source-release follow-up (2026-09-18)
 
 - Verified a frozen offline production reinstall after the build, keeping
