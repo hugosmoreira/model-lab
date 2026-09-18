@@ -7,8 +7,16 @@ const SANDBOX = { isolatedOrigin: true, networkBlocked: true, execLimitSec: 30, 
 function checks(failures: Record<string, string>, skipped: string[] = []): BrowserTestResult[] {
   return CHECK_NAMES.map((name) => {
     const category: CheckCategory = FIXTURE_CHECK_CATEGORY[name] ?? "capability";
-    if (name in failures) return { name, status: "failed" as const, note: failures[name]!, durationMs: null, category };
-    if (skipped.includes(name)) return { name, status: "skipped" as const, note: "skipped (render failed)", durationMs: null, category };
+    if (name in failures)
+      return { name, status: "failed" as const, note: failures[name]!, durationMs: null, category };
+    if (skipped.includes(name))
+      return {
+        name,
+        status: "skipped" as const,
+        note: "skipped (render failed)",
+        durationMs: null,
+        category,
+      };
     const notes: Record<string, string> = {
       "html.parses": "valid document",
       "page.loads": "1.4s < 5s limit",
@@ -45,7 +53,7 @@ const singleFileSource = (id: string, bug = false) => `<!DOCTYPE html>
 "use strict";
 // ${id} — one-shot raycaster (single-file contract: inline CSS/JS, no network)
 const cv = document.getElementById('screen');
-const ctx = cv.getContext('2d');${bug ? " // BUG: canvas id is \"view\" — ctx is null" : ""}
+const ctx = cv.getContext('2d');${bug ? ' // BUG: canvas id is "view" — ctx is null' : ""}
 const MAP = [[1,1,1,1,1,1,1,1],[1,0,0,0,0,0,0,1],[1,0,1,0,0,1,0,1],[1,0,0,0,0,0,0,1],[1,1,1,1,1,1,1,1]];
 let px = 2.5, py = 2.5, pa = 0;
 const keys = {};
@@ -66,10 +74,17 @@ frame();
 
 export const artifacts: Artifact[] = [
   {
-    runId: "run_8f3ac21e", endpointId: "anthropic/claude-sonnet-4-6", sampleIndex: 1,
-    path: "artifacts/8f3a/sonnet-4-6/raycaster.html", filename: "raycaster.html", sizeKb: 48,
-    renderOk: true, isBestOfModel: true, source: singleFileSource("claude-sonnet-4-6"),
-    screenshotRef: null, consoleLines: sonnetConsole,
+    runId: "run_8f3ac21e",
+    endpointId: "anthropic/claude-sonnet-4-6",
+    sampleIndex: 1,
+    path: "artifacts/8f3a/sonnet-4-6/raycaster.html",
+    filename: "raycaster.html",
+    sizeKb: 48,
+    renderOk: true,
+    isBestOfModel: true,
+    source: singleFileSource("claude-sonnet-4-6"),
+    screenshotRef: null,
+    consoleLines: sonnetConsole,
     checks: checks({
       "resize.handled": "canvas fixed at 960×600",
       "a11y.contrast": "HUD contrast 2.9:1",
@@ -80,9 +95,15 @@ export const artifacts: Artifact[] = [
     sandbox: SANDBOX,
   },
   {
-    runId: "run_8f3ac21e", endpointId: "openai/gpt-5.2-mini", sampleIndex: 2,
-    path: "artifacts/8f3a/gpt-5.2-mini/raycaster.html", filename: "raycaster.html", sizeKb: 41,
-    renderOk: true, isBestOfModel: true, source: singleFileSource("gpt-5.2-mini"),
+    runId: "run_8f3ac21e",
+    endpointId: "openai/gpt-5.2-mini",
+    sampleIndex: 2,
+    path: "artifacts/8f3a/gpt-5.2-mini/raycaster.html",
+    filename: "raycaster.html",
+    sizeKb: 41,
+    renderOk: true,
+    isBestOfModel: true,
+    source: singleFileSource("gpt-5.2-mini"),
     screenshotRef: null,
     consoleLines: [{ t: "0.188s", level: "info", msg: "raycaster booted · 8×5 map" }],
     checks: checks({}),
@@ -92,10 +113,17 @@ export const artifacts: Artifact[] = [
     sandbox: SANDBOX,
   },
   {
-    runId: "run_8f3ac21e", endpointId: "google/gemini-3-flash", sampleIndex: 1,
-    path: "artifacts/8f3a/gemini-3-fl/raycaster.html", filename: "raycaster.html", sizeKb: 36,
-    renderOk: true, isBestOfModel: true, source: singleFileSource("gemini-3-flash"),
-    screenshotRef: null, consoleLines: geminiConsole,
+    runId: "run_8f3ac21e",
+    endpointId: "google/gemini-3-flash",
+    sampleIndex: 1,
+    path: "artifacts/8f3a/gemini-3-fl/raycaster.html",
+    filename: "raycaster.html",
+    sizeKb: 36,
+    renderOk: true,
+    isBestOfModel: true,
+    source: singleFileSource("gemini-3-flash"),
+    screenshotRef: null,
+    consoleLines: geminiConsole,
     checks: checks({
       "textures.applied": "flat-shade fallback used",
       "fps.stable": "drops to 41fps on turn",
@@ -107,16 +135,31 @@ export const artifacts: Artifact[] = [
     sandbox: SANDBOX,
   },
   {
-    runId: "run_8f3ac21e", endpointId: "ollama/qwen3-coder-32b@q4_K_M", sampleIndex: 2,
-    path: "artifacts/8f3a/qwen3-32b/raycaster.html", filename: "raycaster.html", sizeKb: 52,
-    renderOk: false, isBestOfModel: false, source: singleFileSource("qwen3-coder-32b", true),
-    screenshotRef: null, consoleLines: qwenConsole,
+    runId: "run_8f3ac21e",
+    endpointId: "ollama/qwen3-coder-32b@q4_K_M",
+    sampleIndex: 2,
+    path: "artifacts/8f3a/qwen3-32b/raycaster.html",
+    filename: "raycaster.html",
+    sizeKb: 52,
+    renderOk: false,
+    isBestOfModel: false,
+    source: singleFileSource("qwen3-coder-32b", true),
+    screenshotRef: null,
+    consoleLines: qwenConsole,
     checks: checks(
       {
         "console.clean": "TypeError: ctx is null (raycast.js:41)",
         "canvas.renders": "blank frame",
       },
-      ["interaction.wasd", "interaction.mouse", "minimap.present", "textures.applied", "fps.stable", "resize.handled", "a11y.contrast"],
+      [
+        "interaction.wasd",
+        "interaction.mouse",
+        "minimap.present",
+        "textures.applied",
+        "fps.stable",
+        "resize.handled",
+        "a11y.contrast",
+      ],
     ),
     judgeCommentary:
       "The artifact loaded but rendered nothing. Failure preserved as evidence — see Browser Tests. " +

@@ -5,19 +5,14 @@
  * Shared settings → Scoring & safeguards → Review & launch) with a live cost
  * rail. All display values derive from fixtures; wizard state lives in one
  * useState object. Start Run POSTs the actual selection to /api/runs and
- * routes to the created run's live stream (Phase 1: simulated replay).
+ * routes to the created run's recorded live event stream.
  */
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
+import type { EndpointAvailability } from "@/lib/server/run-service";
 import type { ModelEndpoint, Provider, RunMode } from "@model-lab/schemas";
-import {
-  Callout,
-  EmptyState,
-  ModelDot,
-  ProgressBar,
-  StatusDot,
-} from "@/components/ui/primitives";
+import { Callout, EmptyState, ModelDot, ProgressBar, StatusDot } from "@/components/ui/primitives";
 import { fixtures, getModelForEndpoint } from "@/lib/data";
 import { usd } from "@/lib/format";
 import {
@@ -108,26 +103,27 @@ interface WizardState {
   mode: RunMode;
   packSlug: string;
   selected: string[]; // endpoint ids
+  /** build-arena samples per model; verified mode runs one sample per task instead */
+  samplesPerModel: number;
   search: string;
   deployment: DeploymentFilter;
 }
 
+/** n=1 is an anecdote; the wizard offers the sizes worth paying for. */
+const SAMPLE_OPTIONS: readonly number[] = [1, 2, 3, 5];
+
 function providerDisplayName(p: Provider): string {
-  return p.isLocal ? `${p.name} · local${p.localHardware ? ` ${p.localHardware}` : ""}` : p.name;
+  return p.isLocal ? `${p.name} · local` : p.name;
 }
 
-function providerNote(p: Provider): string {
-  if (p.isLocal) {
-    const quants = Array.from(
-      new Set(
-        fixtures.endpoints
-          .filter((e) => e.providerId === p.id && e.quantization != null)
-          .map((e) => e.quantization as string),
-      ),
-    );
-    return ["online", ...quants].join(" · ");
-  }
-  return p.healthLatencyMs != null ? `connected · ${p.healthLatencyMs}ms` : "connected";
+function providerNote(p: Provider, availability: EndpointAvailability[]): string {
+  const endpoints = availability.filter((endpoint) => endpoint.providerId === p.id);
+  if (endpoints.length > 0 && endpoints.every((endpoint) => endpoint.mocked))
+    return "mock outputs · no provider request";
+  if (p.isLocal) return "local service · connection not checked";
+  return endpoints.some((endpoint) => endpoint.keyed)
+    ? "key configured · connection not checked"
+    : "API key required";
 }
 
 function endpointTags(ep: ModelEndpoint): string {
@@ -147,7 +143,15 @@ const CreateRunResponse = z.object({ runId: z.string().min(1) });
  * there (env-overridable) and differs from the demo run's recorded 16k — the
  * wizard must show the number the run will actually use.
  */
-export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) {
+export function NewRunWizard({
+  maxOutputTokens,
+  judgeEnabled = false,
+  endpointAvailability = [],
+}: {
+  maxOutputTokens?: number;
+  judgeEnabled?: boolean;
+  endpointAvailability?: EndpointAvailability[];
+}) {
   const router = useRouter();
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState<string | null>(null);
@@ -157,6 +161,7 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
     packSlug:
       fixtures.benchmarkPacks.find((p) => p.kind === "build-arena")?.slug ?? "raycaster-oneshot",
     selected: [...fixtures.RUN_ENDPOINT_IDS],
+    samplesPerModel: 1,
     search: "",
     deployment: "all",
   }));
@@ -165,9 +170,7 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
   const toggleEndpoint = (id: string) =>
     setState((s) => ({
       ...s,
-      selected: s.selected.includes(id)
-        ? s.selected.filter((x) => x !== id)
-        : [...s.selected, id],
+      selected: s.selected.includes(id) ? s.selected.filter((x) => x !== id) : [...s.selected, id],
     }));
 
   const cfg = fixtures.runConfiguration;
@@ -180,8 +183,11 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
   /* Selection, in canonical fixture order regardless of click order. */
   const selectedEndpoints = fixtures.endpoints.filter((ep) => state.selected.includes(ep.id));
   const n = selectedEndpoints.length;
+  const mockedSelected = selectedEndpoints.filter((endpoint) =>
+    endpointAvailability.some((entry) => entry.id === endpoint.id && entry.mocked),
+  );
   /* Verified MVP: 1 sample per task — the runner iterates the pack's tasks. */
-  const samples = isVerified ? 1 : cfg.samplesPerModel;
+  const samples = isVerified ? 1 : state.samplesPerModel;
   const callsPerModel = isVerified ? taskCount : samples;
   const calls = n * callsPerModel;
 
@@ -189,7 +195,7 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
      Verified mode: per-model output = taskCount × ~200 tokens/task. */
   const estOut = isVerified
     ? taskCount * VERIFIED_EST_OUTPUT_TOKENS_PER_TASK
-    : pack?.estOutputTokensPerModel ?? 0;
+    : (pack?.estOutputTokensPerModel ?? 0);
   const cost = totalCostRange(selectedEndpoints, samples, estOut);
   const tok = tokenRange(n, samples, estOut);
   const costLabel = `${usd(cost.low)}–${usd(cost.high)}`;
@@ -199,7 +205,9 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
   /* Validation. */
   const modelCountOk = n >= 2 && n <= 8;
   const modelCountReason =
-    n < 2 ? `Select at least 2 models — ${n} selected.` : `Select at most 8 models — ${n} selected.`;
+    n < 2
+      ? `Select at least 2 models — ${n} selected.`
+      : `Select at most 8 models — ${n} selected.`;
   const canStart = modelCountOk && !budgetExceeded;
   const startBlockReason = !modelCountOk
     ? modelCountReason
@@ -229,7 +237,6 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
     return hay.includes(q);
   };
   const providerGroups = fixtures.providers
-    .filter((p) => p.status === "connected")
     .map((provider) => ({
       provider,
       endpoints: fixtures.endpoints.filter(
@@ -239,15 +246,16 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
     .filter((g) => g.endpoints.length > 0);
 
   /* Scorers. */
-  const enabledScorers = cfg.scorers.filter((s) => s.enabled);
-  const sandbox = fixtures.artifacts[0]?.sandbox;
+  const scorerSettings = cfg.scorers.map((scorer) => ({
+    ...scorer,
+    enabled: scorer.type === "browser" || (scorer.type === "llm-judge" && judgeEnabled),
+  }));
+  const enabledScorers = scorerSettings.filter((s) => s.enabled);
   const safeguardDesc =
     [
       `Hard budget stop at ${usd(cfg.maxBudgetUsd)}`,
       `network ${cfg.artifactNetworkPolicy} for artifacts`,
-      ...(sandbox
-        ? [`${sandbox.execLimitSec}s execution limit`, `output size cap ${sandbox.sizeLimitMb}MB`]
-        : []),
+      "bounded browser diagnostics and provider responses",
     ].join(" · ") + ".";
   const scorersSummary = isVerified
     ? `OBJECTIVE(${taskCount} tasks)`
@@ -266,9 +274,15 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
     return dupe || ep.deployment !== "cloud" ? `${ep.modelId}(${ep.providerId})` : ep.modelId;
   };
   const reviewRows: { k: string; v: string }[] = [
-    { k: "Mode", v: `${state.mode}${cfg.retryPolicy.generation === "none" ? " · first-shot" : ""}` },
+    {
+      k: "Mode",
+      v: `${state.mode}${cfg.retryPolicy.generation === "none" ? " · first-shot" : ""}`,
+    },
     { k: "Pack", v: pack ? `${pack.slug} ${pack.version} (${pack.source})` : "none selected" },
-    { k: "Models", v: n > 0 ? selectedEndpoints.map(modelReviewLabel).join(" · ") : "none selected" },
+    {
+      k: "Models",
+      v: n > 0 ? selectedEndpoints.map(modelReviewLabel).join(" · ") : "none selected",
+    },
     {
       k: "Expected calls",
       v: isVerified
@@ -281,7 +295,14 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
       v: `${usd(cost.low)} – ${usd(cost.high)} (ceiling ${usd(cfg.maxBudgetUsd)})`,
     },
     { k: "Scorers", v: scorersSummary },
-    { k: "Prompt hash", v: fixtures.runLive.promptHash },
+    { k: "Prompt provenance", v: "Recorded at launch from the selected pack" },
+    {
+      k: "Provider execution",
+      v:
+        mockedSelected.length > 0
+          ? `${mockedSelected.length}/${n} endpoints use synthetic mock outputs`
+          : "Real provider calls",
+    },
   ];
 
   /* Stepper subtitles — derived live. */
@@ -289,13 +310,19 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
     RUN_TYPES[state.mode].label,
     pack ? `${pack.name} ${pack.version}` : "none selected",
     `${n} selected`,
-    "locked",
-    `${(isVerified ? 1 : enabledScorers.length) + 1} scorers`, // +1 always-on safeguard row
+    isVerified ? "1 per task" : `n=${samples}`,
+    `${isVerified ? 1 : enabledScorers.length} automatic scorers`,
     costLabel,
   ];
 
-  /* Shared generation settings (step 4) — read-only value chips this phase. */
-  const params: { name: string; sub: string; val: string }[] = [
+  /* Shared generation settings (step 4) — value chips; samples per model is a choice. */
+  const params: {
+    name: string;
+    sub: string;
+    val: string;
+    options?: readonly number[];
+    onSelect?: (value: number) => void;
+  }[] = [
     { name: "Temperature", sub: "identical across models", val: String(cfg.temperature) },
     {
       name: "Max output tokens",
@@ -309,8 +336,18 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
     },
     {
       name: "Samples per model",
-      sub: cfg.retryPolicy.generation === "none" ? "first-shot only" : "with retries",
-      val: String(cfg.samplesPerModel),
+      sub: isVerified
+        ? "verified mode runs one sample per task"
+        : samples === 1
+          ? "n=1 is an anecdote — raise it before publishing a claim"
+          : `${cfg.retryPolicy.generation === "none" ? "first-shot only" : "with retries"} · mean and min–max across samples`,
+      val: String(samples),
+      ...(isVerified
+        ? {}
+        : {
+            options: SAMPLE_OPTIONS,
+            onSelect: (value: number) => set({ samplesPerModel: value }),
+          }),
     },
     { name: "Concurrency", sub: "parallel requests", val: String(cfg.concurrency) },
     {
@@ -331,7 +368,7 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
   const continueBlocked = state.step === 5 && !modelCountOk;
 
   /* Start Run: POST the wizard's actual selection, then route to the created
-     run's live stream. Phase 1: the stream replays a simulated event script. */
+     run's live event stream from the configured runner. */
   async function startRun() {
     if (!canStart || launching) return;
     setLaunching(true);
@@ -443,7 +480,14 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
               >
                 {num}
               </span>
-              <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1 }}>
+              <span
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-start",
+                  gap: 1,
+                }}
+              >
                 <span>{name}</span>
                 <span style={{ fontSize: 11, color: "var(--color-faint)", fontWeight: 400 }}>
                   {stepSubs[i]}
@@ -541,7 +585,9 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                       <ModelDot color={t.dot} size={8} />
                       {t.label}
                       {sel && (
-                        <span style={{ marginLeft: "auto", color: "var(--color-amber)", fontSize: 12 }}>
+                        <span
+                          style={{ marginLeft: "auto", color: "var(--color-amber)", fontSize: 12 }}
+                        >
                           selected
                         </span>
                       )}
@@ -615,12 +661,16 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                         {p.version} · {p.source}
                       </span>
                       {sel && (
-                        <span style={{ marginLeft: "auto", color: "var(--color-amber)", fontSize: 12 }}>
+                        <span
+                          style={{ marginLeft: "auto", color: "var(--color-amber)", fontSize: 12 }}
+                        >
                           selected
                         </span>
                       )}
                     </span>
-                    <span style={{ fontSize: 12.5, color: "var(--color-muted)" }}>{p.description}</span>
+                    <span style={{ fontSize: 12.5, color: "var(--color-muted)" }}>
+                      {p.description}
+                    </span>
                     <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>
                       {metaParts.join(" · ")}
                     </span>
@@ -663,7 +713,14 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                     <span style={{ ...mono, fontSize: 11, color: "var(--color-disabled)" }}>
                       {p.version} · {p.source}
                     </span>
-                    <span style={{ ...mono, marginLeft: "auto", fontSize: 10.5, color: "var(--color-faint)" }}>
+                    <span
+                      style={{
+                        ...mono,
+                        marginLeft: "auto",
+                        fontSize: 10.5,
+                        color: "var(--color-faint)",
+                      }}
+                    >
                       {isVerified ? "build arena mode" : "verified mode"}
                     </span>
                   </span>
@@ -769,10 +826,17 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                       fontWeight: 600,
                     }}
                   >
-                    <StatusDot color="var(--color-teal)" size={7} />
+                    <StatusDot color="var(--color-faint)" size={7} />
                     {providerDisplayName(provider)}
-                    <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)", fontWeight: 400 }}>
-                      {providerNote(provider)}
+                    <span
+                      style={{
+                        ...mono,
+                        fontSize: 11,
+                        color: "var(--color-faint)",
+                        fontWeight: 400,
+                      }}
+                    >
+                      {providerNote(provider, endpointAvailability)}
                     </span>
                   </div>
                   {endpoints.map((ep) => {
@@ -836,7 +900,14 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                             {endpointTags(ep)}
                           </span>
                         </span>
-                        <span style={{ ...mono, fontSize: 11, color: "var(--color-muted)", textAlign: "right" }}>
+                        <span
+                          style={{
+                            ...mono,
+                            fontSize: 11,
+                            color: "var(--color-muted)",
+                            textAlign: "right",
+                          }}
+                        >
                           {ctxLabel(model.contextWindowTokens)}
                         </span>
                         <span
@@ -877,7 +948,8 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                   {unseeded.map((ep) => (
                     <div key={ep.id} style={{ lineHeight: 1.5 }}>
                       <strong>{ep.modelId}</strong> ({ep.providerId}) does not support{" "}
-                      <code style={{ ...mono }}>seed</code> — runs unseeded, flagged in the manifest.
+                      <code style={{ ...mono }}>seed</code> — runs unseeded, flagged in the
+                      manifest.
                     </div>
                   ))}
                 </Callout>
@@ -915,24 +987,61 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                     gap: 10,
                   }}
                 >
-                  <span style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
+                  <span
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 2,
+                      flex: 1,
+                      minWidth: 0,
+                    }}
+                  >
                     <span style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</span>
                     <span style={{ fontSize: 11.5, color: "var(--color-faint)" }}>{p.sub}</span>
                   </span>
-                  <span
-                    style={{
-                      ...mono,
-                      fontSize: 13,
-                      color: "var(--color-amber)",
-                      background: "var(--color-raised)",
-                      border: "1px solid var(--color-border)",
-                      borderRadius: 5,
-                      padding: "4px 10px",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {p.val}
-                  </span>
+                  {p.options && p.onSelect ? (
+                    <span role="group" aria-label={p.name} style={{ display: "flex", gap: 4 }}>
+                      {p.options.map((opt) => {
+                        const active = String(opt) === p.val;
+                        return (
+                          <button
+                            key={opt}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => p.onSelect?.(opt)}
+                            className={active ? undefined : "hover-border"}
+                            style={{
+                              ...mono,
+                              fontSize: 13,
+                              color: active ? "var(--color-amber)" : "var(--color-muted)",
+                              background: active ? "var(--color-raised)" : "none",
+                              border: `1px solid ${active ? "var(--color-amber)" : "var(--color-border)"}`,
+                              borderRadius: 5,
+                              padding: "4px 10px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            {opt}
+                          </button>
+                        );
+                      })}
+                    </span>
+                  ) : (
+                    <span
+                      style={{
+                        ...mono,
+                        fontSize: 13,
+                        color: "var(--color-amber)",
+                        background: "var(--color-raised)",
+                        border: "1px solid var(--color-border)",
+                        borderRadius: 5,
+                        padding: "4px 10px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {p.val}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -965,12 +1074,16 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                         stateColor: "var(--color-teal)",
                       },
                     ]
-                  : cfg.scorers.map((s) => ({
+                  : scorerSettings.map((s) => ({
                       key: s.type,
-                      badge: SCORER_BADGES[s.type] ?? { label: s.type.toUpperCase(), color: "var(--color-muted)" },
+                      badge: SCORER_BADGES[s.type] ?? {
+                        label: s.type.toUpperCase(),
+                        color: "var(--color-muted)",
+                      },
                       name: s.name,
                       desc: SCORER_DESCS[s.type] ?? "",
-                      stateLabel: s.enabled ? "enabled" : "off",
+                      stateLabel:
+                        s.type === "human" ? "manual after run" : s.enabled ? "enabled" : "off",
                       stateColor: s.enabled ? "var(--color-teal)" : "var(--color-faint)",
                     }))),
                 {
@@ -1007,12 +1120,23 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                   >
                     {row.badge.label}
                   </span>
-                  <span style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 0 }}>
+                  <span
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 3,
+                      flex: 1,
+                      minWidth: 0,
+                    }}
+                  >
                     <span
                       style={{
                         fontSize: 13.5,
                         fontWeight: 500,
-                        color: row.key === "safeguard" ? "var(--color-text-secondary)" : "var(--color-text)",
+                        color:
+                          row.key === "safeguard"
+                            ? "var(--color-text-secondary)"
+                            : "var(--color-text)",
                       }}
                     >
                       {row.name}
@@ -1021,7 +1145,9 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                       {row.desc}
                     </span>
                   </span>
-                  <span style={{ ...mono, fontSize: 11, color: row.stateColor, whiteSpace: "nowrap" }}>
+                  <span
+                    style={{ ...mono, fontSize: 11, color: row.stateColor, whiteSpace: "nowrap" }}
+                  >
                     {row.stateLabel}
                   </span>
                 </div>
@@ -1060,7 +1186,12 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                       {r.k}
                     </span>
                     <span
-                      style={{ ...mono, fontSize: 12.5, color: "var(--color-text-secondary)", minWidth: 0 }}
+                      style={{
+                        ...mono,
+                        fontSize: 12.5,
+                        color: "var(--color-text-secondary)",
+                        minWidth: 0,
+                      }}
                     >
                       {r.v}
                     </span>
@@ -1139,8 +1270,8 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                 </button>
               )}
               <span style={{ fontSize: 11.5, color: "var(--color-faint)" }}>
-                Launching registers this configuration and opens its live stream — Phase 1
-                replays a simulated event script; the native runner lands in Phase 2.
+                Launching records this configuration and opens its event stream. Mock endpoints
+                produce synthetic results and do not call providers.
               </span>
             </div>
           </>
@@ -1189,7 +1320,9 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
             }}
           >
             <span style={{ color: "var(--color-muted)" }}>Est. cost</span>
-            <span style={{ ...mono, color: "var(--color-amber)", fontWeight: 600 }}>{costLabel}</span>
+            <span style={{ ...mono, color: "var(--color-amber)", fontWeight: 600 }}>
+              {costLabel}
+            </span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ color: "var(--color-muted)" }}>Budget ceiling</span>
@@ -1249,7 +1382,10 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
         {state.step < 6 && (
           <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
             {continueBlocked && (
-              <span role="alert" style={{ fontSize: 12, color: "var(--color-red)", lineHeight: 1.4 }}>
+              <span
+                role="alert"
+                style={{ fontSize: 12, color: "var(--color-red)", lineHeight: 1.4 }}
+              >
                 {modelCountReason}
               </span>
             )}

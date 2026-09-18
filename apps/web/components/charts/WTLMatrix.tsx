@@ -42,7 +42,10 @@ export function WTLMatrix({
     >
       <span />
       {rows.map((c) => (
-        <span key={c.id} style={{ color: "var(--color-faint)", textAlign: "center", padding: "4px 0" }}>
+        <span
+          key={c.id}
+          style={{ color: "var(--color-faint)", textAlign: "center", padding: "4px 0" }}
+        >
           {c.label}
         </span>
       ))}
@@ -57,7 +60,11 @@ export function WTLMatrix({
                 <span
                   key={c.id}
                   title="self — not applicable"
-                  style={{ ...CELL_BASE, background: "var(--color-inset-alt)", color: "var(--color-faint)" }}
+                  style={{
+                    ...CELL_BASE,
+                    background: "var(--color-inset-alt)",
+                    color: "var(--color-faint)",
+                  }}
                 >
                   —
                 </span>

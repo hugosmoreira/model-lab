@@ -1,0 +1,36 @@
+# never ship secrets, local state, or build output into the image
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+artifacts-data
+**/artifacts-data
+**/*.db
+**/*.db-*
+**/*.sqlite
+**/*.sqlite-*
+**/*.sqlite3
+**/*.sqlite3-*
+node_modules
+**/node_modules
+**/.next
+**/dist
+**/*.tsbuildinfo
+# Chromium diagnostics are test output, not runtime assets.
+runners/build-arena/debug.log
+.git
+.github
+.claude
+.vscode
+.idea
+Dockerfile
+docker-compose*.yml
+
+# docs and evidence are not needed at runtime
+docs
+CHANGELOG.md
+CITATION.cff
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+SECURITY.md

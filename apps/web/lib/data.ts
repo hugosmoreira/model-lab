@@ -30,8 +30,11 @@ export function getProviderForEndpoint(endpointId: string) {
 /** "anthropic · cloud" / "ollama · local · RTX 4090" display string. */
 export function endpointProviderLabel(endpointId: string): string {
   const ep = getEndpoint(endpointId);
-  const parts: string[] = [ep.providerId, ep.deployment === "aggregator" ? "hosted" : ep.deployment];
-  if (ep.hardware) parts.push(ep.hardware);
+  const parts: string[] = [
+    ep.providerId,
+    ep.deployment === "aggregator" ? "hosted" : ep.deployment,
+  ];
+  // Hardware belongs to a recorded run environment, not the static endpoint catalog.
   return parts.join(" · ");
 }
 

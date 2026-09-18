@@ -10,28 +10,9 @@ const mono = { fontFamily: "var(--font-mono)" } as const;
 /** Audit: grid-template-columns 1.6fr 110px 90px 100px 130px 90px 90px 100px 90px, gap 10. */
 const GRID = {
   display: "grid",
-  gridTemplateColumns: "1.6fr 110px 90px 100px 130px 90px 90px 100px 90px",
+  gridTemplateColumns: "1.8fr 150px 90px 130px 160px",
   gap: 10,
 } as const;
-
-type EndpointStatus = ModelEndpoint["status"];
-
-/** Status is health/load state — never the model identity color. */
-const STATUS_META: Record<EndpointStatus, { label: string; color: string }> = {
-  healthy: { label: "healthy", color: "var(--color-teal)" },
-  loaded: { label: "loaded", color: "var(--color-teal)" },
-  "rate-limited": { label: "rate-limited", color: "var(--color-amber)" },
-  "not-loaded": { label: "not loaded", color: "var(--color-faint)" },
-};
-
-/**
- * Resolved audit ambiguity: the prototype renders 84% red and 95%/100% teal
- * without naming a cutoff. We standardize on reliabilityPct >= 95 ⇒ teal
- * (pass), < 95 ⇒ red (fail); null ⇒ faint "—" (never measured). 95 is the
- * lowest value the prototype shows in teal, so it is the tightest threshold
- * consistent with the design.
- */
-const RELIABILITY_PASS_THRESHOLD = 95;
 
 /** "400k" / "1M" / "10M" from a raw context-window token count. */
 function ctxLabel(tokens: number): string {
@@ -53,43 +34,16 @@ function deploymentLabel(ep: ModelEndpoint): string {
   return ep.deployment === "aggregator" ? "hosted" : ep.deployment;
 }
 
-/**
- * Relative recency ("today" / "5d ago" / "1w ago" / "1mo ago") measured
- * against the dataset's newest lastTestedAt — the fixtures' notion of "now" —
- * so the demo data never rots as wall-clock time moves on.
- */
-function relativeDay(iso: string, anchorIso: string): string {
-  const days = Math.round((Date.parse(anchorIso) - Date.parse(iso)) / 86_400_000);
-  if (!Number.isFinite(days)) return iso;
-  if (days <= 0) return "today";
-  if (days === 1) return "yesterday";
-  if (days < 7) return `${days}d ago`;
-  if (days < 30) return `${Math.floor(days / 7)}w ago`;
-  return `${Math.floor(days / 30)}mo ago`;
-}
-
-const HEADERS = [
-  "Model",
-  "Status",
-  "Ctx",
-  "Price per Mtok",
-  "Capabilities",
-  "Runs",
-  "Reliability",
-  "Avg visual",
-  "Last tested",
-] as const;
+const HEADERS = ["Model", "Status", "Ctx", "Price per Mtok", "Capabilities"] as const;
 
 export function ModelsRegistry({
   endpoints,
   modelDefinitions,
   providers,
-  resultsRunId,
 }: {
   endpoints: ModelEndpoint[];
   modelDefinitions: ModelDefinition[];
   providers: Provider[];
-  resultsRunId: string;
 }) {
   const [query, setQuery] = useState("");
 
@@ -97,19 +51,7 @@ export function ModelsRegistry({
     () => new Map(modelDefinitions.map((m) => [m.id, m])),
     [modelDefinitions],
   );
-  const providerById = useMemo(
-    () => new Map(providers.map((p) => [p.id, p])),
-    [providers],
-  );
-
-  /** Newest lastTestedAt across the registry = the fixture dataset's "today". */
-  const anchorIso = useMemo(() => {
-    let max = "";
-    for (const ep of endpoints) {
-      if (ep.lastTestedAt && ep.lastTestedAt > max) max = ep.lastTestedAt;
-    }
-    return max;
-  }, [endpoints]);
+  const providerById = useMemo(() => new Map(providers.map((p) => [p.id, p])), [providers]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -198,18 +140,16 @@ export function ModelsRegistry({
           />
         </div>
         <span style={{ fontSize: 12, color: "var(--color-faint)" }}>
-          Same model on different providers = separate endpoints — never merged.
+          Built-in catalog; prices and capabilities are estimates. Check Providers for current
+          connection health.
         </span>
-        <span
-          role="status"
-          style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}
-        >
+        <span role="status" style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>
           {filtered.length}/{endpoints.length} endpoints
         </span>
         <button
           type="button"
           disabled
-          title="registration lands with the runner — Phase 2"
+          title="Custom endpoint registration is not available in this interface"
           style={{
             marginLeft: "auto",
             background: "var(--color-raised)",
@@ -247,7 +187,6 @@ export function ModelsRegistry({
 
           {filtered.map((ep) => {
             const model = modelById.get(ep.modelId);
-            const status = STATUS_META[ep.status];
             const identityLine = [
               model?.family ?? ep.modelId,
               ep.providerId,
@@ -281,12 +220,19 @@ export function ModelsRegistry({
                     >
                       {ep.modelId}
                     </span>
-                    <span style={{ fontSize: 11, color: "var(--color-faint)" }}>{identityLine}</span>
+                    <span style={{ fontSize: 11, color: "var(--color-faint)" }}>
+                      {identityLine}
+                    </span>
                   </span>
                 </span>
 
                 {/* Status */}
-                <span style={{ ...mono, fontSize: 11, color: status.color }}>{status.label}</span>
+                <Link
+                  href="/settings/providers"
+                  style={{ ...mono, fontSize: 11, color: "var(--color-amber)" }}
+                >
+                  Check connection →
+                </Link>
 
                 {/* Ctx */}
                 <span style={{ ...mono, fontSize: 11.5, color: "var(--color-muted)" }}>
@@ -301,59 +247,6 @@ export function ModelsRegistry({
                 {/* Capabilities */}
                 <span style={{ fontSize: 11.5, color: "var(--color-faint)" }}>
                   {(model?.capabilities ?? []).join(" · ")}
-                </span>
-
-                {/* Runs */}
-                <span style={{ ...mono, fontSize: 11.5, color: "var(--color-muted)" }}>
-                  {ep.runsCount}
-                </span>
-
-                {/* Reliability */}
-                {ep.reliabilityPct == null ? (
-                  <span
-                    title="not yet measured"
-                    style={{ ...mono, fontSize: 11.5, color: "var(--color-faint)" }}
-                  >
-                    —
-                  </span>
-                ) : (
-                  <span
-                    style={{
-                      ...mono,
-                      fontSize: 11.5,
-                      color:
-                        ep.reliabilityPct >= RELIABILITY_PASS_THRESHOLD
-                          ? "var(--color-teal)"
-                          : "var(--color-red)",
-                    }}
-                  >
-                    {ep.reliabilityPct}%
-                  </span>
-                )}
-
-                {/* Avg visual */}
-                <span
-                  style={{
-                    ...mono,
-                    fontSize: 11.5,
-                    color: ep.avgVisualScore == null ? "var(--color-faint)" : "var(--color-muted)",
-                  }}
-                >
-                  {ep.avgVisualScore == null ? "— n/a" : `${ep.avgVisualScore.toFixed(1)} avg`}
-                </span>
-
-                {/* Last tested */}
-                <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>
-                    {ep.lastTestedAt ? relativeDay(ep.lastTestedAt, anchorIso) : "never"}
-                  </span>
-                  <Link
-                    href={`/runs/${resultsRunId}/results`}
-                    className="hover-amber"
-                    style={{ fontSize: 11, color: "var(--color-amber)" }}
-                  >
-                    results →
-                  </Link>
                 </span>
               </div>
             );

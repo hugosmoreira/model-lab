@@ -166,7 +166,9 @@ export function ArenaGrid({ data }: { data: ArenaData }) {
                 overflow: "hidden",
               }}
             >
-              {/* Preview area — Phase 2 replaces the placeholder scene with the stored screenshot */}
+              {/* Preview area — the stored capture when the run has one; the
+                  identity-coloured placeholder only for fixture runs that never
+                  produced a screenshot. */}
               <div
                 style={{
                   position: "relative",
@@ -176,7 +178,23 @@ export function ArenaGrid({ data }: { data: ArenaData }) {
                 }}
               >
                 {b.renderOk ? (
-                  <ScenePlaceholder color={b.color} seedKey={b.endpointId} variant="card" />
+                  b.artifact.screenshotRef != null ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- served by our own screenshots route, sized by the card
+                    <img
+                      src={b.artifact.screenshotRef}
+                      alt={`Rendered frame of ${name}'s build, as captured by the browser checks`}
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        objectPosition: "top",
+                        background: "var(--color-void)",
+                      }}
+                    />
+                  ) : (
+                    <ScenePlaceholder color={b.color} seedKey={b.endpointId} variant="card" />
+                  )
                 ) : (
                   <FailureTrace
                     lines={b.artifact.consoleLines}
@@ -185,9 +203,11 @@ export function ArenaGrid({ data }: { data: ArenaData }) {
                     inset={14}
                   />
                 )}
-                <span style={{ position: "absolute", left: 10, bottom: 10, display: "flex", gap: 6 }}>
+                <span
+                  style={{ position: "absolute", left: 10, bottom: 10, display: "flex", gap: 6 }}
+                >
                   <Link href={href} className="hover-amber-border" style={overlayBtn}>
-                    ▶ Play
+                    View capture
                   </Link>
                   <Link href={href} className="hover-border" style={overlayBtn}>
                     Inspect ⧉
@@ -247,7 +267,7 @@ export function ArenaGrid({ data }: { data: ArenaData }) {
                     fontSize: 11.5,
                   }}
                 >
-                  <Metric label="VISUAL" value={b.visualLabel} color="var(--color-text)" />
+                  <Metric label="HUMAN" value={b.visualLabel} color="var(--color-text)" />
                   {/* Capability ratio — gates zero it, diagnostics never count. */}
                   <Metric
                     label={b.testsGate != null ? "GATE FAILED" : "CAPABILITY"}

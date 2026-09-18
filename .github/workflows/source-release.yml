@@ -1,0 +1,116 @@
+name: Prepare reviewed source release
+
+# This creates only a DRAFT GitHub release, after an explicit maintainer dispatch
+# on main. It never builds/pushes a container or changes repository visibility.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing reviewed source tag on main (for example v0.2.0-rc.1)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-release
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      revision: ${{ steps.candidate.outputs.revision }}
+      tag: ${{ steps.candidate.outputs.tag }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Resolve existing tag and require main ancestry
+        id: candidate
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] || { echo "Use a version or release-candidate tag"; exit 1; }
+          revision=$(git rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}")
+          git merge-base --is-ancestor "$revision" origin/main
+          printf 'revision=%s\ntag=%s\n' "$revision" "$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+
+  verify:
+    needs: candidate
+    uses: ./.github/workflows/ci.yml
+    with:
+      revision: ${{ needs.candidate.outputs.revision }}
+      skip_image_checks: true
+    permissions:
+      contents: read
+
+  prepare:
+    needs: [candidate, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Configure required reviewers/main-only access before first dispatch.
+    environment: github-release
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ needs.candidate.outputs.tag }}
+      RELEASE_REVISION: ${{ needs.candidate.outputs.revision }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.candidate.outputs.revision }}
+          persist-credentials: false
+      - name: Require aligned versions and a clean candidate
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const expected = process.env.RELEASE_TAG.slice(1);
+          for (const file of ['package.json', 'apps/web/package.json', 'packages/schemas/package.json', 'packages/store/package.json', 'runners/build-arena/package.json']) {
+            if (JSON.parse(readFileSync(file)).version !== expected) throw new Error(`Align ${file} with ${expected} before preparing a release`);
+          }
+          const citation = readFileSync('CITATION.cff', 'utf8').match(/^version:\s*["']?([^"'#\s]+)["']?\s*$/m)?.[1];
+          if (citation !== expected) throw new Error(`Align CITATION.cff with ${expected} before preparing a release`);
+          NODE
+          test "$(git rev-parse HEAD)" = "$RELEASE_REVISION"
+          test -z "$(git status --porcelain)"
+      - name: Package only the verified Git source tree
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts-data/source-release
+          archive="model-lab-${RELEASE_TAG#v}-source.zip"
+          git archive --format=zip --prefix="model-lab-${RELEASE_TAG#v}/" --output="artifacts-data/source-release/$archive" "$RELEASE_REVISION"
+          printf '%s\n' "$RELEASE_REVISION" > artifacts-data/source-release/SOURCE_REVISION
+          cd artifacts-data/source-release
+          sha256sum "$archive" SOURCE_REVISION > SHA256SUMS
+      - name: Write source-only release notes
+        run: |
+          sed "s|/blob/main/|/blob/$RELEASE_REVISION/|g" docs/SOURCE_RELEASE_NOTES.md > artifacts-data/source-release/RELEASE_NOTES.md
+          printf '\nVerified source commit: `%s`\n\nVerification run: https://github.com/%s/actions/runs/%s\n' "$RELEASE_REVISION" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> artifacts-data/source-release/RELEASE_NOTES.md
+      - name: Create a draft for maintainer review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          flags=(--draft --verify-tag --latest=false)
+          if [[ "$RELEASE_TAG" == *-rc.* ]]; then flags+=(--prerelease); fi
+          gh release create "$RELEASE_TAG" "${flags[@]}" \
+            --title "Model Lab $RELEASE_TAG — source release" \
+            --notes-file artifacts-data/source-release/RELEASE_NOTES.md \
+            artifacts-data/source-release/*-source.zip \
+            artifacts-data/source-release/SOURCE_REVISION \
+            artifacts-data/source-release/SHA256SUMS
+          printf 'Draft source release prepared for `%s`. No container was published.\n' "$RELEASE_REVISION" >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain source packet
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: source-release-packet
+          path: artifacts-data/source-release/
+          if-no-files-found: warn
+          retention-days: 90

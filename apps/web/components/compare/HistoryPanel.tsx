@@ -4,7 +4,7 @@ export interface HistoryRow {
   pairIndex: number;
   /** "5/6" */
   index: string;
-  /** "gpt-5.2-mini vs gemini-3-fl" (short names) */
+  /** Neutral A/B labels until final; model short names only after reveal. */
   pairing: string;
   /** "you: A wins · high" | "pending your vote" | "skipped / invalid" */
   yourVote: string;

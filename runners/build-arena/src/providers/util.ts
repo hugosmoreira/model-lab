@@ -4,6 +4,7 @@
  * every provider routes error text through scrubSecrets/errorMessage.
  */
 import type { FinishReason } from "../types";
+import { providerDeadline, PROVIDER_LIMITS, ProviderSafetyError } from "./limits";
 
 /** Redact anything that looks like a credential from arbitrary text. */
 export function scrubSecrets(text: string): string {
@@ -62,30 +63,81 @@ export interface SseEvent {
   data: string;
 }
 
+interface StreamOptions {
+  signal?: AbortSignal;
+  idleMs?: number;
+  totalMs?: number;
+  frameBytes?: number;
+  streamBytes?: number;
+}
+
+/** Bounded diagnostic/health response reader; never materializes an unlimited body. */
+export async function readBoundedText(
+  body: ReadableStream<Uint8Array> | null,
+  options: StreamOptions & { maxBytes?: number } = {},
+): Promise<string> {
+  if (body === null) return "";
+  const deadline = providerDeadline(options.signal, options);
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let bytes = 0;
+  let text = "";
+  try {
+    for (;;) {
+      const { done, value } = await deadline.wait(reader.read());
+      if (done) return text + decoder.decode();
+      deadline.touch();
+      bytes += value.byteLength;
+      if (bytes > (options.maxBytes ?? PROVIDER_LIMITS.errorBytes)) {
+        throw new ProviderSafetyError("provider response body exceeds byte limit");
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+  } finally {
+    deadline.dispose();
+    void reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
+}
+
 /** Incremental server-sent-events parser over a fetch response body. */
 export async function* readSse(
   body: ReadableStream<Uint8Array>,
+  options: StreamOptions = {},
 ): AsyncGenerator<SseEvent, void, void> {
+  const deadline = providerDeadline(options.signal, options);
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buf = "";
   let eventName: string | null = null;
   let dataLines: string[] = [];
+  let frameBytes = 0;
+  let streamBytes = 0;
+  const frameLimit = options.frameBytes ?? PROVIDER_LIMITS.frameBytes;
   try {
     for (;;) {
-      const { done, value } = await reader.read();
+      const { done, value } = await deadline.wait(reader.read());
       if (done) break;
+      deadline.touch();
+      streamBytes += value.byteLength;
+      if (streamBytes > (options.streamBytes ?? PROVIDER_LIMITS.streamBytes)) {
+        throw new ProviderSafetyError("provider stream exceeds total byte limit");
+      }
       buf += decoder.decode(value, { stream: true });
       let nl = buf.indexOf("\n");
       while (nl >= 0) {
         const line = buf.slice(0, nl).replace(/\r$/, "");
         buf = buf.slice(nl + 1);
+        frameBytes += Buffer.byteLength(line, "utf8") + 1;
+        if (frameBytes > frameLimit)
+          throw new ProviderSafetyError("provider SSE frame exceeds byte limit");
         if (line === "") {
           if (dataLines.length > 0) {
             yield { event: eventName, data: dataLines.join("\n") };
           }
           eventName = null;
           dataLines = [];
+          frameBytes = 0;
         } else if (line.startsWith("event:")) {
           eventName = line.slice(6).trim();
         } else if (line.startsWith("data:")) {
@@ -93,11 +145,19 @@ export async function* readSse(
         }
         nl = buf.indexOf("\n");
       }
+      if (frameBytes + Buffer.byteLength(buf, "utf8") > frameLimit) {
+        throw new ProviderSafetyError("provider SSE frame exceeds byte limit");
+      }
     }
+    buf += decoder.decode();
+    if (buf.startsWith("data:")) dataLines.push(buf.slice(5).trimStart());
     if (dataLines.length > 0) {
       yield { event: eventName, data: dataLines.join("\n") };
     }
   } finally {
+    deadline.dispose();
+    // Breaking on [DONE], malformed input and caller abort all close transport.
+    void reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }
 }

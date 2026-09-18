@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or discussion
+    url: https://github.com/hugosmoreira/model-lab/discussions
+    about: Ask how something works, share a run, or float an idea before opening an issue.
+  - name: Security vulnerability
+    url: https://github.com/hugosmoreira/model-lab/security/advisories/new
+    about: Report privately. Please do not open a public issue for anything exploitable.

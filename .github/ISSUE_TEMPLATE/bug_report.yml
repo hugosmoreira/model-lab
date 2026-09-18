@@ -1,0 +1,45 @@
+name: Bug report
+description: Something is wrong — a crash, a wrong score, a page that does not render.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you saw instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. pnpm dev
+        2. New Run → raycaster-oneshot → …
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: run
+    attributes:
+      label: Run id or bundle
+      description: The `run_…` id, or attach the exported bundle zip if the bug is about scoring.
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      value: |
+        - OS:
+        - Node (`node -v`):
+        - pnpm (`pnpm -v`):
+        - Store backend (MODEL_LAB_STORE):
+        - Providers involved (cloud / Ollama / mock):
+        - Commit or release:
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Terminal output, browser console, or the relevant lines of `events.jsonl`. Keys are scrubbed by the app, but please check before pasting.
+      render: text

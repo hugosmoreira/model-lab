@@ -1,0 +1,17 @@
+{
+  "version": "153.0.8010.52",
+  "minimumVersion": "153.0.8010.52",
+  "source": "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json",
+  "platforms": {
+    "win32-x64": {
+      "url": "https://storage.googleapis.com/chrome-for-testing-public/153.0.8010.52/win64/chrome-headless-shell-win64.zip",
+      "sha256": "2f9f79949b9c054b09a5cc1978df065cc9374bcef79e0dc3362eeb1d3bda9f2b",
+      "executable": "chrome-headless-shell-win64/chrome-headless-shell.exe"
+    },
+    "linux-x64": {
+      "url": "https://storage.googleapis.com/chrome-for-testing-public/153.0.8010.52/linux64/chrome-headless-shell-linux64.zip",
+      "sha256": "944dc1eae654637fed4d57650198774f9c43b45f34e48febb84f43c541b5de76",
+      "executable": "chrome-headless-shell-linux64/chrome-headless-shell"
+    }
+  }
+}

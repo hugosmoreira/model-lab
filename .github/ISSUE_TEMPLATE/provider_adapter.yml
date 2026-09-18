@@ -1,0 +1,49 @@
+name: New provider adapter
+description: Add a model provider (cloud API, aggregator, or local server).
+labels: [provider, enhancement]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Provider
+      placeholder: e.g. Mistral, Groq, LM Studio
+    validations:
+      required: true
+  - type: dropdown
+    id: protocol
+    attributes:
+      label: API style
+      description: OpenAI-compatible providers are ~20 lines in `runners/build-arena/src/providers/`; native protocols implement the streaming `Provider` interface.
+      options:
+        - OpenAI-compatible (chat/completions with SSE streaming)
+        - Native protocol
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: base
+    attributes:
+      label: Base URL
+      placeholder: https://api.example.com/v1
+  - type: input
+    id: key
+    attributes:
+      label: Credential environment variable
+      description: The name only, never a value.
+      placeholder: EXAMPLE_API_KEY
+  - type: textarea
+    id: details
+    attributes:
+      label: Streaming, usage, and finish reasons
+      description: Does the API stream token deltas? Does it report input/output/reasoning token usage? What does it return as a stop reason when the output cap is hit?
+  - type: input
+    id: pricing
+    attributes:
+      label: Pricing source
+      description: A URL for per-token prices, so cost estimates can be honest.
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contribution
+      options:
+        - label: I can implement this and have an account to test it against

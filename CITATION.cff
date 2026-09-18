@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use Model Lab in research or a published comparison, please cite it."
+title: "Model Lab: LLM Benchmark & Build Arena"
+type: software
+authors:
+  - family-names: Moreira
+    given-names: Hugo
+repository-code: "https://github.com/hugosmoreira/model-lab"
+license: MIT
+version: 0.2.0-rc.1
+abstract: >-
+  Local-first tool for reproducible LLM comparisons: the same one-shot build
+  challenge is sent to several cloud and local models under identical
+  configuration, every generated artifact is executed and tested in a
+  sandboxed browser, builds are graded by an order-swapped LLM judge that sees
+  the rendered frame, and results export as bundles that trace back to a
+  content-addressed run fingerprint.
+keywords:
+  - llm
+  - benchmark
+  - evaluation
+  - llm-as-a-judge
+  - playwright

@@ -212,7 +212,7 @@ export function SampleExplorer({
                   <button
                     key={r.sample.globalIndex}
                     type="button"
-                    aria-selected={isSel}
+                    aria-pressed={isSel}
                     onClick={() => setSelectedIndex(r.sample.globalIndex)}
                     className="smpx-row"
                     style={{

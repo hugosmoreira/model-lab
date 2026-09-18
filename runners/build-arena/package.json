@@ -1,6 +1,6 @@
 {
   "name": "@model-lab/build-arena-runner",
-  "version": "0.1.0",
+  "version": "0.2.0-rc.1",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
@@ -11,16 +11,25 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit",
-    "lint": "echo runner: no lint configured",
-    "test:checks": "node --experimental-strip-types --disable-warning=ExperimentalWarning test/check-taxonomy.test.mjs"
+    "lint": "pnpm -w exec eslint runners/build-arena",
+    "test:checks": "node --experimental-strip-types --disable-warning=ExperimentalWarning test/check-taxonomy.test.mjs",
+    "selftest": "tsx src/selftest.ts",
+    "test": "pnpm run test:unit && pnpm run test:providers && pnpm run test:health && pnpm run test:evidence && pnpm run test:boundaries && pnpm run test:checks && pnpm run test:budget && pnpm run selftest",
+    "test:unit": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test test/unit.test.mjs",
+    "test:budget": "node --experimental-strip-types --disable-warning=ExperimentalWarning test/budget.test.mjs",
+    "test:providers": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test test/provider-limits.test.mjs",
+    "test:health": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test test/provider-health.test.mjs",
+    "test:evidence": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test test/evidence-replay.test.mjs",
+    "test:boundaries": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test test/browser-boundaries.test.mjs"
   },
   "dependencies": {
     "@model-lab/schemas": "workspace:*",
-    "playwright": "^1.56.0",
+    "playwright": "1.63.0",
     "zod": "^4.1.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "tsx": "^4.23.13",
     "typescript": "^5.9.0"
   }
 }

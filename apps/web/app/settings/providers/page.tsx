@@ -1,11 +1,25 @@
+import { connection } from "next/server";
+import { resolveBackend } from "@model-lab/store";
 import { TopBar } from "@/components/shell/TopBar";
 import { Callout, SectionLabel } from "@/components/ui/primitives";
+import { LiveProviders } from "@/components/settings/LiveProviders";
 import { ProviderCard } from "@/components/settings/ProviderCard";
 import { SettingsGrid } from "@/components/settings/SettingsGrid";
 import { fixtures } from "@/lib/data";
 
-export default function ProvidersPage() {
+/** Live cards on a persistent store; the in-memory demo keeps its fixture cards. */
+function isLiveWorkspace(): boolean {
+  try {
+    return resolveBackend() !== "memory";
+  } catch {
+    return true;
+  }
+}
+
+export default async function ProvidersPage() {
+  await connection();
   const { providers } = fixtures;
+  const live = isLiveWorkspace();
 
   return (
     <>
@@ -26,29 +40,29 @@ export default function ProvidersPage() {
         }}
       >
         <Callout variant="note" glyph="🔒">
-          Provider keys live in the OS keychain or a server-side encrypted store.
-          Only masked previews ever reach the browser — never the key, never in
-          logs.
+          Provider keys are read from this server&apos;s environment (the root <code>.env</code>).
+          Only whether a key is set ever reaches the browser — never the key, never in logs.
         </Callout>
 
         {/* Provider cards */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit,minmax(270px,1fr))",
-            gap: 12,
-          }}
-        >
-          {providers.map((p) => (
-            <ProviderCard key={p.id} provider={p} />
-          ))}
-        </div>
+        {live ? (
+          <LiveProviders initial={providers} />
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit,minmax(270px,1fr))",
+              gap: 12,
+            }}
+          >
+            {providers.map((p) => (
+              <ProviderCard key={p.id} provider={p} />
+            ))}
+          </div>
+        )}
 
         {/* Workspace settings (deep-linkable) */}
-        <section
-          id="settings"
-          style={{ display: "flex", flexDirection: "column", gap: 10 }}
-        >
+        <section id="settings" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <SectionLabel>Workspace settings</SectionLabel>
           <SettingsGrid />
         </section>

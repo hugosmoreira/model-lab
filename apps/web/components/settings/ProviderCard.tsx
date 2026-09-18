@@ -6,24 +6,18 @@ const mono = { fontFamily: "var(--font-mono)" } as const;
 /**
  * Demo clock anchor for relative "last test" labels. The provider fixtures'
  * lastTestedAt values (14:30 / 14:28 / 14:14 / 14:31 UTC) are authored against
- * this moment so the cards read "2 min ago", "4 min ago", "18 min ago",
- * "1 min ago" exactly as in the prototype. Phase 2 swaps this for Date.now().
+ * this moment so the demo cards read "2 min ago", "4 min ago", "18 min ago",
+ * "1 min ago". A live instance passes the real clock via `now`.
  */
 const FIXTURE_NOW_ISO = "2026-07-31T14:32:00Z";
 
-function minutesAgo(iso: string): string {
-  const mins = Math.max(
-    0,
-    Math.round((Date.parse(FIXTURE_NOW_ISO) - Date.parse(iso)) / 60_000),
-  );
+function minutesAgo(iso: string, now: number): string {
+  const mins = Math.max(0, Math.round((now - Date.parse(iso)) / 60_000));
   return mins === 0 ? "just now" : `${mins} min ago`;
 }
 
 /** Status → circle-dot color + status-text color (never model colors). */
-const STATUS_META: Record<
-  Provider["status"],
-  { dot: string; text: string }
-> = {
+const STATUS_META: Record<Provider["status"], { dot: string; text: string }> = {
   connected: { dot: "var(--color-teal)", text: "var(--color-teal)" },
   "rate-limited": { dot: "var(--color-amber)", text: "var(--color-amber)" },
   disconnected: { dot: "var(--color-disabled)", text: "var(--color-faint)" },
@@ -35,26 +29,42 @@ function modelsLabel(p: Provider): string {
   return "—";
 }
 
-function lastTestLabel(p: Provider): string {
+function lastTestLabel(p: Provider, now: number): string {
   if (!p.lastTestedAt) return "never";
-  const rel = minutesAgo(p.lastTestedAt);
+  const rel = minutesAgo(p.lastTestedAt, now);
   if (p.isLocal && p.localEndpoint) return `${rel} · ${p.localEndpoint}`;
   if (p.healthLatencyMs != null) return `${rel} · ${p.healthLatencyMs}ms`;
   return rel;
 }
 
 function credentialLabel(p: Provider): string {
-  return p.credentialStore === "keychain"
-    ? `${p.credentialMasked} (keychain)`
-    : p.credentialMasked;
+  return p.credentialStore === "keychain" ? `${p.credentialMasked} (keychain)` : p.credentialMasked;
 }
 
-const DISABLED_TITLE = "wired in Phase 2";
+const DISABLED_TITLE = "keys live in the server's environment — edit .env and restart";
 
-export function ProviderCard({ provider: p }: { provider: Provider }) {
+export function ProviderCard({
+  provider: p,
+  now = Date.parse(FIXTURE_NOW_ISO),
+  onTest,
+  testing = false,
+  mocked = false,
+}: {
+  provider: Provider;
+  /** clock for the "last test" label; the fixture anchor for the demo, Date.now() when live */
+  now?: number;
+  /** when present, "Test connection" is live and calls it */
+  onTest?: () => void;
+  testing?: boolean;
+  /** Provider probes are disabled by forced mock mode. */
+  mocked?: boolean;
+}) {
   const meta = STATUS_META[p.status];
-  const statusText =
-    p.status === "connected" && p.isLocal ? "connected · local" : p.status;
+  const statusText = mocked
+    ? "mock · no network"
+    : p.status === "connected" && p.isLocal
+      ? "connected · local"
+      : p.status;
   const contextAction = p.status === "disconnected" ? "Connect" : "Disable";
 
   return (
@@ -72,9 +82,7 @@ export function ProviderCard({ provider: p }: { provider: Provider }) {
       <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
         <StatusDot color={meta.dot} size={8} />
         <span style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</span>
-        <span
-          style={{ ...mono, fontSize: 11, color: meta.text, marginLeft: "auto" }}
-        >
+        <span style={{ ...mono, fontSize: 11, color: meta.text, marginLeft: "auto" }}>
           {statusText}
         </span>
       </div>
@@ -93,7 +101,7 @@ export function ProviderCard({ provider: p }: { provider: Provider }) {
         <span>models</span>
         <span style={{ color: "var(--color-muted)" }}>{modelsLabel(p)}</span>
         <span>last test</span>
-        <span style={{ color: "var(--color-muted)" }}>{lastTestLabel(p)}</span>
+        <span style={{ color: "var(--color-muted)" }}>{lastTestLabel(p, now)}</span>
         <span>credential</span>
         <span style={{ color: "var(--color-muted)" }}>{credentialLabel(p)}</span>
       </div>
@@ -119,8 +127,15 @@ export function ProviderCard({ provider: p }: { provider: Provider }) {
       <div style={{ display: "flex", gap: 7, marginTop: "auto", fontSize: 12 }}>
         <button
           type="button"
-          disabled
-          title={DISABLED_TITLE}
+          disabled={onTest === undefined || testing || mocked}
+          title={
+            mocked
+              ? "provider probes are disabled in forced mock mode"
+              : onTest === undefined
+                ? "live on a persistent store; the demo workspace shows fixture status"
+                : "probe this provider's model list again"
+          }
+          onClick={onTest}
           className="hover-border"
           style={{
             background: "var(--color-raised)",
@@ -130,10 +145,10 @@ export function ProviderCard({ provider: p }: { provider: Provider }) {
             padding: "5px 11px",
             fontSize: 12,
             fontFamily: "inherit",
-            cursor: "not-allowed",
+            cursor: onTest === undefined || testing || mocked ? "not-allowed" : "pointer",
           }}
         >
-          Test connection
+          {mocked ? "Probes disabled" : testing ? "Testing…" : "Test connection"}
         </button>
         <button
           type="button"

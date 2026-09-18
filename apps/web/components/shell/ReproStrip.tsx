@@ -25,7 +25,13 @@ function Field({ k, v }: { k: string; v: string }) {
       >
         {k}
       </span>
-      <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-text-secondary)" }}>
+      <span
+        style={{
+          fontFamily: "var(--font-mono)",
+          fontSize: 11,
+          color: "var(--color-text-secondary)",
+        }}
+      >
         {v}
       </span>
     </span>
@@ -36,7 +42,12 @@ export function ReproStrip({ manifest }: { manifest: RunManifest }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
 
   async function copyManifest() {
     try {
@@ -71,6 +82,19 @@ export function ReproStrip({ manifest }: { manifest: RunManifest }) {
       <Field k="date" v={manifest.date} />
       <Field k="samples" v={`n=${manifest.samplesPerModel} × ${manifest.modelCount} models`} />
       <Field k="scorers" v={manifest.scorers.join(" + ")} />
+      {manifest.environment != null && (
+        <Field
+          k="environment"
+          v={
+            `node ${manifest.environment.node} · ${manifest.environment.chromium ?? "no browser"}` +
+            (manifest.environment.localHardware ? ` · ${manifest.environment.localHardware}` : "")
+          }
+        />
+      )}
+      {manifest.environment != null &&
+        Object.keys(manifest.environment.servedModels).length > 0 && (
+          <Field k="served" v={Object.values(manifest.environment.servedModels).join(" · ")} />
+        )}
       <span style={{ marginLeft: "auto", paddingLeft: 14, display: "flex", gap: 8 }}>
         <button
           type="button"

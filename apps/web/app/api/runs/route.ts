@@ -17,7 +17,10 @@ import { z } from "zod";
 import { RunMode } from "@model-lab/schemas";
 import { getStore } from "@model-lab/store";
 import { listRuns as listRegistryRuns, type RunRecord } from "@/lib/live/run-registry";
+import { isReadOnly, readOnlyResponse } from "@/lib/server/read-only";
+import { guardMutationRequest } from "@/lib/server/mutation-guard";
 import { RunServiceError, startRun } from "@/lib/server/run-service";
+import { reconcileInterruptedRuns } from "@/lib/server/run-recovery";
 
 export const dynamic = "force-dynamic";
 
@@ -27,10 +30,16 @@ const CreateRunRequest = z.object({
   packSlug: z.string().min(1),
   endpointIds: z.array(z.string().min(1)).min(1),
   samplesPerModel: z.number().int().min(1),
+  /** hard ceiling in USD; the workspace default when omitted */
+  maxBudgetUsd: z.number().positive().max(1000).optional(),
 });
 export type CreateRunRequest = z.infer<typeof CreateRunRequest>;
 
 export async function POST(req: NextRequest) {
+  if (isReadOnly()) return readOnlyResponse();
+  const rejected = guardMutationRequest(req);
+  if (rejected !== null) return rejected;
+
   let body: unknown;
   try {
     body = await req.json();
@@ -53,16 +62,14 @@ export async function POST(req: NextRequest) {
       packSlug: parsed.data.packSlug,
       endpointIds: parsed.data.endpointIds,
       samplesPerModel: parsed.data.samplesPerModel,
+      ...(parsed.data.maxBudgetUsd !== undefined ? { maxBudgetUsd: parsed.data.maxBudgetUsd } : {}),
     });
     return NextResponse.json({ runId }, { status: 201 });
   } catch (err) {
     if (err instanceof RunServiceError) {
       return NextResponse.json({ error: err.message }, { status: 400 });
     }
-    return NextResponse.json(
-      { error: "Run creation failed unexpectedly." },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Run creation failed unexpectedly." }, { status: 500 });
   }
 }
 
@@ -71,6 +78,7 @@ export async function GET() {
   let storeRecords: RunRecord[] = [];
   try {
     const store = await getStore();
+    await reconcileInterruptedRuns(store);
     const runs = await store.listRuns();
     storeRecords = await Promise.all(
       runs.map(async (run): Promise<RunRecord> => {
@@ -90,7 +98,7 @@ export async function GET() {
       }),
     );
   } catch {
-    // store unavailable/misconfigured — registry records still list
+    return NextResponse.json({ error: "Run storage is temporarily unavailable." }, { status: 503 });
   }
 
   const byId = new Map<string, RunRecord>();

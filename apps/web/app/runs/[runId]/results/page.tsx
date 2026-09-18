@@ -3,7 +3,13 @@ import type { CSSProperties, ReactNode } from "react";
 import type { RunModel, SampleResult } from "@model-lab/schemas";
 import { TopBar } from "@/components/shell/TopBar";
 import { ReproStrip } from "@/components/shell/ReproStrip";
-import { Callout, EmptyState, ModelDot, Panel, RUN_STATUS_COLORS } from "@/components/ui/primitives";
+import {
+  Callout,
+  EmptyState,
+  ModelDot,
+  Panel,
+  RUN_STATUS_COLORS,
+} from "@/components/ui/primitives";
 import { CategoryBars, type CategoryRow } from "@/components/charts/CategoryBars";
 import { CostQualityScatter, type ScatterPoint } from "@/components/charts/CostQualityScatter";
 import { LatencyBands, type LatencyBandRow } from "@/components/charts/LatencyBands";
@@ -11,6 +17,7 @@ import { WTLMatrix } from "@/components/charts/WTLMatrix";
 import { capabilityForModel, type CapabilityTally } from "@/lib/checks";
 import { endpointProviderLabel, modelColor, modelIdOf, shortNameOf } from "@/lib/data";
 import { getRunView } from "@/lib/server/loaders";
+import { modelScoreSource, scoreAxisLabel, SCORE_LABELS } from "@/lib/score-presentation";
 import { mmss, seconds, usd } from "@/lib/format";
 
 /** Reads the persistence store — must render per request. */
@@ -87,6 +94,7 @@ interface SampleStats {
 function buildSampleStats(samples: SampleResult[]): Map<string, SampleStats> {
   const map = new Map<string, SampleStats>();
   for (const s of samples) {
+    if (s.status !== "scored" && s.status !== "failed") continue;
     const cur = map.get(s.endpointId) ?? { failed: 0, total: 0, min: null, max: null };
     cur.total += 1;
     if (s.status === "failed" || (s.score != null && "failed" in s.score)) {
@@ -100,11 +108,7 @@ function buildSampleStats(samples: SampleResult[]): Map<string, SampleStats> {
   return map;
 }
 
-export default async function ResultsPage({
-  params,
-}: {
-  params: Promise<{ runId: string }>;
-}) {
+export default async function ResultsPage({ params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
   const view = await getRunView(runId);
   const {
@@ -119,7 +123,7 @@ export default async function ResultsPage({
   const n = run.samplesPerModel;
   const stats = buildSampleStats(samples);
   const statsFor = (endpointId: string): SampleStats =>
-    stats.get(endpointId) ?? { failed: 0, total: n, min: null, max: null };
+    stats.get(endpointId) ?? { failed: 0, total: 0, min: null, max: null };
 
   /* Verified runs have no artifacts/browser checks — objective scores only. */
   const isVerified = run.mode === "verified";
@@ -153,7 +157,10 @@ export default async function ResultsPage({
         case "browser":
           return { name: "BROWSER / TEST", color: "var(--color-teal)" };
         case "human":
-          return { name: `HUMAN RUBRIC ${s.rubricVersion ?? ""}`.trim(), color: "var(--color-amber)" };
+          return {
+            name: `HUMAN RUBRIC ${s.rubricVersion ?? ""}`.trim(),
+            color: "var(--color-amber)",
+          };
         case "llm-judge":
           return {
             name: `LLM JUDGE${s.orderSwapped ? " (order-swapped)" : ""}`,
@@ -198,24 +205,28 @@ export default async function ResultsPage({
 
   // Scored annotations make a run human-scored even without a configured
   // human scorer — visual ratings arrive post-run via the audit trail.
-  const hasHumanRatings = view.annotations.some((a) => a.scoreOverride != null);
+  const hasHumanRatings = runModels.some(
+    (rm) => rm.visualSource === "human" && rm.visualScore != null,
+  );
   if (hasHumanRatings && humanScorer == null) {
     scorerBadges.push({ name: "HUMAN (visual ratings)", color: "var(--color-amber)" });
   }
-  const humanScored = humanScorer != null || (hasHumanRatings && !isVerified);
+  const scoreLabel = scoreAxisLabel(
+    runModels.filter((rm) => rm.visualScore != null).map(modelScoreSource),
+  );
 
   /* ---------- category bars (all values computed from the run's own data) ---------- */
   // Efficiency = 1 − (0.5·costNorm + 0.5·latencyNorm), each normalized 0–1
   // against the most expensive / slowest model in the run. Higher = cheaper + faster.
   const maxCost = Math.max(...runModels.map((rm) => rm.costUsd), 0.0001);
   const maxLat = Math.max(...runModels.map((rm) => rm.totalLatencyMs ?? 0), 1);
-  const efficiency = (rm: RunModel): number =>
-    1 - (0.5 * (rm.costUsd / maxCost) + 0.5 * ((rm.totalLatencyMs ?? maxLat) / maxLat));
+  const efficiency = (rm: RunModel): number | null =>
+    rm.totalLatencyMs == null
+      ? null
+      : 1 - (0.5 * (rm.costUsd / maxCost) + 0.5 * (rm.totalLatencyMs / maxLat));
 
   const hasVisual = runModels.some((rm) => rm.visualScore != null);
-  const hasBrowserScorer = runConfiguration.scorers.some(
-    (s) => s.type === "browser" && s.enabled,
-  );
+  const hasBrowserScorer = runConfiguration.scorers.some((s) => s.type === "browser" && s.enabled);
 
   const categories: CategoryRow[] = [
     {
@@ -229,9 +240,12 @@ export default async function ResultsPage({
           color: modelColor(rm.endpointId),
           pct: st.total > 0 ? (ok / st.total) * 100 : 0,
           label:
-            st.failed > 0 ? (
+            st.total === 0 ? (
+              "— · no terminal samples"
+            ) : st.failed > 0 ? (
               <>
-                {ok}/{st.total} · <span style={{ color: "var(--color-red)" }}>{st.failed} failed</span>
+                {ok}/{st.total} ·{" "}
+                <span style={{ color: "var(--color-red)" }}>{st.failed} failed</span>
               </>
             ) : (
               `${ok}/${st.total}`
@@ -276,27 +290,15 @@ export default async function ResultsPage({
     ...(hasVisual
       ? [
           {
-            // Honest naming: "Visual quality" only when a human actually rated;
-            // browser-derived sample means are labeled as such.
-            name: isVerified
-              ? "Task accuracy"
-              : humanScorer != null || hasHumanRatings
-                ? "Visual quality"
-                : "Sample score",
-            scorer: isVerified
-              ? "objective · mean score"
-              : humanScorer
-                ? `human rubric ${humanScorer.rubricVersion ?? ""}`.trim()
-                : hasHumanRatings
-                  ? "human visual ratings"
-                  : "browser-derived · check ratio",
+            name: "Recorded score",
+            scorer: "source and n shown per model",
             bars: runModels.map((rm) => ({
               key: rm.endpointId,
               color: modelColor(rm.endpointId),
               pct: (rm.visualScore?.value ?? 0) * 10,
               label:
                 rm.visualScore != null ? (
-                  `${rm.visualScore.value.toFixed(1)}${rm.visualScore.n < n ? ` (n=${rm.visualScore.n})` : ""}`
+                  `${rm.visualScore.value.toFixed(1)} · ${SCORE_LABELS[modelScoreSource(rm)]} · n=${rm.visualScore.n}`
                 ) : (
                   <span style={{ color: "var(--color-faint)" }}>—</span>
                 ),
@@ -330,37 +332,54 @@ export default async function ResultsPage({
       bars: runModels.map((rm) => ({
         key: rm.endpointId,
         color: modelColor(rm.endpointId),
-        pct: efficiency(rm) * 100,
-        label: `${usd(rm.costUsd)} · ${Math.round((rm.totalLatencyMs ?? 0) / 1000)}s`,
+        pct: (efficiency(rm) ?? 0) * 100,
+        label: `${usd(rm.costUsd)} · ${rm.totalLatencyMs == null ? "— latency not recorded" : `${Math.round(rm.totalLatencyMs / 1000)}s`}`,
       })),
     },
   ];
 
   /* ---------- cost vs quality scatter ---------- */
-  const scatterPoints: ScatterPoint[] = runModels.map((rm) => {
-    const st = statsFor(rm.endpointId);
+  const scatterPoints: ScatterPoint[] = runModels.flatMap((rm) => {
     const score = rm.visualScore;
-    return {
-      label: `${shortNameOf(rm.endpointId)} ${score?.value.toFixed(1) ?? "—"}${
-        score != null && score.n < n ? ` (n=${score.n})` : ""
-      }`,
-      color: modelColor(rm.endpointId),
-      costUsd: rm.costUsd,
-      score: score?.value ?? 0,
-      failed: rm.failedSampleCount > 0,
-      scoreMin: st.min ?? undefined,
-      scoreMax: st.max ?? undefined,
-    };
+    if (score == null) return [];
+    const source = modelScoreSource(rm);
+    const matching =
+      source !== "browser" && source !== "objective"
+        ? [] // Sample.score is the recorded automatic score, not a later human annotation.
+        : samples
+            .filter(
+              (s) =>
+                s.endpointId === rm.endpointId &&
+                s.primaryScorer === source &&
+                s.score != null &&
+                "value" in s.score,
+            )
+            .flatMap((s) => (s.score != null && "value" in s.score ? [s.score.value] : []));
+    return [
+      {
+        label: `${shortNameOf(rm.endpointId)} ${score.value.toFixed(1)}`,
+        source: SCORE_LABELS[source],
+        n: score.n,
+        color: modelColor(rm.endpointId),
+        costUsd: rm.costUsd,
+        score: score.value,
+        failed: rm.failedSampleCount > 0,
+        scoreMin: matching.length > 0 ? Math.min(...matching) : undefined,
+        scoreMax: matching.length > 0 ? Math.max(...matching) : undefined,
+      },
+    ];
   });
-  const failedModel = runModels.find((rm) => rm.failedSampleCount > 0);
-  const scatterFootnote = failedModel
-    ? `Whiskers = min–max across samples. ${shortNameOf(failedModel.endpointId)} mean excludes ${failedModel.failedSampleCount} failed render (marked, not zero-scored).`
-    : "Whiskers = min–max across samples.";
-
+  const comparableScores =
+    new Set(runModels.filter((rm) => rm.visualScore != null).map(modelScoreSource)).size === 1 &&
+    runModels
+      .filter((rm) => rm.visualScore != null)
+      .every((rm) => modelScoreSource(rm) !== "unknown");
+  const scatterFootnote =
+    "Each point names its source and measured sample count. Missing scores are omitted. Whiskers show the range of recorded automatic samples; human ratings have no automatic-score whiskers. Different sources are not directly comparable.";
   /* ---------- latency bands + reliability ---------- */
   const latencyRows: LatencyBandRow[] = Object.entries(latencyRanges)
     .map(([endpointId, r]) => ({
-      label: modelIdOf(endpointId),
+      label: `${modelIdOf(endpointId)} · n=${r.n}`,
       color: modelColor(endpointId),
       minMs: r.min,
       medianMs: r.median,
@@ -383,7 +402,7 @@ export default async function ResultsPage({
     return {
       endpointId: rm.endpointId,
       label: modelIdOf(rm.endpointId),
-      value: `${pct}% · ${detail}`,
+      value: st.total === 0 ? "— · no terminal samples" : `${pct}% · ${detail} · n=${st.total}`,
       color: st.failed > 0 ? "var(--color-red)" : "var(--color-teal)",
     };
   });
@@ -439,7 +458,11 @@ export default async function ResultsPage({
             </Link>
             {/* Runs without artifacts (verified mode) get no artifact links. */}
             {hasArtifacts && (
-              <Link href={`/runs/${runId}/artifacts`} className="hover-border" style={secondaryLink}>
+              <Link
+                href={`/runs/${runId}/artifacts`}
+                className="hover-border"
+                style={secondaryLink}
+              >
                 View Artifacts
               </Link>
             )}
@@ -461,6 +484,18 @@ export default async function ResultsPage({
         </div>
 
         <ReproStrip manifest={runManifest} />
+        {view.mockedEndpointIds.length > 0 && (
+          <Callout variant="warning">
+            Synthetic mock outputs: {view.mockedEndpointIds.map(modelIdOf).join(", ")}. These
+            endpoints did not call providers; their recorded costs are simulated.
+          </Callout>
+        )}
+        {view.source === "fixtures" && (
+          <Callout variant="insight">
+            Illustrative demo data — these measurements are a seeded example, not a benchmark
+            performed on this instance.
+          </Callout>
+        )}
 
         {/* Verdict banner — neutral completion note when no verdict was recorded */}
         {run.verdict ? (
@@ -505,7 +540,9 @@ export default async function ResultsPage({
 
         {/* Scorer badges + composite weighting */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <span style={{ fontSize: 12, color: "var(--color-faint)" }}>Scoring methods in this run:</span>
+          <span style={{ fontSize: 12, color: "var(--color-faint)" }}>
+            Scoring methods in this run:
+          </span>
           {scorerBadges.map((b) => (
             <span key={b.name} style={badgeStyle(b.color)}>
               {b.name}
@@ -517,7 +554,7 @@ export default async function ResultsPage({
             <button
               type="button"
               disabled
-              title="Weight editing arrives in Phase 3"
+              title="Weights are recorded with the run and cannot be edited afterward"
               style={{
                 background: "none",
                 border: "none",
@@ -536,43 +573,73 @@ export default async function ResultsPage({
         {/* Two-column body */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 14, alignItems: "flex-start" }}>
           {/* LEFT column */}
-          <div style={{ flex: "2 1 520px", minWidth: 0, display: "flex", flexDirection: "column", gap: 14 }}>
+          <div
+            style={{
+              flex: "2 1 520px",
+              minWidth: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+            }}
+          >
             {/* Category scores */}
             <Panel style={{ padding: "14px 18px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
                 <span style={{ fontSize: 14, fontWeight: 600 }}>Category scores</span>
                 <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>
-                  n={n} per model · higher is better
+                  planned n={n} per model · source and measured n below
                 </span>
               </div>
               <CategoryBars categories={categories} />
             </Panel>
 
             {/* Scatter + Latency/Reliability */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 14 }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))",
+                gap: 14,
+              }}
+            >
               <Panel style={{ padding: "14px 18px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={{ fontSize: 14, fontWeight: 600 }}>Cost vs quality</span>
+                  <span style={{ fontSize: 14, fontWeight: 600 }}>Cost vs score</span>
                   <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>
-                    {humanScored
-                      ? "visual, human-scored"
-                      : isVerified
-                        ? "objective · mean score"
-                        : "mean sample score"}{" "}
-                    · n={n}/model
+                    {scoreLabel}
                   </span>
                 </div>
-                <CostQualityScatter points={scatterPoints} showPareto footnote={scatterFootnote} />
+                {scatterPoints.length === 0 ? (
+                  <EmptyState
+                    title="No scores recorded"
+                    hint="Unscored models are omitted rather than plotted as zero."
+                  />
+                ) : (
+                  <CostQualityScatter
+                    points={scatterPoints}
+                    showPareto={comparableScores}
+                    footnote={scatterFootnote}
+                    yLabel={scoreLabel}
+                  />
+                )}
               </Panel>
 
-              <Panel style={{ padding: "14px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+              <Panel
+                style={{ padding: "14px 18px", display: "flex", flexDirection: "column", gap: 10 }}
+              >
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>Latency · total per sample</span>
                   <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>
-                    lower is better · n={n}/model
+                    lower is better · measured n per row
                   </span>
                 </div>
-                <LatencyBands rows={latencyRows} />
+                {latencyRows.length === 0 ? (
+                  <EmptyState
+                    title="No latency recorded"
+                    hint="Measured latency will appear when sample data is available."
+                  />
+                ) : (
+                  <LatencyBands rows={latencyRows} />
+                )}
                 <div
                   style={{
                     borderTop: "1px solid var(--color-border-subtle)",
@@ -604,14 +671,25 @@ export default async function ResultsPage({
 
             {/* Win/tie/loss matrix */}
             <Panel style={{ padding: "14px 18px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, gap: 10, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 14, fontWeight: 600 }}>Win / tie / loss — judge pairs, order-swapped</span>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: 10,
+                  gap: 10,
+                  flexWrap: "wrap",
+                }}
+              >
+                <span style={{ fontSize: 14, fontWeight: 600 }}>
+                  Win / tie / loss — judge pairs, order-swapped
+                </span>
                 {judge !== null && (
                   <span
                     style={{
                       ...mono,
                       fontSize: 11,
-                      color: run.judgeReversalCount > 0 ? "var(--color-amber)" : "var(--color-faint)",
+                      color:
+                        run.judgeReversalCount > 0 ? "var(--color-amber)" : "var(--color-faint)",
                     }}
                   >
                     {run.judgeReversalCount > 0
@@ -623,13 +701,20 @@ export default async function ResultsPage({
               {judge !== null ? (
                 <>
                   <WTLMatrix rows={matrixRows} matrix={judge.wtlMatrix} />
-                  <span style={{ fontSize: 11, color: "var(--color-faint)", display: "block", marginTop: 8 }}>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: "var(--color-faint)",
+                      display: "block",
+                      marginTop: 8,
+                    }}
+                  >
                     Read as row vs column: W–T–L over {judge.judgePairs.length} pairs,{" "}
                     {view.source === "store"
                       ? "best build judged in both presentation orders per pair"
                       : `n=${n} samples × 2 orders per pair`}
-                    . ⟲ = verdict reversed when answer order was swapped — the flagged pair is excluded
-                    from the aggregate verdict; cells show raw tallies.
+                    . ⟲ = verdict reversed when answer order was swapped — the flagged pair is
+                    excluded from the aggregate verdict; cells show raw tallies.
                   </span>
                 </>
               ) : (
@@ -642,7 +727,15 @@ export default async function ResultsPage({
           </div>
 
           {/* RIGHT rail */}
-          <div style={{ flex: "1 1 300px", minWidth: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div
+            style={{
+              flex: "1 1 300px",
+              minWidth: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+            }}
+          >
             {runModels.map((rm) => {
               const failed = rm.failedSampleCount > 0;
               const cap = capabilityByEndpoint.get(rm.endpointId);
@@ -665,7 +758,9 @@ export default async function ResultsPage({
                       </span>
                     </span>
                     {rm.flag && (
-                      <span style={{ marginLeft: "auto", ...badgeStyle(flagColor(rm)) }}>{rm.flag}</span>
+                      <span style={{ marginLeft: "auto", ...badgeStyle(flagColor(rm)) }}>
+                        {rm.flag}
+                      </span>
                     )}
                   </div>
                   <div
@@ -679,10 +774,12 @@ export default async function ResultsPage({
                   >
                     <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                       <span style={{ color: "var(--color-faint)", fontSize: 10 }}>
-                        {isVerified ? "SCORE" : "VISUAL"}
+                        {isVerified ? "SCORE" : "HUMAN"}
                       </span>
                       <span>
-                        {rm.visualScore != null ? (
+                        {/* Only a human rating is shown as one; the browser ratio
+                            already sits in the CAPABILITY column beside it. */}
+                        {rm.visualScore != null && (isVerified || rm.visualSource === "human") ? (
                           `${rm.visualScore.value.toFixed(1)}/10${rm.visualScore.n < n ? ` (n=${rm.visualScore.n})` : ""}`
                         ) : (
                           <span style={{ color: "var(--color-faint)" }}>—</span>
@@ -757,16 +854,26 @@ export default async function ResultsPage({
 
             {/* Action row — wired in later phases */}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button type="button" disabled title="Export arrives in Phase 4" style={secondaryButtonDisabled}>
+              <button
+                type="button"
+                disabled
+                title="Open Share Studio for CSV and JSON exports"
+                style={secondaryButtonDisabled}
+              >
                 Export Data (CSV/JSON)
               </button>
-              <button type="button" disabled title="Re-run arrives in Phase 1" style={secondaryButtonDisabled}>
+              <button
+                type="button"
+                disabled
+                title="Create a New Run to repeat this benchmark"
+                style={secondaryButtonDisabled}
+              >
                 Re-run
               </button>
               <button
                 type="button"
                 disabled
-                title="Fork Configuration arrives in Phase 1"
+                title="Configuration cloning is not available"
                 style={secondaryButtonDisabled}
               >
                 Fork Configuration
@@ -785,11 +892,13 @@ export default async function ResultsPage({
                 lineHeight: 1.6,
               }}
             >
-              <strong style={{ color: "var(--color-text-secondary)", fontWeight: 600 }}>Legend:</strong>{" "}
-              scores marked <span style={{ color: "var(--color-red)" }}>failed</span> are execution failures
-              (evidence preserved), <span style={{ color: "var(--color-faint)" }}>—</span> is
-              missing/not-applicable, and <span style={mono}>0</span> is a true zero score. These are never
-              conflated.
+              <strong style={{ color: "var(--color-text-secondary)", fontWeight: 600 }}>
+                Legend:
+              </strong>{" "}
+              scores marked <span style={{ color: "var(--color-red)" }}>failed</span> are execution
+              failures (evidence preserved), <span style={{ color: "var(--color-faint)" }}>—</span>{" "}
+              is missing/not-applicable, and <span style={mono}>0</span> is a true zero score. These
+              are never conflated.
             </div>
           </div>
         </div>

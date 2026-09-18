@@ -1,10 +1,72 @@
 import Link from "next/link";
-import { fixtures } from "@/lib/data";
-import { usd } from "@/lib/format";
+import { connection } from "next/server";
+import { resolveBackend } from "@model-lab/store";
+import { isReadOnly } from "@/lib/server/read-only";
 
-export function TopBar({ title }: { title: string }) {
-  const { workspaceStats: stats } = fixtures;
-  const budgetPct = Math.round((stats.sessionSpend.usd / stats.sessionSpend.budgetUsd) * 100);
+/**
+ * Providers whose credential is one environment variable. Ollama is keyless
+ * by design, so a running local server cannot be proven from here.
+ */
+const KEYED_PROVIDERS = [
+  ["anthropic", "ANTHROPIC_API_KEY"],
+  ["openai", "OPENAI_API_KEY"],
+  ["deepseek", "DEEPSEEK_API_KEY"],
+  ["google", "GOOGLE_API_KEY"],
+  ["openrouter", "OPENROUTER_API_KEY"],
+] as const;
+
+/**
+ * "demo" when the workspace is the seeded in-memory fixture set — then the
+ * statistics in this bar are illustrative and say so. Any persistent backend
+ * is "live": only facts about this environment are shown.
+ */
+function workspaceMode(): "demo" | "live" {
+  try {
+    return resolveBackend() === "memory" ? "demo" : "live";
+  } catch {
+    return "live";
+  }
+}
+
+const chip = {
+  fontFamily: "var(--font-mono)",
+  fontSize: 11,
+  color: "var(--color-faint)",
+  border: "1px solid var(--color-border)",
+  borderRadius: 4,
+  padding: "2px 7px",
+  whiteSpace: "nowrap",
+} as const;
+
+const stat = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  fontFamily: "var(--font-mono)",
+  fontSize: 11,
+  color: "var(--color-muted)",
+} as const;
+
+function Dot({ color }: { color: string }) {
+  return <span style={{ width: 7, height: 7, borderRadius: "50%", background: color }} />;
+}
+
+const newRunButton = {
+  background: "var(--color-amber)",
+  color: "var(--color-on-accent)",
+  fontWeight: 600,
+  borderRadius: 6,
+  padding: "6px 14px",
+  fontSize: 13,
+} as const;
+
+export async function TopBar({ title }: { title: string }) {
+  // Read at request time, never at build time: one image serves as a demo or
+  // as a live instance depending on the environment it starts with.
+  await connection();
+  const mode = workspaceMode();
+  const readOnly = isReadOnly();
+  const keyed = KEYED_PROVIDERS.filter(([, env]) => (process.env[env] ?? "") !== "").length;
 
   return (
     <header
@@ -24,68 +86,22 @@ export function TopBar({ title }: { title: string }) {
       }}
     >
       <span style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap" }}>{title}</span>
-      <span
-        style={{
-          fontFamily: "var(--font-mono)",
-          fontSize: 11,
-          color: "var(--color-faint)",
-          border: "1px solid var(--color-border)",
-          borderRadius: 4,
-          padding: "2px 7px",
-          whiteSpace: "nowrap",
-        }}
-      >
-        demo data
-      </span>
-
-      <button
-        type="button"
-        aria-label="Search runs, models, artifacts"
-        style={{
-          flex: "1 1 180px",
-          minWidth: 120,
-          maxWidth: 420,
-          margin: "0 auto",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          background: "var(--color-input)",
-          border: "1px solid var(--color-border)",
-          borderRadius: 6,
-          padding: "5px 10px",
-          color: "var(--color-faint)",
-          fontFamily: "inherit",
-          fontSize: 13,
-          cursor: "pointer",
-          textAlign: "left",
-        }}
-      >
-        <span style={{ fontSize: 12 }} aria-hidden>
-          ⌕
-        </span>
+      {mode === "demo" && (
         <span
-          style={{
-            flex: 1,
-            minWidth: 0,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
+          style={chip}
+          title="In-memory storage is temporary and includes a labelled illustrative demo"
         >
-          Search runs, models, artifacts…
+          memory · ephemeral
         </span>
-        <kbd
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: 11,
-            border: "1px solid var(--color-border)",
-            borderRadius: 3,
-            padding: "1px 5px",
-          }}
+      )}
+      {readOnly && (
+        <span
+          style={{ ...chip, color: "var(--color-amber)", borderColor: "var(--color-amber)" }}
+          title="This instance serves results but does not accept new runs, votes, or annotations"
         >
-          ⌘K
-        </kbd>
-      </button>
+          read-only
+        </span>
+      )}
 
       <span
         style={{
@@ -97,74 +113,25 @@ export function TopBar({ title }: { title: string }) {
         }}
       >
         <span
-          title="Providers connected"
-          style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-muted)" }}
+          title="Configured API keys; connection health is available under Providers"
+          style={stat}
         >
-          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--color-teal)" }} />
-          providers {stats.providersConnected.connected}/{stats.providersConnected.total}
+          <Dot color={keyed > 0 ? "var(--color-teal)" : "var(--color-faint)"} />
+          {keyed}/{KEYED_PROVIDERS.length} cloud providers configured
         </span>
-        <span
-          title="Local runner"
-          style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-muted)" }}
-        >
-          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--color-teal)" }} />
-          {stats.localRunner.engine} · {stats.localRunner.gpu}
-        </span>
-        <span
-          title="Session spend vs budget"
-          style={{ display: "flex", alignItems: "center", gap: 7, fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-muted)" }}
-        >
+        {readOnly ? (
           <span
-            style={{
-              width: 54,
-              height: 4,
-              borderRadius: 2,
-              background: "var(--color-border)",
-              overflow: "hidden",
-              display: "inline-block",
-            }}
+            aria-disabled="true"
+            title="This instance is read-only — run Model Lab locally to benchmark"
+            style={{ ...newRunButton, opacity: 0.45, cursor: "not-allowed" }}
           >
-            <span
-              style={{
-                display: "block",
-                height: "100%",
-                width: `${budgetPct}%`,
-                background: "var(--color-amber)",
-              }}
-            />
+            New Run
           </span>
-          {usd(stats.sessionSpend.usd)} / {usd(stats.sessionSpend.budgetUsd)}
-        </span>
-        <Link
-          href="/runs/new"
-          style={{
-            background: "var(--color-amber)",
-            color: "var(--color-on-accent)",
-            fontWeight: 600,
-            borderRadius: 6,
-            padding: "6px 14px",
-            fontSize: 13,
-          }}
-        >
-          New Run
-        </Link>
-        <span
-          aria-label="Account: HM"
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: "50%",
-            background: "var(--color-border)",
-            color: "var(--color-text-secondary)",
-            fontSize: 11,
-            fontWeight: 600,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          HM
-        </span>
+        ) : (
+          <Link href="/runs/new" style={newRunButton}>
+            New Run
+          </Link>
+        )}
       </span>
     </header>
   );

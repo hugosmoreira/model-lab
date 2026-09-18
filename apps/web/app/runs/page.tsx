@@ -8,9 +8,10 @@ import {
   RUN_STATUS_COLORS,
 } from "@/components/ui/primitives";
 import { listAllRuns } from "@/lib/server/loaders";
+import { isReadOnly } from "@/lib/server/read-only";
 import { usd } from "@/lib/format";
 
-/** Reads the persistence store + in-process registry — render per request. */
+/** Reads the selected persistence store per request. */
 export const dynamic = "force-dynamic";
 
 const mono = { fontFamily: "var(--font-mono)" } as const;
@@ -51,91 +52,114 @@ export default async function RunsIndex() {
         <Panel>
           <PanelHeader
             title="All runs"
-            caption={`${recentRuns.length} runs · store + demo data`}
+            caption={`${recentRuns.length} recorded runs · seeded examples are labelled`}
             action={
-              <Link
-                href="/runs/new"
-                className="hover-amber"
-                style={{ color: "var(--color-amber)", fontSize: 12.5, fontWeight: 600 }}
-              >
-                New Run →
-              </Link>
+              !isReadOnly() && (
+                <Link
+                  href="/runs/new"
+                  className="hover-amber"
+                  style={{ color: "var(--color-amber)", fontSize: 12.5, fontWeight: 600 }}
+                >
+                  New Run →
+                </Link>
+              )
             }
           />
 
           {recentRuns.length === 0 ? (
             <EmptyState
               title="No runs yet"
-              hint="Start a benchmark from New Run — results will land here."
+              hint={
+                isReadOnly()
+                  ? "No published runs are available on this instance."
+                  : "Start a benchmark from New Run — results will land here."
+              }
             />
           ) : (
-            <div>
-              {/* Column labels */}
-              <div
-                aria-hidden
-                style={{
-                  ...ROW_GRID,
-                  padding: "8px 16px",
-                  borderBottom: "1px solid var(--color-border-subtle)",
-                }}
-              >
-                <span style={COLUMN_LABEL}>Run</span>
-                <span style={COLUMN_LABEL}>Mode</span>
-                <span style={COLUMN_LABEL}>Status</span>
-                <span style={{ ...COLUMN_LABEL, textAlign: "right" }}>Cost</span>
-                <span style={{ ...COLUMN_LABEL, textAlign: "right" }}>When</span>
-              </div>
-
-              {recentRuns.map((r) => (
-                <Link
-                  key={r.id}
-                  href={
-                    r.status === "running" || r.status === "queued"
-                      ? `/runs/${r.id}/live`
-                      : `/runs/${r.id}/results`
-                  }
-                  className="hover-row"
+            <div style={{ overflowX: "auto" }}>
+              <div style={{ minWidth: 650 }}>
+                {/* Column labels */}
+                <div
+                  aria-hidden
                   style={{
                     ...ROW_GRID,
-                    padding: "10px 16px",
-                    borderBottom: "1px solid var(--color-border-row)",
+                    padding: "8px 16px",
+                    borderBottom: "1px solid var(--color-border-subtle)",
                   }}
                 >
-                  <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-                    <span
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 500,
-                        color: "var(--color-text)",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {r.name}
-                    </span>
-                    <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>
-                      {r.id} · {r.modelCount} models · n={r.samplesPerModel}
-                    </span>
-                  </span>
-                  <ModeBadge mode={r.mode} />
-                  <span
+                  <span style={COLUMN_LABEL}>Run</span>
+                  <span style={COLUMN_LABEL}>Mode</span>
+                  <span style={COLUMN_LABEL}>Status</span>
+                  <span style={{ ...COLUMN_LABEL, textAlign: "right" }}>Cost</span>
+                  <span style={{ ...COLUMN_LABEL, textAlign: "right" }}>When</span>
+                </div>
+
+                {recentRuns.map((r) => (
+                  <Link
+                    key={r.id}
+                    href={
+                      r.status === "running" || r.status === "queued"
+                        ? `/runs/${r.id}/live`
+                        : `/runs/${r.id}/results`
+                    }
+                    className="hover-row"
                     style={{
-                      ...mono,
-                      fontSize: 11,
-                      color: RUN_STATUS_COLORS[r.status] ?? "var(--color-muted)",
+                      ...ROW_GRID,
+                      padding: "10px 16px",
+                      borderBottom: "1px solid var(--color-border-row)",
                     }}
                   >
-                    {r.status}
-                  </span>
-                  <span style={{ ...mono, fontSize: 12, color: "var(--color-muted)", textAlign: "right" }}>
-                    {usd(r.costUsd)}
-                  </span>
-                  <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)", textAlign: "right" }}>
-                    {r.when}
-                  </span>
-                </Link>
-              ))}
+                    <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                      <span
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 500,
+                          color: "var(--color-text)",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {r.name}
+                      </span>
+                      <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>
+                        {r.source === "fixtures" ? "DEMO · " : ""}
+                        {r.id} · {r.modelCount} models · planned n={r.samplesPerModel}
+                      </span>
+                    </span>
+                    <ModeBadge mode={r.mode} />
+                    <span
+                      style={{
+                        ...mono,
+                        fontSize: 11,
+                        color: RUN_STATUS_COLORS[r.status] ?? "var(--color-muted)",
+                      }}
+                    >
+                      {r.status}
+                    </span>
+                    <span
+                      style={{
+                        ...mono,
+                        fontSize: 12,
+                        color: "var(--color-muted)",
+                        textAlign: "right",
+                      }}
+                    >
+                      {usd(r.costUsd)}
+                    </span>
+                    <span
+                      style={{
+                        ...mono,
+                        fontSize: 11,
+                        color: "var(--color-faint)",
+                        textAlign: "right",
+                      }}
+                    >
+                      {r.when}
+                    </span>
+                  </Link>
+                ))}
+              </div>
             </div>
           )}
         </Panel>

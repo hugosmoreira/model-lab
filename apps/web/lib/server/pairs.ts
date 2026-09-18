@@ -164,9 +164,7 @@ async function ensureDemoVotes(store: RunStore): Promise<void> {
   if (existing.length > 0) return;
   for (const v of fx.pairwiseSession.votes) {
     if (!v.final) continue;
-    await store
-      .upsertVote({ ...v, pairing: [v.pairing[0], v.pairing[1]] })
-      .catch(() => undefined);
+    await store.upsertVote({ ...v, pairing: [v.pairing[0], v.pairing[1]] }).catch(() => undefined);
   }
 }
 
@@ -184,8 +182,7 @@ export async function buildPairQueue(runView: RunView): Promise<PairQueue> {
 
   if (store !== null && runId === DEMO_RUN_ID) await ensureDemoVotes(store);
 
-  const votes =
-    store !== null ? await store.listVotes(runId).catch((): PairwiseVote[] => []) : [];
+  const votes = store !== null ? await store.listVotes(runId).catch((): PairwiseVote[] => []) : [];
   const voteByPair = new Map(votes.map((v) => [v.pairIndex, v] as const));
 
   const judgePairs: JudgePairResult[] = runView.judge?.judgePairs ?? [];

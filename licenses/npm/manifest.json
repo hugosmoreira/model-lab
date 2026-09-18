@@ -1,0 +1,52 @@
+[
+  {
+    "file": "esbuild-0.28.2-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/evanw/esbuild/609683d892977362a0f99026cb74b96263d728a9/LICENSE.md",
+    "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681",
+    "bytes": 1069,
+    "status": "collected"
+  },
+  {
+    "file": "humanfs-types-0.15.0-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/humanwhocodes/humanfs/85069f193cbacc371c3beb649ce746f8c5a493be/LICENSE",
+    "status": "superseded-by-versioned-reconciliation",
+    "error": "Response status code does not indicate success: 404 (Not Found).",
+    "resolution": "RECONCILIATION.md"
+  },
+  {
+    "file": "unrs-resolver-1.12.2-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/unrs/unrs-resolver/ccb26d205e2938b16069c64a28996b48ee97ff94/LICENSE",
+    "sha256": "a9e35996693bd619302922c731fa2f620ad12d5f50b19a37c8a3e0e078c9bd2f",
+    "bytes": 1158,
+    "status": "collected"
+  },
+  {
+    "file": "next-15.5.25-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/vercel/next.js/v15.5.25/license.md",
+    "sha256": "ee765244e2d59f5234d474f62e0766fa0c8b99af967fdd4c0cb8dcb0c76ea224",
+    "bytes": 1079,
+    "status": "collected"
+  },
+  {
+    "file": "language-tags-1.0.9-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/mattcg/language-tags/ea5aa61e53ced2a18e35783ff00bb2a533f6c77d/LICENSE",
+    "status": "superseded-by-versioned-reconciliation",
+    "error": "Response status code does not indicate success: 404 (Not Found).",
+    "resolution": "RECONCILIATION.md"
+  },
+  {
+    "file": "stable-hash-0.0.5-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/shuding/stable-hash/1b314f2cc3e9449bc8d49e417670175cf9afd42a/LICENSE",
+    "status": "published-full-license-omission-confirmed",
+    "error": "Response status code does not indicate success: 404 (Not Found).",
+    "resolution": "RECONCILIATION.md",
+    "evidence": "published-package-evidence.json"
+  },
+  {
+    "file": "keyv-4.5.4-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/jaredwray/keyv/v4.5.4/LICENSE",
+    "status": "superseded-by-versioned-reconciliation",
+    "error": "Response status code does not indicate success: 404 (Not Found).",
+    "resolution": "RECONCILIATION.md"
+  }
+]

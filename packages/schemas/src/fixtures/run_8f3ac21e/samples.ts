@@ -22,14 +22,41 @@ export const FIXTURE_CHECK_CATEGORY: Record<string, CheckCategory> = {
 };
 const categoryFor = (name: string): CheckCategory => FIXTURE_CHECK_CATEGORY[name] ?? "capability";
 
-const ok = (name: string, note = ""): BrowserTestResult => ({ name, status: "passed", note, durationMs: null, category: categoryFor(name) });
-const fail = (name: string, note: string): BrowserTestResult => ({ name, status: "failed", note, durationMs: null, category: categoryFor(name) });
-const skip = (name: string): BrowserTestResult => ({ name, status: "skipped", note: "skipped (render failed)", durationMs: null, category: categoryFor(name) });
+const ok = (name: string, note = ""): BrowserTestResult => ({
+  name,
+  status: "passed",
+  note,
+  durationMs: null,
+  category: categoryFor(name),
+});
+const fail = (name: string, note: string): BrowserTestResult => ({
+  name,
+  status: "failed",
+  note,
+  durationMs: null,
+  category: categoryFor(name),
+});
+const skip = (name: string): BrowserTestResult => ({
+  name,
+  status: "skipped",
+  note: "skipped (render failed)",
+  durationMs: null,
+  category: categoryFor(name),
+});
 
 export const CHECK_NAMES = [
-  "html.parses", "page.loads", "console.clean", "canvas.renders",
-  "interaction.wasd", "interaction.mouse", "minimap.present", "screenshot.captured",
-  "textures.applied", "fps.stable", "resize.handled", "a11y.contrast",
+  "html.parses",
+  "page.loads",
+  "console.clean",
+  "canvas.renders",
+  "interaction.wasd",
+  "interaction.mouse",
+  "minimap.present",
+  "screenshot.captured",
+  "textures.applied",
+  "fps.stable",
+  "resize.handled",
+  "a11y.contrast",
 ] as const;
 
 export const okTrace: BrowserTestResult[] = [
@@ -85,12 +112,23 @@ export const samples: SampleResult[] = [
   // qwen3-coder-32b — 7.0 / FAIL / 6.6 → 6.8 (n=2); unseeded
   s("ollama/qwen3-coder-32b@q4_K_M", 1, 10, 7.0, 0, 88_000, 2_400, null, false),
   {
-    runId: "run_8f3ac21e", endpointId: "ollama/qwen3-coder-32b@q4_K_M",
-    sampleIndex: 2, globalIndex: 11, status: "failed",
-    score: { failed: true }, primaryScorer: "browser",
-    costUsd: 0, latencyMs: 96_000, ttftMs: 2_400, seed: null,
-    hasArtifact: true, tokensOut: 19_800, rawExcerpt: rawFail,
-    scorerTrace: failTrace, judgeReversed: false, humanReviewed: true,
+    runId: "run_8f3ac21e",
+    endpointId: "ollama/qwen3-coder-32b@q4_K_M",
+    sampleIndex: 2,
+    globalIndex: 11,
+    status: "failed",
+    score: { failed: true },
+    primaryScorer: "browser",
+    costUsd: 0,
+    latencyMs: 96_000,
+    ttftMs: 2_400,
+    seed: null,
+    hasArtifact: true,
+    tokensOut: 19_800,
+    rawExcerpt: rawFail,
+    scorerTrace: failTrace,
+    judgeReversed: false,
+    humanReviewed: true,
     humanNote:
       "Render failed: canvas element id mismatch (#view vs #screen lookup). " +
       "Geometry code below the bug looks plausible. Failure preserved as evidence.",
@@ -99,16 +137,34 @@ export const samples: SampleResult[] = [
 ];
 
 function s(
-  endpointId: string, sampleIndex: number, globalIndex: number,
-  value: number, costUsd: number, latencyMs: number, ttftMs: number,
-  seed: number | null, judgeReversed: boolean,
+  endpointId: string,
+  sampleIndex: number,
+  globalIndex: number,
+  value: number,
+  costUsd: number,
+  latencyMs: number,
+  ttftMs: number,
+  seed: number | null,
+  judgeReversed: boolean,
 ): SampleResult {
   return {
-    runId: "run_8f3ac21e", endpointId, sampleIndex, globalIndex,
-    status: "scored", score: { value }, primaryScorer: "human",
-    costUsd, latencyMs, ttftMs, seed,
-    hasArtifact: true, tokensOut: null, rawExcerpt: rawOk,
+    runId: "run_8f3ac21e",
+    endpointId,
+    sampleIndex,
+    globalIndex,
+    status: "scored",
+    score: { value },
+    primaryScorer: "human",
+    costUsd,
+    latencyMs,
+    ttftMs,
+    seed,
+    hasArtifact: true,
+    tokensOut: null,
+    rawExcerpt: rawOk,
     scorerTrace: okTrace,
-    judgeReversed, humanReviewed: false, humanNote: null,
+    judgeReversed,
+    humanReviewed: false,
+    humanNote: null,
   };
 }

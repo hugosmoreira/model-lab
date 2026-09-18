@@ -27,6 +27,7 @@ import type {
 import { ArtifactSandbox } from "@/components/artifact/ArtifactSandbox";
 import { Callout, EmptyState, ModelDot, Panel } from "@/components/ui/primitives";
 import { HistoryPanel, type HistoryRow } from "@/components/compare/HistoryPanel";
+import { historyPairingLabel, previewArtifact } from "@/lib/compare-privacy";
 
 const mono = { fontFamily: "var(--font-mono)" } as const;
 
@@ -114,7 +115,7 @@ function historyRows(queue: PairQueue): HistoryRow[] {
     const base = {
       pairIndex: p.pairIndex,
       index: `${p.pairIndex}/${p.pairTotal}`,
-      pairing: `${p.a.shortName} vs ${p.b.shortName}`,
+      pairing: historyPairingLabel(p.final, p.a.shortName, p.b.shortName),
     };
     const yourVote = p.final
       ? p.vote == null || p.vote === "skip"
@@ -153,7 +154,8 @@ export function HeadToHeadClient({ initial }: { initial: PairQueue }) {
   const [error, setError] = useState<string | null>(null);
 
   const runId = queue.runId;
-  const pair = viewIndex == null ? null : queue.pairs.find((p) => p.pairIndex === viewIndex) ?? null;
+  const pair =
+    viewIndex == null ? null : (queue.pairs.find((p) => p.pairIndex === viewIndex) ?? null);
   const revealed = pair?.final ?? false;
   const locked = revealed || busy;
 
@@ -226,10 +228,9 @@ export function HeadToHeadClient({ initial }: { initial: PairQueue }) {
   const sideCard = (side: PairSideView) => {
     const winner = pair?.vote === side.slot;
     const art = PREVIEW_ART[side.slot];
-    // Blind protocol: mask the endpoint id in the sandbox's accessible title
-    // until reveal. srcDoc is unchanged, so the iframe does not remount.
+    // Blind protocol: keep accessible preview labels neutral until reveal.
     const sandboxArtifact: Artifact | null = side.artifact
-      ? { ...side.artifact, endpointId: revealed ? side.artifact.endpointId : `model-${side.slot}-hidden` }
+      ? previewArtifact(side.artifact, side.slot, revealed)
       : null;
     return (
       <section
@@ -291,8 +292,10 @@ export function HeadToHeadClient({ initial }: { initial: PairQueue }) {
               ? `${side.modelId} · ${side.providerId}`
               : `Model ${side.slot} — identity hidden`}
           </span>
-          <span style={{ marginLeft: "auto", ...mono, fontSize: 10.5, color: "var(--color-faint)" }}>
-            {revealed && side.artifactMeta ? side.artifactMeta : "interactive preview"}
+          <span
+            style={{ marginLeft: "auto", ...mono, fontSize: 10.5, color: "var(--color-faint)" }}
+          >
+            {revealed && side.artifactMeta ? side.artifactMeta : "captured preview"}
           </span>
         </div>
         {sandboxArtifact ? (
@@ -381,7 +384,14 @@ export function HeadToHeadClient({ initial }: { initial: PairQueue }) {
               </div>
             ))}
           </div>
-          <p style={{ margin: 0, fontSize: 12.5, color: "var(--color-text-secondary)", lineHeight: 1.6 }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 12.5,
+              color: "var(--color-text-secondary)",
+              lineHeight: 1.6,
+            }}
+          >
             {queue.stats.judgeAgreement != null ? (
               <>
                 Your blind votes agreed with the LLM judge on{" "}
@@ -392,7 +402,15 @@ export function HeadToHeadClient({ initial }: { initial: PairQueue }) {
               <>No judge scorer in this run — your blind votes stand alone.</>
             )}
           </p>
-          <div style={{ display: "flex", gap: 14, alignItems: "center", fontSize: 12, flexWrap: "wrap" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 14,
+              alignItems: "center",
+              fontSize: 12,
+              flexWrap: "wrap",
+            }}
+          >
             <Link
               href={`/runs/${runId}/results`}
               className="hover-amber"
@@ -617,7 +635,9 @@ export function HeadToHeadClient({ initial }: { initial: PairQueue }) {
                         pair.vote === judge.verdictAB ? (
                           <>
                             {" "}
-                            — <span style={{ color: "var(--color-teal)" }}>it matches your vote</span>.
+                            —{" "}
+                            <span style={{ color: "var(--color-teal)" }}>it matches your vote</span>
+                            .
                           </>
                         ) : (
                           <>

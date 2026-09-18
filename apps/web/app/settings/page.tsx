@@ -29,7 +29,7 @@ export default function SettingsPage() {
         >
           <SectionLabel>Workspace settings</SectionLabel>
           <span style={{ fontSize: 11.5, color: "var(--color-faint)" }}>
-            read-only this phase — editing arrives in Phase 3+
+            Server configuration is read-only here. Configure runs in New Run.
           </span>
           <Link
             href="/settings/providers"

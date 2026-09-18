@@ -17,7 +17,7 @@ import type {
   SampleResult,
 } from "@model-lab/schemas";
 
-export const RUNNER_VERSION = "build-arena-runner v0.1.0";
+export const RUNNER_VERSION = "build-arena-runner v0.2.0-rc.1";
 
 export type BaseKind = "anthropic" | "openai-compatible" | "ollama" | "mock";
 
@@ -29,11 +29,13 @@ export interface EndpointConfig {
   baseKind: BaseKind;
   /** provider-facing model name (may differ from modelId, e.g. openrouter) */
   model: string;
-  priceInPerMtokUsd: number | null; // null => free/local, accounted as $0
+  priceInPerMtokUsd: number | null; // null is free only for mock/local endpoints
   priceOutPerMtokUsd: number | null;
   supportsSeed: boolean;
   /** explicit base URL override (openai-compatible / ollama) */
   baseUrl?: string;
+  /** quantization tag for local models, e.g. "q4_K_M" — provenance only */
+  quantization?: string;
 }
 
 /** Objective scorer kinds for verified-benchmark tasks. */
@@ -81,7 +83,7 @@ export interface RunnerConfig {
   maxOutputTokens: number;
   seed: number | null; // null = unseeded run-wide
   concurrency: number; // endpoints in parallel; samples per endpoint are sequential
-  maxBudgetUsd: number; // HARD ceiling — projected overrun stops the run
+  maxBudgetUsd: number; // conservative pre-call admission ceiling; provider invoices remain authoritative
   transportRetries: number; // per-sample transport retries (generation retries: none)
   /** mock provider only: force one (endpoint, sample) to emit a broken artifact */
   failSample?: { endpointId: string; sampleIndex: number };
@@ -103,10 +105,19 @@ export type ProviderChunk =
       type: "usage";
       tokensIn: number;
       tokensOut: number;
+      /** Missing usage is estimated, never silently represented as provider-reported. */
+      usageSource?: "reported" | "estimated";
+      /** False for intermediate/partial records; only final usage releases a reservation. */
+      usageComplete?: boolean;
       /** null when the provider reported none */
       finishReason?: FinishReason | null;
       /** hidden reasoning tokens billed inside tokensOut (0 when none/unknown) */
       reasoningTokens?: number;
+      /**
+       * The model identifier the provider says it served — a dated snapshot
+       * behind an alias, or the alias itself. null when the API reports none.
+       */
+      servedModel?: string | null;
     };
 
 /** A rendered capture attached to a request, for judges that can see. */
@@ -133,6 +144,8 @@ export interface GenerateRequest {
   images?: RequestImage[];
   seed?: number;
   signal?: AbortSignal;
+  /** Internal admission hook before a provider adapter repeats its HTTP request. */
+  beforeRetry?: () => void;
   /** mock determinism: output varies per (model, sampleIndex) */
   sampleIndex?: number;
   /** mock failure path: emit the null-canvas-bug artifact */
@@ -217,6 +230,30 @@ export interface StoredArtifact {
   judgeCommentary?: string | null;
 }
 
+/**
+ * Where a run actually executed — the provenance a fingerprint cannot carry,
+ * because two identical configurations can run on different machines against
+ * different model snapshots.
+ */
+export interface RunEnvironment {
+  /** process.version, e.g. "v22.20.0" */
+  node: string;
+  /** "win32 x64 10.0.26200" */
+  platform: string;
+  /** RUNNER_VERSION */
+  runner: string;
+  /** "chromium 141.0.7390.37" once the browser checks launched; null when they never ran */
+  chromium: string | null;
+  /** endpoint id → model identifier the provider reported serving */
+  servedModels: Record<string, string>;
+  /** MODEL_LAB_LOCAL_HARDWARE as the operator set it, e.g. "RTX 4090 · 24 GB"; null when unset */
+  localHardware: string | null;
+  /** endpoint id → quantization tag from the registry, for the local models that have one */
+  quantizations: Record<string, string>;
+  /** ISO timestamp of the run start */
+  recordedAt: string;
+}
+
 export interface StoredRunResults {
   run: Run;
   models: RunModel[];
@@ -226,6 +263,8 @@ export interface StoredRunResults {
   /** LLM-judge pairwise verdicts (empty when the run was not judged; may be
    *  absent in snapshots written before the judge phase existed) */
   judgePairs: JudgePairResult[];
+  /** absent in snapshots written before provenance was recorded */
+  environment?: RunEnvironment;
 }
 
 export interface BundleResult {

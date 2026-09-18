@@ -431,7 +431,11 @@ export function SampleDetail({
                     );
                   })()}
 
-                  <AddNoteForm runId={runId} endpointId={s.endpointId} sampleIndex={s.sampleIndex} />
+                  <AddNoteForm
+                    runId={runId}
+                    endpointId={s.endpointId}
+                    sampleIndex={s.sampleIndex}
+                  />
 
                   <span
                     style={{
@@ -463,23 +467,20 @@ export function SampleDetail({
                       Open artifact
                     </Link>
                   )}
-                  <button
-                    type="button"
-                    disabled
-                    title="Phase 6"
+                  <Link
+                    href={`/compare?run=${encodeURIComponent(runId)}`}
                     style={{
                       background: "none",
                       border: "1px solid var(--color-border)",
-                      color: "var(--color-disabled)",
+                      color: "var(--color-text-secondary)",
                       borderRadius: 6,
                       padding: "6px 12px",
-                      cursor: "not-allowed",
                       fontSize: 12,
                       fontFamily: "inherit",
                     }}
                   >
                     Compare across models
-                  </button>
+                  </Link>
                 </div>
               </div>
             </>

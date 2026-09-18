@@ -1,5 +1,5 @@
-import { fixtures } from "@/lib/data";
-import { usd } from "@/lib/format";
+import { resolveBackend } from "@model-lab/store";
+import { isReadOnly } from "@/lib/server/read-only";
 
 const mono = { fontFamily: "var(--font-mono)" } as const;
 
@@ -9,20 +9,32 @@ interface SettingRow {
   value: string;
 }
 
-/** The ten workspace settings, derived from fixtures.workspaceSettings. */
+/** Only implemented settings; secrets and local filesystem paths are not exposed. */
 function settingRows(): SettingRow[] {
-  const s = fixtures.workspaceSettings;
   return [
-    { name: "Default run budget", sub: "hard ceiling per run", value: usd(s.defaultRunBudgetUsd) },
-    { name: "Default concurrency", sub: "parallel requests per run", value: String(s.defaultConcurrency) },
-    { name: "Data retention", sub: "raw responses + artifacts", value: s.dataRetention },
-    { name: "Artifact directory", sub: "local-first storage", value: s.artifactDirectory },
-    { name: "Local hardware profile", sub: "recorded with local runs", value: s.localHardwareProfile ?? "—" },
-    { name: "Telemetry", sub: "fully local by default", value: s.telemetry },
-    { name: "Artifact network policy", sub: "sandbox default", value: s.artifactNetworkPolicy },
-    { name: "Default scoring policy", sub: "objective before judges", value: s.defaultScoringPolicy },
-    { name: "Export branding", sub: "footer on share cards", value: s.exportBranding },
-    { name: "Theme & accessibility", sub: "reduced motion respected", value: s.themeAccessibility },
+    { name: "Persistence", sub: "selected server store", value: resolveBackend() },
+    {
+      name: "Write access",
+      sub: "new runs, votes and annotations",
+      value: isReadOnly() ? "Read-only" : "Enabled",
+    },
+    {
+      name: "Budget and concurrency",
+      sub: "configured for each benchmark",
+      value: "Set in New Run",
+    },
+    { name: "Data retention", sub: "no automatic deletion policy", value: "Operator managed" },
+    {
+      name: "Artifacts",
+      sub: "generated source is not executed by the viewer",
+      value: "Captured previews",
+    },
+    { name: "Scoring", sub: "source and measured n accompany each score", value: "Per run" },
+    {
+      name: "Reduced motion",
+      sub: "uses your device accessibility preference",
+      value: "Respected",
+    },
   ];
 }
 
@@ -60,7 +72,7 @@ export function SettingsGrid() {
               border: "1px solid var(--color-border)",
               borderRadius: 5,
               padding: "4px 10px",
-              whiteSpace: "nowrap",
+              overflowWrap: "anywhere",
             }}
           >
             {row.value}

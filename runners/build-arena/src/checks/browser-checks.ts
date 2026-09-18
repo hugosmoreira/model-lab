@@ -1,10 +1,11 @@
 /**
  * Playwright chromium implementation of the 12 named browser checks.
  *
- * Sandbox posture (audit §11 H-1/H-2): artifact loaded via setContent with an
- * injected CSP meta (default-src 'none'; script-src 'unsafe-inline';
- * style-src 'unsafe-inline'; img-src data:) plus route-abort on ALL network
- * requests; 30s watchdog per artifact.
+ * Artifact HTML is fulfilled locally with an immutable response-header CSP,
+ * an opaque sandbox origin, context-wide HTTP/WebSocket denial and blocked
+ * service workers. Native WebRTC UDP denial plus a non-forwarding proxy closes
+ * its separate socket path. These are browser controls, not an OS sandbox.
+ * Each artifact has private contexts and a 30s watchdog.
  *
  * Graceful degradation: if the chromium browser cannot launch (not installed),
  * every check returns status "skipped" with an install hint — the run never
@@ -30,7 +31,14 @@
  */
 import type { BrowserTestResult, CheckCategory, ConsoleLine } from "@model-lab/schemas";
 import type { Browser, BrowserContext, Page } from "playwright";
+import { writeFile } from "node:fs/promises";
+import { createServer } from "node:net";
 import { errorMessage } from "../providers/util";
+import {
+  artifactBrowserExecutable,
+  BROWSER_RUNTIME,
+  supportedBrowserVersion,
+} from "./browser-runtime";
 
 export const BROWSER_CHECK_NAMES = [
   "html.parses",
@@ -157,16 +165,19 @@ export const CHECK_THRESHOLDS = {
   minSampleColumns: 16,
 } as const;
 
-export const BROWSER_NOT_INSTALLED_NOTE =
-  "browser not installed — run npx playwright install chromium";
+export const BROWSER_NOT_INSTALLED_NOTE = "verified browser unavailable — run pnpm browser:install";
 
-const CSP_META =
-  `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; ` +
-  `script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:">`;
+export const ARTIFACT_CSP =
+  "sandbox allow-scripts allow-pointer-lock; default-src 'none'; script-src 'unsafe-inline'; " +
+  "style-src 'unsafe-inline'; img-src data:; connect-src 'none'; " +
+  "base-uri 'none'; form-action 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'";
+// The sandbox directive is only effective in the HTTP header, never a meta tag.
+const CSP_META = `<meta http-equiv="Content-Security-Policy" content="${ARTIFACT_CSP.replace("sandbox allow-scripts allow-pointer-lock; ", "")}">`;
 
 export interface BrowserChecksOptions {
   screenshotPath: string;
   watchdogMs?: number; // default 30_000
+  signal?: AbortSignal;
 }
 
 export interface BrowserChecksOutcome {
@@ -214,20 +225,103 @@ export function unmeasuredGates(results: readonly BrowserTestResult[]): BrowserT
   return results.filter((r) => categoryOf(r) === "gate" && r.status === "warn");
 }
 
-let browserPromise: Promise<Browser | null> | null = null;
+type BrowserLease = {
+  promise: Promise<Browser | null>;
+  users: number;
+  closing: boolean;
+  unavailableNote: string;
+};
+let sharedBrowser: BrowserLease | null = null;
+let browserVersion: string | null = null;
 
-async function getBrowser(): Promise<Browser | null> {
-  if (browserPromise === null) {
-    browserPromise = (async () => {
+/**
+ * WebRTC sockets bypass Playwright request interception and connect-src CSP.
+ * Force its native transport policy to disable direct UDP and route TCP
+ * through a private proxy that closes every connection without forwarding.
+ * Never fall back to a normal browser if either control fails to initialize.
+ */
+export async function launchArtifactBrowser(): Promise<Browser> {
+  const denyProxy = createServer((socket) => socket.destroy());
+  let browser: Browser | null = null;
+  denyProxy.on("error", () => {
+    void browser?.close().catch(() => undefined);
+  });
+  try {
+    await new Promise<void>((resolve, reject) => {
+      denyProxy.once("error", reject);
+      denyProxy.listen(0, "127.0.0.1", () => {
+        denyProxy.removeListener("error", reject);
+        resolve();
+      });
+    });
+    const address = denyProxy.address();
+    if (address === null || typeof address === "string") throw new Error("deny proxy unavailable");
+    const { chromium } = await import("playwright");
+    browser = await chromium.launch({
+      headless: true,
+      executablePath: artifactBrowserExecutable(),
+      proxy: { server: `http://127.0.0.1:${address.port}`, bypass: "<-loopback>" },
+      args: [
+        "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+        "--disable-quic",
+        "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1",
+      ],
+    });
+    if (!supportedBrowserVersion(browser.version())) {
+      throw new Error(
+        `Browser ${browser.version()} is older than required ${BROWSER_RUNTIME.minimumVersion}; run pnpm browser:install`,
+      );
+    }
+    browser.once("disconnected", () => denyProxy.close());
+    return browser;
+  } catch (error) {
+    await browser?.close().catch(() => undefined);
+    denyProxy.close();
+    throw error;
+  }
+}
+
+function acquireBrowser(): BrowserLease {
+  if (sharedBrowser === null || sharedBrowser.closing) {
+    const lease: BrowserLease = {
+      promise: Promise.resolve(null),
+      users: 0,
+      closing: false,
+      unavailableNote: BROWSER_NOT_INSTALLED_NOTE,
+    };
+    lease.promise = (async () => {
       try {
-        const { chromium } = await import("playwright");
-        return await chromium.launch({ headless: true });
-      } catch {
+        const browser = await launchArtifactBrowser();
+        browserVersion = `chromium ${browser.version()}`;
+        return browser;
+      } catch (error) {
+        lease.unavailableNote = `${BROWSER_NOT_INSTALLED_NOTE}: ${errorMessage(error).slice(0, 240)}`;
         return null;
       }
     })();
+    sharedBrowser = lease;
   }
-  return browserPromise;
+  sharedBrowser.users += 1;
+  return sharedBrowser;
+}
+
+async function releaseBrowser(lease: BrowserLease): Promise<void> {
+  lease.users -= 1;
+  if (lease.closing && lease.users === 0) await disposeBrowser(lease);
+}
+
+async function disposeBrowser(lease: BrowserLease): Promise<void> {
+  if (sharedBrowser === lease) sharedBrowser = null;
+  const browser = await lease.promise.catch(() => null);
+  if (browser !== null) await browser.close().catch(() => undefined);
+}
+
+/**
+ * "chromium 141.0.7390.37" once a browser has launched in this process — the
+ * exact build every check in the run executed in — or null before that.
+ */
+export function getBrowserVersion(): string | null {
+  return browserVersion;
 }
 
 /**
@@ -239,7 +333,6 @@ async function getBrowser(): Promise<Browser | null> {
  * preserveDrawingBuffer reads back empty outside its own rAF, whereas the
  * composited screenshot is always correct.
  */
-let analyzerPromise: Promise<Page | null> | null = null;
 
 /**
  * The analyzer page needs the same `__name` shim the artifact page gets (see
@@ -265,70 +358,48 @@ const ANALYZER_NAME_SHIM =
   "globalThis.__name = globalThis.__name || function (target) { return target; }, " +
   "typeof globalThis.__name";
 
-async function getAnalyzer(browser: Browser): Promise<Page | null> {
-  if (analyzerPromise === null) {
-    analyzerPromise = (async () => {
-      try {
-        const ctx = await browser.newContext();
-        // covers any future document in this context…
-        await ctx.addInitScript({ content: ANALYZER_NAME_SHIM });
-        const page = await ctx.newPage(); // about:blank — no navigation, no network
-        // …and the initial about:blank, which was created by newPage() itself.
-        await page.evaluate(ANALYZER_NAME_SHIM);
-        return page;
-      } catch {
-        return null;
-      }
-    })();
-  }
-  const page = await analyzerPromise.catch(() => null);
-  if (page !== null && page.isClosed()) {
-    analyzerPromise = null;
-    return getAnalyzer(browser);
-  }
+async function createAnalyzer(ctx: BrowserContext): Promise<Page> {
+  await ctx.addInitScript({ content: ANALYZER_NAME_SHIM });
+  const page = await ctx.newPage();
+  await page.evaluate(ANALYZER_NAME_SHIM);
   return page;
 }
 
-/** Close the shared chromium instance (call at the end of a run). */
+/** Retire this browser generation; active operations release their own leases. */
 export async function closeBrowserChecks(): Promise<void> {
-  analyzerPromise = null;
-  if (browserPromise === null) return;
-  const pending = browserPromise;
-  browserPromise = null;
-  const browser = await pending.catch(() => null);
-  if (browser !== null) {
-    await browser.close().catch(() => undefined);
-  }
+  const lease = sharedBrowser;
+  if (lease === null) return;
+  lease.closing = true;
+  if (lease.users === 0) await disposeBrowser(lease);
 }
 
 /**
  * Transpilers (tsx/esbuild keepNames) wrap functions passed to page.evaluate
- * in a __name(...) helper the page doesn't define. addInitScript does NOT fire
- * for setContent documents (document.write, not a navigation), so the helper
- * is injected as an inline <script> next to the CSP meta — 'unsafe-inline'
- * script-src permits it, and it runs before the artifact's own scripts.
+ * in a __name(...) helper the page doesn't define. The trusted prefix keeps
+ * the exported HTML wrapper compatible with setContent callers (which do
+ * not run init scripts), as well as the runner's header-protected navigation.
  */
 const NAME_HELPER = `<script>globalThis.__name = function(t, n) { return t; };</script>`;
 
-/** Inject the sandbox CSP meta (+ eval helper) as the first children of <head>. */
+/** Trusted prefix: never select a head-looking substring from untrusted HTML. */
 export function injectCsp(html: string): string {
-  const inject = `${CSP_META}${NAME_HELPER}`;
-  const headMatch = /<head[^>]*>/i.exec(html);
-  if (headMatch !== null) {
-    const idx = headMatch.index + headMatch[0].length;
-    return `${html.slice(0, idx)}${inject}${html.slice(idx)}`;
-  }
-  const htmlMatch = /<html[^>]*>/i.exec(html);
-  if (htmlMatch !== null) {
-    const idx = htmlMatch.index + htmlMatch[0].length;
-    return `${html.slice(0, idx)}<head>${inject}</head>${html.slice(idx)}`;
-  }
-  return `<head>${inject}</head>${html}`;
+  return `<!doctype html><html><head>${CSP_META}${NAME_HELPER}</head>${html}`;
+}
+
+/** Install before creating any page, including the first artifact navigation. */
+export async function restrictArtifactContext(context: BrowserContext): Promise<void> {
+  await context.route("**/*", (route) => route.abort("blockedbyclient"));
+  await context.routeWebSocket("**/*", (socket) => socket.close());
 }
 
 type CheckStatus = BrowserTestResult["status"];
 
-function result(name: BrowserCheckName, status: CheckStatus, note: string, ms: number | null): BrowserTestResult {
+function result(
+  name: BrowserCheckName,
+  status: CheckStatus,
+  note: string,
+  ms: number | null,
+): BrowserTestResult {
   return { name, status, note, durationMs: ms, category: CHECK_CATEGORY[name] };
 }
 
@@ -349,17 +420,33 @@ function inCanonicalOrder(results: BrowserTestResult[]): BrowserTestResult[] {
   return [...results].sort((a, b) => (rank.get(a.name) ?? 99) - (rank.get(b.name) ?? 99));
 }
 
+export const BROWSER_DIAGNOSTIC_LIMITS = {
+  lines: 100,
+  lineBytes: 400,
+  events: 1_000,
+  receivedBytes: 1_000_000,
+} as const;
+
+/** Keep UTF-8 storage bounded even for multibyte input. */
+function truncateDiagnostic(msg: string): string {
+  const prefix = msg.slice(0, BROWSER_DIAGNOSTIC_LIMITS.lineBytes);
+  const bytes = Buffer.from(prefix);
+  if (bytes.byteLength <= BROWSER_DIAGNOSTIC_LIMITS.lineBytes) return prefix;
+  // Drop an incomplete final UTF-8 sequence rather than introducing extra bytes.
+  return bytes.subarray(0, BROWSER_DIAGNOSTIC_LIMITS.lineBytes).toString("utf8").replace(/�$/, "");
+}
+
 function pushConsole(
   lines: ConsoleLine[],
   t0: number,
   level: ConsoleLine["level"],
   msg: string,
 ): void {
-  if (lines.length >= 100) return;
+  if (lines.length >= BROWSER_DIAGNOSTIC_LIMITS.lines) return;
   lines.push({
     t: `${((Date.now() - t0) / 1000).toFixed(3)}s`,
     level,
-    msg: msg.slice(0, 400),
+    msg: truncateDiagnostic(msg),
   });
 }
 
@@ -569,9 +656,11 @@ interface MeasureRequest {
  * artifact code has ever run in this context.
  */
 const MEASURE_REGION = (req: MeasureRequest): RegionMetrics => {
-  const frame = (globalThis as unknown as {
-    __mlFrame?: { ctx: CanvasRenderingContext2D; w: number; h: number };
-  }).__mlFrame;
+  const frame = (
+    globalThis as unknown as {
+      __mlFrame?: { ctx: CanvasRenderingContext2D; w: number; h: number };
+    }
+  ).__mlFrame;
   if (frame === undefined) throw new Error("frame not loaded");
   const x0 = Math.max(0, Math.min(frame.w - 1, Math.round(req.rect.x)));
   const y0 = Math.max(0, Math.min(frame.h - 1, Math.round(req.rect.y)));
@@ -756,10 +845,12 @@ export async function runBrowserChecks(
   html: string,
   opts: BrowserChecksOptions,
 ): Promise<BrowserChecksOutcome> {
-  const browser = await getBrowser();
+  const lease = acquireBrowser();
+  const browser = await lease.promise;
   if (browser === null) {
+    await releaseBrowser(lease);
     return {
-      checks: skippedAll(BROWSER_NOT_INSTALLED_NOTE),
+      checks: skippedAll(lease.unavailableNote),
       consoleLines: [],
       screenshotSaved: false,
       degraded: true,
@@ -771,52 +862,113 @@ export async function runBrowserChecks(
   const consoleLines: ConsoleLine[] = [];
   let screenshotSaved = false;
   let context: BrowserContext | null = null;
+  let analyzerContext: BrowserContext | null = null;
   let timedOut = false;
+  let stopped: string | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  const stop = (reason: string): void => {
+    stopped ??= reason;
+    void context?.close().catch(() => undefined);
+    void analyzerContext?.close().catch(() => undefined);
+  };
+  const onAbort = (): void => stop("cancelled by operator");
+  const outcome = (): BrowserChecksOutcome => {
+    if (stopped !== null) {
+      const clean = results.find((entry) => entry.name === "console.clean");
+      if (clean) Object.assign(clean, { status: "failed", note: stopped });
+      else results.push(result("console.clean", "failed", stopped, null));
+    }
+    return { checks: inCanonicalOrder(results), consoleLines, screenshotSaved, degraded: false };
+  };
 
   try {
-    context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+    opts.signal?.addEventListener("abort", onAbort, { once: true });
+    if (opts.signal?.aborted) {
+      stop("cancelled by operator");
+      throw new Error("cancelled by operator");
+    }
+    context = await browser.newContext({
+      viewport: { width: 1280, height: 720 },
+      serviceWorkers: "block",
+      acceptDownloads: false,
+      permissions: [],
+    });
+    if (stopped !== null) throw new Error(stopped);
+    timer = setTimeout(() => {
+      timedOut = true;
+      stop(`watchdog: ${Math.round(watchdogMs / 1000)}s limit exceeded`);
+    }, watchdogMs);
+    await restrictArtifactContext(context);
+    // A non-secure reserved host keeps service-worker APIs unavailable. The
+    // document is always fulfilled locally; no DNS or HTTP request is sent.
+    const documentUrl = "http://model-lab-artifact.invalid/document";
+    await context.route(
+      documentUrl,
+      (route) =>
+        route.fulfill({
+          status: 200,
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            "content-security-policy": ARTIFACT_CSP,
+            "x-content-type-options": "nosniff",
+          },
+          body: injectCsp(html),
+        }),
+      { times: 1 },
+    );
     const page = await context.newPage();
+    context.on("page", (extra) => {
+      if (extra !== page) void extra.close().catch(() => undefined);
+    });
     // Transpilers (tsx/esbuild keepNames) wrap functions passed to
     // page.evaluate in a __name(...) helper the page doesn't define — provide
     // it so serialized check functions run under any build toolchain.
     await page.addInitScript({
       content: "globalThis.__name = (target, _name) => target;",
     });
-    // Network blocked: abort every request the artifact attempts.
-    await page.route("**/*", (route) => {
-      void route.abort();
-    });
-
     const t0 = Date.now();
-    const pageErrors: string[] = [];
-    const consoleErrors: string[] = [];
+    let errorCount = 0;
+    let recentError = "error";
+    let diagnosticCount = 0;
+    let diagnosticBytes = 0;
+    const diagnostic = (level: ConsoleLine["level"], message: string): void => {
+      if (stopped !== null) return;
+      diagnosticCount += 1;
+      diagnosticBytes += Buffer.byteLength(message);
+      if (level === "error") {
+        errorCount += 1;
+        recentError = truncateDiagnostic(message);
+      }
+      pushConsole(consoleLines, t0, level, message);
+      if (
+        diagnosticCount >= BROWSER_DIAGNOSTIC_LIMITS.events ||
+        diagnosticBytes >= BROWSER_DIAGNOSTIC_LIMITS.receivedBytes
+      ) {
+        stop(`diagnostic limit exceeded (${diagnosticCount} events, ${diagnosticBytes} bytes)`);
+      }
+    };
     page.on("pageerror", (err) => {
-      pageErrors.push(err.message);
-      pushConsole(consoleLines, t0, "error", `Uncaught ${err.message}`);
+      diagnostic("error", err.message);
     });
     page.on("console", (msg) => {
       const kind = msg.type();
       if (kind === "error") {
-        consoleErrors.push(msg.text());
-        pushConsole(consoleLines, t0, "error", msg.text());
+        diagnostic("error", msg.text());
       } else if (kind === "warning") {
-        pushConsole(consoleLines, t0, "warn", msg.text());
+        diagnostic("warn", msg.text());
       } else {
-        pushConsole(consoleLines, t0, "info", msg.text());
+        diagnostic("info", msg.text());
       }
     });
-    const totalErrors = (): number => pageErrors.length + consoleErrors.length;
-    const lastError = (): string =>
-      consoleErrors[consoleErrors.length - 1] ?? pageErrors[pageErrors.length - 1] ?? "error";
+    const totalErrors = (): number => errorCount;
+    const lastError = (): string => recentError;
 
-    const ctx = context;
-    timer = setTimeout(() => {
-      timedOut = true;
-      void ctx.close().catch(() => undefined);
-    }, watchdogMs);
-
-    const record = (name: BrowserCheckName, status: CheckStatus, note: string, ms: number): void => {
+    const record = (
+      name: BrowserCheckName,
+      status: CheckStatus,
+      note: string,
+      ms: number,
+    ): void => {
       results.push(result(name, status, note, ms));
     };
 
@@ -825,7 +977,7 @@ export async function runBrowserChecks(
     let loaded = false;
     let loadError = "";
     try {
-      await page.setContent(injectCsp(html), { waitUntil: "load", timeout: 5_000 });
+      await page.goto(documentUrl, { waitUntil: "load", timeout: 5_000 });
       loaded = true;
     } catch (err) {
       loadError = errorMessage(err);
@@ -837,7 +989,12 @@ export async function runBrowserChecks(
       const okDoc = await page.evaluate(
         () => document.documentElement !== null && document.body !== null,
       );
-      record("html.parses", okDoc ? "passed" : "failed", okDoc ? "valid document" : "no document element", loadMs);
+      record(
+        "html.parses",
+        okDoc ? "passed" : "failed",
+        okDoc ? "valid document" : "no document element",
+        loadMs,
+      );
     } else {
       const staticOk = /<!doctype\s+html|<html[\s>]/i.test(html);
       record(
@@ -861,12 +1018,7 @@ export async function runBrowserChecks(
     }
     if (!loaded) {
       fillMissing(results, "skipped", "skipped (page load failed)");
-      return {
-        checks: inCanonicalOrder(results),
-        consoleLines,
-        screenshotSaved,
-        degraded: false,
-      };
+      return outcome();
     }
 
     await page.waitForTimeout(300);
@@ -914,8 +1066,10 @@ export async function runBrowserChecks(
           const g0 = d[1];
           const b0 = d[2];
           const a0 = d[3];
-          const stride = Math.max(4, Math.floor(d.length / 2000 / 4) * 4);
-          for (let i = 0; i < d.length; i += stride) {
+          // Fixed-step sampling can alias a repeating texture and report it
+          // blank (e.g. 10px stripes at a 460px sample stride). The bitmap is
+          // already in memory; stop at the first differing pixel instead.
+          for (let i = 4; i < d.length; i += 4) {
             if (d[i] !== r0 || d[i + 1] !== g0 || d[i + 2] !== b0 || d[i + 3] !== a0) {
               blank = false;
               break;
@@ -943,16 +1097,27 @@ export async function runBrowserChecks(
      */
     let frameIssue: string | null = "frame never captured";
     try {
-      const buf = await page.screenshot({ path: opts.screenshotPath, timeout: 5_000 });
+      const buf = await page.screenshot({ timeout: 5_000 });
+      await writeFile(opts.screenshotPath, buf, { flag: "wx" });
       screenshotSaved = true;
       const kb = Math.round(buf.byteLength / 1024);
       if (buf.byteLength > 1024) {
         record("screenshot.captured", "passed", `1280×720 · ${kb}kb`, Date.now() - shotStart);
       } else {
-        record("screenshot.captured", "warn", `suspiciously small (${kb}kb)`, Date.now() - shotStart);
+        record(
+          "screenshot.captured",
+          "warn",
+          `suspiciously small (${kb}kb)`,
+          Date.now() - shotStart,
+        );
       }
       try {
-        const analyzed = await analyzeFrame(page, await getAnalyzer(browser), buf);
+        // Private until every deferred region measurement has finished.
+        analyzerContext = await browser.newContext({ serviceWorkers: "block" });
+        if (stopped !== null) throw new Error(stopped);
+        await restrictArtifactContext(analyzerContext);
+        const analyzer = await createAnalyzer(analyzerContext);
+        const analyzed = await analyzeFrame(page, analyzer, buf);
         frame = analyzed.frame;
         frameIssue = analyzed.issue;
       } catch (err) {
@@ -962,7 +1127,12 @@ export async function runBrowserChecks(
         frameIssue = `frame analysis error: ${errorMessage(err).slice(0, 120)}`;
       }
     } catch (err) {
-      record("screenshot.captured", "failed", errorMessage(err).slice(0, 160), Date.now() - shotStart);
+      record(
+        "screenshot.captured",
+        "failed",
+        errorMessage(err).slice(0, 160),
+        Date.now() - shotStart,
+      );
       frameIssue = `screenshot failed: ${errorMessage(err).slice(0, 120)}`;
     }
     /** "we could not look, because …" — only ever read when frame === null. */
@@ -977,11 +1147,18 @@ export async function runBrowserChecks(
         m.columnVariance < T.columnVarianceMin &&
         m.localDetail < T.localDetailMin;
       const evidence =
-        m === null ? "" : `(column σ ${m.columnVariance.toFixed(1)}, detail ${m.localDetail.toFixed(1)})`;
+        m === null
+          ? ""
+          : `(column σ ${m.columnVariance.toFixed(1)}, detail ${m.localDetail.toFixed(1)})`;
       if (!info.found) {
         record("canvas.renders", "failed", "no canvas element", canvasProbeMs);
       } else if (info.blank) {
-        record("canvas.renders", "failed", "blank frame — nothing drawn to the canvas", canvasProbeMs);
+        record(
+          "canvas.renders",
+          "failed",
+          "blank frame — nothing drawn to the canvas",
+          canvasProbeMs,
+        );
       } else if (m !== null && (m.distinctColors <= 1 || m.uniformity >= T.blankUniformityMax)) {
         record(
           "canvas.renders",
@@ -990,7 +1167,12 @@ export async function runBrowserChecks(
           canvasProbeMs,
         );
       } else if (flat) {
-        record("canvas.renders", "failed", `no vertical structure — gradient only ${evidence}`, canvasProbeMs);
+        record(
+          "canvas.renders",
+          "failed",
+          `no vertical structure — gradient only ${evidence}`,
+          canvasProbeMs,
+        );
       } else if (m === null) {
         /**
          * FAIL-CLOSED. This used to record "passed (pixels not measurable)",
@@ -1028,33 +1210,60 @@ export async function runBrowserChecks(
     const renderGate = results.find((r) => r.name === "canvas.renders");
     if (renderGate !== undefined && renderGate.status === "failed") {
       fillMissing(results, "skipped", "skipped (canvas.renders gate failed)");
-      return {
-        checks: inCanonicalOrder(results),
-        consoleLines,
-        screenshotSaved,
-        degraded: false,
-      };
+      return outcome();
     }
 
     // 5. interaction.wasd (CAPABILITY)
+    //
+    // One key at a time, comparing the frame after each. Pressing w-a-s-d back
+    // to back and comparing only at the end let opposite keys cancel out: a
+    // build that moved forward for w and back for s could land on the exact
+    // starting frame, and how many rAF ticks each hold spanned depended on
+    // machine load — so a working build scored "no visible state change" on a
+    // busy runner and "movement responds" on an idle one. Any key that changes
+    // the frame is proof of a responding build; a wall in front of the player
+    // blocking w is why the others still get their turn.
     {
       const start = Date.now();
       const errsBefore = totalErrors();
       const before = await canvasSnapshot(page);
-      for (const key of ["w", "a", "s", "d"]) {
+      let changed = false;
+      let respondedTo = "";
+      for (const key of ["w", "d", "a", "s"]) {
         await page.keyboard.down(key);
-        await page.waitForTimeout(60);
+        await page.waitForTimeout(160);
         await page.keyboard.up(key);
+        await page.waitForTimeout(120);
+        if (totalErrors() > errsBefore) break;
+        const now = await canvasSnapshot(page);
+        if (before !== "" && now !== before) {
+          changed = true;
+          respondedTo = key;
+          break;
+        }
       }
-      await page.waitForTimeout(200);
-      const after = await canvasSnapshot(page);
       const ms = Date.now() - start;
       if (totalErrors() > errsBefore) {
-        record("interaction.wasd", "failed", `error during input: ${lastError().slice(0, 120)}`, ms);
-      } else if (before !== "" && before !== after) {
-        record("interaction.wasd", "passed", "movement responds", ms);
+        record(
+          "interaction.wasd",
+          "failed",
+          `error during input: ${lastError().slice(0, 120)}`,
+          ms,
+        );
+      } else if (changed) {
+        record(
+          "interaction.wasd",
+          "passed",
+          `movement responds (frame changed on "${respondedTo}")`,
+          ms,
+        );
       } else {
-        record("interaction.wasd", "warn", "no crash; no visible state change", ms);
+        record(
+          "interaction.wasd",
+          "warn",
+          "no crash; no visible state change after w, d, a, s",
+          ms,
+        );
       }
     }
 
@@ -1069,7 +1278,12 @@ export async function runBrowserChecks(
       await page.waitForTimeout(150);
       const ms = Date.now() - start;
       if (totalErrors() > errsBefore) {
-        record("interaction.mouse", "failed", `error during input: ${lastError().slice(0, 120)}`, ms);
+        record(
+          "interaction.mouse",
+          "failed",
+          `error during input: ${lastError().slice(0, 120)}`,
+          ms,
+        );
       } else {
         record("interaction.mouse", "passed", "no errors on mouse input", ms);
       }
@@ -1157,11 +1371,26 @@ export async function runBrowserChecks(
       } else {
         const pct = (m.wallDetail * 100).toFixed(1);
         if (m.wallDetail >= T.wallDetailMin) {
-          record("textures.applied", "passed", `surface detail in the wall region (${pct}% edge pixels)`, ms);
+          record(
+            "textures.applied",
+            "passed",
+            `surface detail in the wall region (${pct}% edge pixels)`,
+            ms,
+          );
         } else if (m.wallDetail >= T.wallDetailWarn) {
-          record("textures.applied", "warn", `flat shading — only ${pct}% edge pixels in the wall region`, ms);
+          record(
+            "textures.applied",
+            "warn",
+            `flat shading — only ${pct}% edge pixels in the wall region`,
+            ms,
+          );
         } else {
-          record("textures.applied", "failed", `no surface detail — ${pct}% edge pixels in the wall region (gradient or flat fill)`, ms);
+          record(
+            "textures.applied",
+            "failed",
+            `no surface detail — ${pct}% edge pixels in the wall region (gradient or flat fill)`,
+            ms,
+          );
         }
       }
     }
@@ -1260,26 +1489,30 @@ export async function runBrowserChecks(
       });
       const ms = Date.now() - start;
       if (ratio === null) record("a11y.contrast", "warn", "no text content to sample", ms);
-      else if (ratio >= 4.5) record("a11y.contrast", "passed", `min contrast ${ratio.toFixed(1)}:1`, ms);
-      else if (ratio >= 3) record("a11y.contrast", "warn", `min contrast ${ratio.toFixed(1)}:1 (< 4.5:1)`, ms);
+      else if (ratio >= 4.5)
+        record("a11y.contrast", "passed", `min contrast ${ratio.toFixed(1)}:1`, ms);
+      else if (ratio >= 3)
+        record("a11y.contrast", "warn", `min contrast ${ratio.toFixed(1)}:1 (< 4.5:1)`, ms);
       else record("a11y.contrast", "failed", `min contrast ${ratio.toFixed(1)}:1`, ms);
     }
   } catch (err) {
-    if (timedOut) {
-      fillMissing(results, "failed", `watchdog: ${Math.round((opts.watchdogMs ?? 30_000) / 1000)}s limit exceeded`);
+    if (stopped !== null || timedOut) {
+      fillMissing(
+        results,
+        "failed",
+        stopped ?? `watchdog: ${Math.round(watchdogMs / 1000)}s limit exceeded`,
+      );
     } else {
       fillMissing(results, "skipped", `check runner error: ${errorMessage(err).slice(0, 160)}`);
     }
   } finally {
     if (timer !== null) clearTimeout(timer);
+    opts.signal?.removeEventListener("abort", onAbort);
     if (context !== null) await context.close().catch(() => undefined);
+    if (analyzerContext !== null) await analyzerContext.close().catch(() => undefined);
+    await releaseBrowser(lease);
   }
 
   fillMissing(results, "skipped", "not executed");
-  return {
-    checks: inCanonicalOrder(results),
-    consoleLines,
-    screenshotSaved,
-    degraded: false,
-  };
+  return outcome();
 }

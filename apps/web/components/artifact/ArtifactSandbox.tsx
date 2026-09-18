@@ -1,49 +1,33 @@
 import type { Artifact } from "@model-lab/schemas";
 
-/**
- * Content-Security-Policy injected into every artifact document:
- * no network of any kind (default-src 'none'), inline script/style only
- * (single-file contract), images restricted to data: URIs.
- */
-const CSP_META =
-  `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; ` +
-  `script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:">`;
-
-/**
- * Pure: inject the sandbox CSP meta right after <head>. If the document has
- * no <head>, one is prepended (after <html> when present) so the policy is
- * always active before any artifact markup parses.
- */
-export function injectCsp(html: string): string {
-  if (/<head[^>]*>/i.test(html)) {
-    return html.replace(/<head[^>]*>/i, (m) => m + CSP_META);
+/** Only stored same-origin PNG routes are eligible to become image requests. */
+export function capturedPreviewSource(ref: string | null): string | null {
+  if (ref === null || !/^\/api\/runs\/[^/?#]+\/screenshots\//.test(ref)) return null;
+  try {
+    const parts = ref.split("/").map(decodeURIComponent);
+    if (parts.some((part) => part === "." || part === ".." || /[\\?#]/.test(part))) return null;
+    if (!ref.endsWith(".png")) return null;
+    return ref;
+  } catch {
+    return null;
   }
-  if (/<html[^>]*>/i.test(html)) {
-    return html.replace(/<html[^>]*>/i, (m) => `${m}<head>${CSP_META}</head>`);
-  }
-  return `<head>${CSP_META}</head>${html}`;
 }
 
 /**
- * SECURITY BOUNDARY (audit H-1/H-2): model-generated HTML executes inside an
- * <iframe sandbox="allow-scripts"> — NEVER allow-same-origin — so the artifact
- * runs in an opaque origin with no access to the app's origin, storage, or
- * cookies. The injected CSP additionally blocks all network egress.
- * Remounting (key change in the parent) restarts the isolated preview.
+ * Generated scripts never execute in the operator's browser. A sandboxed
+ * iframe's CSP does not reliably prohibit self-navigation, so previews use
+ * captured PNG evidence. Artifact execution belongs to the controlled runner.
  */
 export function ArtifactSandbox({
   artifact,
   widthPx,
 }: {
   artifact: Artifact;
-  /** null = 100% (desktop); otherwise a fixed device width in px */
   widthPx: number | null;
 }) {
+  const source = capturedPreviewSource(artifact.screenshotRef);
   return (
-    <iframe
-      sandbox="allow-scripts"
-      title={`Sandboxed artifact preview — ${artifact.endpointId} · ${artifact.filename}`}
-      srcDoc={injectCsp(artifact.source)}
+    <figure
       style={{
         alignSelf: "stretch",
         width: widthPx ?? "100%",
@@ -53,8 +37,28 @@ export function ArtifactSandbox({
         borderRadius: 8,
         background: "var(--color-void)",
         margin: "0 auto",
-        display: "block",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
       }}
-    />
+    >
+      {source ? (
+        // eslint-disable-next-line @next/next/no-img-element -- stored run PNG, not generated HTML
+        <img
+          src={source}
+          alt={`Captured artifact — ${artifact.endpointId} · ${artifact.filename}`}
+          style={{ width: "100%", height: "auto", objectFit: "contain", display: "block" }}
+        />
+      ) : (
+        <p style={{ padding: 24, textAlign: "center", color: "var(--color-muted)" }}>
+          No captured preview is available. Source and browser-check evidence remain available.
+        </p>
+      )}
+      <figcaption
+        style={{ padding: 10, fontSize: 11, textAlign: "center", color: "var(--color-faint)" }}
+      >
+        Captured preview · generated scripts do not run here
+      </figcaption>
+    </figure>
   );
 }

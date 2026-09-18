@@ -3,7 +3,7 @@ import { ModelsRegistry } from "@/components/models/ModelsRegistry";
 import { fixtures } from "@/lib/data";
 
 export default function ModelsPage() {
-  const { endpoints, modelDefinitions, providers, runLive } = fixtures;
+  const { endpoints, modelDefinitions, providers } = fixtures;
   return (
     <>
       <TopBar title="Models" />
@@ -11,7 +11,6 @@ export default function ModelsPage() {
         endpoints={endpoints}
         modelDefinitions={modelDefinitions}
         providers={providers}
-        resultsRunId={runLive.id}
       />
     </>
   );

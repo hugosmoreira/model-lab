@@ -10,8 +10,7 @@ export class OllamaProvider extends OpenAiCompatibleProvider {
   constructor(baseUrl?: string) {
     super(
       {
-        baseUrl:
-          baseUrl ?? process.env["OLLAMA_BASE_URL"] ?? DEFAULT_OLLAMA_BASE_URL,
+        baseUrl: baseUrl ?? process.env["OLLAMA_BASE_URL"] ?? DEFAULT_OLLAMA_BASE_URL,
         apiKey: null,
       },
       "ollama",

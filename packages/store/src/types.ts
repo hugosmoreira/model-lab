@@ -34,11 +34,7 @@ import type {
 
 /** Every store failure is thrown as a StoreError with a stable `code`. */
 export type StoreErrorCode =
-  | "NOT_FOUND"
-  | "IMMUTABLE"
-  | "DUPLICATE"
-  | "CONFIG"
-  | "BACKEND";
+  "NOT_FOUND" | "IMMUTABLE" | "DUPLICATE" | "INVALID" | "CONFIG" | "BACKEND";
 
 export class StoreError extends Error {
   readonly code: StoreErrorCode;
@@ -135,11 +131,17 @@ export interface RunStore {
   listArtifacts(runId: string): Promise<Artifact[]>;
 
   // -- append-only human audit trail ----------------------------------------
+  /** Requires a persisted sample and participant in the same run; throws NOT_FOUND. */
   insertAnnotation(a: HumanAnnotation): Promise<void>;
   /** Annotations for a run in append order. */
   listAnnotations(runId: string): Promise<HumanAnnotation[]>;
 
   // -- head-to-head votes (mutable until `final`) ---------------------------
+  /**
+   * Requires two distinct participants of an existing run. A final vote is
+   * immutable: concurrent final writes allow exactly one success; all later
+   * writes throw IMMUTABLE, including attempts to clear the final flag.
+   */
   upsertVote(v: PairwiseVote): Promise<void>;
   /** Votes ordered by pairIndex. */
   listVotes(runId: string): Promise<PairwiseVote[]>;

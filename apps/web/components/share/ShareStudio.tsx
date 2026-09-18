@@ -13,13 +13,13 @@ import {
   downloadDataUrl,
   downloadText,
 } from "@/lib/share/download";
-import { ShareCard, isShareCardTemplate } from "./ShareCard";
+import { ShareCard, SHARE_CARD_SIZES, isShareCardTemplate } from "./ShareCard";
 import type { ShareCardContent, ShareCardRow, ShareCardTheme } from "./ShareCard";
 
 const TEMPLATE_LABELS: Record<ShareTemplate, string> = {
   "new-model-scorecard": "New Model Scorecard",
   "head-to-head-winner": "Head-to-Head Winner",
-  "cost-vs-quality": "Cost vs Quality",
+  "cost-vs-quality": "Cost vs Score",
   "category-breakdown": "Category Breakdown",
   "wtl-matrix": "Win/Tie/Loss Matrix",
   "artifact-montage": "Artifact Montage",
@@ -147,7 +147,15 @@ function LabeledInput({
   onChange: (v: string) => void;
 }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 11.5, color: "var(--color-muted)" }}>
+    <label
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 3,
+        fontSize: 11.5,
+        color: "var(--color-muted)",
+      }}
+    >
       <span style={{ display: "flex", alignItems: "baseline" }}>
         {label}
         <span style={{ marginLeft: "auto", ...mono, fontSize: 10, color: "var(--color-faint)" }}>
@@ -180,6 +188,8 @@ export interface ShareStudioProps {
   footnote: string | null;
   /** "run_8f3ac21e · github.com/hugosmoreira/model-lab" */
   runLink: string;
+  /** what the card's score column is — VISUAL·HUMAN, JUDGE·RUBRIC, or BROWSER·CAPABILITY */
+  scoreLabel: string;
   /** ?template= deep-link preselect (validated by the page) */
   initialTemplate?: ShareTemplate;
 }
@@ -194,11 +204,10 @@ export function ShareStudio({
   methodology,
   footnote,
   runLink,
+  scoreLabel,
   initialTemplate,
 }: ShareStudioProps) {
-  const [template, setTemplate] = useState<ShareTemplate>(
-    initialTemplate ?? "new-model-scorecard",
-  );
+  const [template, setTemplate] = useState<ShareTemplate>(initialTemplate ?? "new-model-scorecard");
   const [aspect, setAspect] = useState<ShareAspect>("16:9");
   const [theme, setTheme] = useState<ShareCardTheme>("dark");
   const [title, setTitle] = useState(defaultTitle);
@@ -210,6 +219,19 @@ export function ShareStudio({
   const [copied, setCopied] = useState<CopiedKind | null>(null);
 
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLElement | null>(null);
+  const [canvasWidth, setCanvasWidth] = useState<number | null>(null);
+  const cardSize = SHARE_CARD_SIZES[aspect];
+  const previewScale = Math.min(1, (canvasWidth ?? cardSize.w) / cardSize.w);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas == null) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry != null) setCanvasWidth(Math.max(1, entry.contentRect.width));
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, []);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
@@ -301,6 +323,7 @@ export function ShareStudio({
     <>
       {/* Controls */}
       <aside
+        className="share-controls"
         style={{
           flex: "0 1 260px",
           minWidth: 220,
@@ -337,7 +360,9 @@ export function ShareStudio({
               >
                 {TEMPLATE_LABELS[tpl]}
                 {!enabled && (
-                  <span style={{ ...mono, fontSize: 9.5, color: "var(--color-faint)", marginLeft: 6 }}>
+                  <span
+                    style={{ ...mono, fontSize: 9.5, color: "var(--color-faint)", marginLeft: 6 }}
+                  >
                     soon
                   </span>
                 )}
@@ -398,7 +423,9 @@ export function ShareStudio({
           >
             <TogglePill on />
             Methodology footer{" "}
-            <span style={{ fontSize: 10, color: "var(--color-faint)" }}>(always on for exports)</span>
+            <span style={{ fontSize: 10, color: "var(--color-faint)" }}>
+              (always on for exports)
+            </span>
           </button>
           <button
             type="button"
@@ -498,7 +525,11 @@ export function ShareStudio({
           >
             {copied === "post" ? "Copied ✓" : "Copy post draft"}
           </button>
-          <a href={`/api/runs/${encodeURIComponent(runId)}/bundle`} className="hover-border" style={ghostStyle}>
+          <a
+            href={`/api/runs/${encodeURIComponent(runId)}/bundle`}
+            className="hover-border"
+            style={ghostStyle}
+          >
             Download run bundle{" "}
             <span style={{ ...mono, fontSize: 10, color: "var(--color-faint)" }}>.zip</span>
           </a>
@@ -510,6 +541,7 @@ export function ShareStudio({
 
       {/* Canvas stage */}
       <section
+        ref={canvasRef}
         style={{
           flex: "1 1 480px",
           minWidth: 0,
@@ -522,14 +554,32 @@ export function ShareStudio({
         }}
       >
         {isShareCardTemplate(template) ? (
-          <div ref={stageRef} style={{ display: "flex", maxWidth: "100%" }}>
-            <ShareCard
-              template={template}
-              rows={rows}
-              content={content}
-              theme={theme}
-              aspect={aspect}
-            />
+          <div
+            style={{
+              width: cardSize.w * previewScale,
+              height: cardSize.h * previewScale,
+              flex: "0 0 auto",
+            }}
+          >
+            <div
+              ref={stageRef}
+              style={{
+                display: "flex",
+                width: cardSize.w,
+                height: cardSize.h,
+                transform: `scale(${previewScale})`,
+                transformOrigin: "top left",
+              }}
+            >
+              <ShareCard
+                template={template}
+                rows={rows}
+                content={content}
+                theme={theme}
+                aspect={aspect}
+                scoreLabel={scoreLabel}
+              />
+            </div>
           </div>
         ) : (
           <div className="panel" style={{ width: "min(420px, 100%)" }}>

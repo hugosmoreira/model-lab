@@ -47,10 +47,7 @@ function matchesTab(pack: BenchmarkPack, tab: TabId): boolean {
 
 function matchesQuery(pack: BenchmarkPack, query: string): boolean {
   if (!query) return true;
-  return [pack.name, pack.description, pack.category ?? ""]
-    .join(" ")
-    .toLowerCase()
-    .includes(query);
+  return [pack.name, pack.description, pack.category ?? ""].join(" ").toLowerCase().includes(query);
 }
 
 function runHref(pack: BenchmarkPack): string {
@@ -127,7 +124,9 @@ function ArenaPackCard({ pack }: { pack: BenchmarkPack }) {
         </span>
         <span>{pack.scorersSummary}</span>
         <span>
-          {pack.estCostPerModelUsd != null ? `est. ~${usd(pack.estCostPerModelUsd)}/model` : "est. cost n/a"}
+          {pack.estCostPerModelUsd != null
+            ? `est. ~${usd(pack.estCostPerModelUsd)}/model`
+            : "est. cost n/a"}
         </span>
         <span>{pack.lastRunAt ? `last run: ${pack.lastRunAt}` : "never run"}</span>
       </div>

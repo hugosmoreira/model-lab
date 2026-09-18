@@ -1,4 +1,5 @@
 import { getStore } from "@model-lab/store";
+import { isReadOnly } from "@/lib/server/read-only";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export async function GET() {
     return Response.json({
       ok: true,
       backend,
+      readOnly: isReadOnly(),
       runsVisible: runs.length,
       supabaseUrlConfigured: Boolean(process.env.SUPABASE_URL),
       serviceKeyConfigured: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),

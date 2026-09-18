@@ -39,8 +39,7 @@ export function endpointCostRange(
   const pOut = ep.priceOutPerMtokUsd;
   if (pIn == null || pOut == null) return { low: 0, high: 0 }; // local — free
   const at = (k: number) =>
-    samples *
-    ((EST_INPUT_TOKENS_PER_CALL / 1e6) * pIn + ((estOutputTokens * k) / 1e6) * pOut);
+    samples * ((EST_INPUT_TOKENS_PER_CALL / 1e6) * pIn + ((estOutputTokens * k) / 1e6) * pOut);
   return { low: at(1 - OUTPUT_TOKEN_VARIANCE), high: at(1 + OUTPUT_TOKEN_VARIANCE) };
 }
 
@@ -59,11 +58,7 @@ export function totalCostRange(
 }
 
 /** Total token estimate: calls × (fixed input + output ±variance). */
-export function tokenRange(
-  modelCount: number,
-  samples: number,
-  estOutputTokens: number,
-): EstRange {
+export function tokenRange(modelCount: number, samples: number, estOutputTokens: number): EstRange {
   const calls = modelCount * samples;
   return {
     low: calls * (EST_INPUT_TOKENS_PER_CALL + estOutputTokens * (1 - OUTPUT_TOKEN_VARIANCE)),
@@ -73,9 +68,7 @@ export function tokenRange(
 
 /** "400k ctx" / "1M ctx" / "10M ctx". */
 export function ctxLabel(tokens: number): string {
-  return tokens >= 1_000_000
-    ? `${tokens / 1_000_000}M ctx`
-    : `${Math.round(tokens / 1000)}k ctx`;
+  return tokens >= 1_000_000 ? `${tokens / 1_000_000}M ctx` : `${Math.round(tokens / 1000)}k ctx`;
 }
 
 /** "$3 / $15 per Mtok" — null prices render "$0.00 (local)". */

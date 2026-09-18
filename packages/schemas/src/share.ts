@@ -1,9 +1,16 @@
 import { z } from "zod";
 
 export const ShareTemplate = z.enum([
-  "new-model-scorecard", "head-to-head-winner", "cost-vs-quality",
-  "category-breakdown", "wtl-matrix", "artifact-montage", "surprise-failure",
-  "local-vs-cloud", "judge-disagreement", "methodology-card",
+  "new-model-scorecard",
+  "head-to-head-winner",
+  "cost-vs-quality",
+  "category-breakdown",
+  "wtl-matrix",
+  "artifact-montage",
+  "surprise-failure",
+  "local-vs-cloud",
+  "judge-disagreement",
+  "methodology-card",
 ]);
 export type ShareTemplate = z.infer<typeof ShareTemplate>;
 

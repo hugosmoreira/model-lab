@@ -1,0 +1,60 @@
+[
+  {
+    "file": "types-json5-0.0.29-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/a5f4d50cccf025b6a8088093e76da2b20c1220f3/LICENSE",
+    "bytes": 1167,
+    "sha256": "0a48f63d7d32a49d196dce4b2e0cbc236c2cc8fef42cb20e005e4d5f813cc8f6",
+    "sourceMatch": {
+      "publishedMember": "json5/index.d.ts",
+      "url": "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/a5f4d50cccf025b6a8088093e76da2b20c1220f3/json5/index.d.ts",
+      "sha256": "c5a14bdeb170e0e67fb4200c54e0e02fd0ec94aca894c212c9d43c2916891542",
+      "equal": true
+    }
+  },
+  {
+    "file": "language-tags-1.0.9-linked-LICENSE.txt",
+    "url": "https://mattcg.mit-license.org/license.txt",
+    "bytes": 1115,
+    "sha256": "40169c46abc7d91a7bde828fe8529d3a711f2023b68676754b89606bfb933c42"
+  },
+  {
+    "file": "natural-compare-1.4.0-linked-LICENSE.txt",
+    "url": "https://lauri.rooden.ee/mit-license.txt",
+    "bytes": 1087,
+    "sha256": "353fe762ba595bf1ffe786acf0f5984bb164205901d74f258af195fc8228c67d"
+  },
+  {
+    "file": "language-subtag-registry-0.3.23-CC0.txt",
+    "url": "https://creativecommons.org/publicdomain/zero/1.0/legalcode.txt",
+    "bytes": 7048,
+    "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"
+  },
+  {
+    "file": "keyv-4.5.4-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/jaredwray/keyv/e4d608eccdfc094b80f6e9545c5307ee0810af72/LICENSE",
+    "bytes": 1108,
+    "sha256": "1f7dca26d2d328c3dbb9b6fe3b15ec3cda08ffe2288e47b73d617454b256f959",
+    "sourceMatch": [
+      {
+        "member": "package/README.md",
+        "equal": true,
+        "sha256": "c39e1b3f735bb9302eb3cbd84aeb48c4311db64381f9e0a1aa4a61ddf59ce890"
+      },
+      {
+        "member": "package/package.json",
+        "equal": true,
+        "sha256": "e8afd30f2f2a40ef5023928b50fdaed3a3338aa7e1c4e86205413afb05e8a099"
+      },
+      {
+        "member": "package/src/index.d.ts",
+        "equal": true,
+        "sha256": "42baf4ca38c38deaf411ea73f37bc39ff56c6e5c761a968b64ac1b25c92b5cd8"
+      },
+      {
+        "member": "package/src/index.js",
+        "equal": true,
+        "sha256": "4987708b4b13159c654c09d239bd0c439533b0b792a6fd4e8769d8a509ad4da6"
+      }
+    ]
+  }
+]

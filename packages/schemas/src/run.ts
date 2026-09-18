@@ -4,7 +4,13 @@ export const RunMode = z.enum(["build-arena", "verified", "performance", "head-t
 export type RunMode = z.infer<typeof RunMode>;
 
 export const RunStatus = z.enum([
-  "queued", "running", "paused", "partial", "completed", "cancelled", "failed",
+  "queued",
+  "running",
+  "paused",
+  "partial",
+  "completed",
+  "cancelled",
+  "failed",
 ]);
 export type RunStatus = z.infer<typeof RunStatus>;
 
@@ -42,7 +48,12 @@ export const RunConfiguration = z.object({
 export type RunConfiguration = z.infer<typeof RunConfiguration>;
 
 export const RunModelStatus = z.enum([
-  "queued", "generating", "testing", "scoring", "completed", "failed",
+  "queued",
+  "generating",
+  "testing",
+  "scoring",
+  "completed",
+  "failed",
 ]);
 export type RunModelStatus = z.infer<typeof RunModelStatus>;
 
@@ -60,6 +71,14 @@ export const RunModel = z.object({
   totalLatencyMs: z.number().nullable().default(null),
   costUsd: z.number().default(0),
   visualScore: z.object({ value: z.number(), n: z.number() }).nullable().default(null),
+  /**
+   * What produced `visualScore`, so no UI can present one source as another:
+   * "human" — mean of the latest 0–10 ratings per sample (append-only trail);
+   * "browser" — the capability pass-ratio ×10, a browser result and not a
+   * visual judgement; "objective" — verified-mode task accuracy. null on rows
+   * stored before this field existed; readers infer it from the run mode.
+   */
+  visualSource: z.enum(["human", "browser", "objective"]).nullable().default(null),
   testsPassed: z.number().nullable().default(null),
   testsTotal: z.number().nullable().default(null),
   retries: z.number().default(0),
@@ -90,10 +109,7 @@ export const Run = z.object({
   compositeWeighting: z
     .object({ browser: z.number(), visual: z.number(), efficiency: z.number() })
     .default({ browser: 50, visual: 35, efficiency: 15 }),
-  verdict: z
-    .object({ label: z.string(), narrative: z.string() })
-    .nullable()
-    .default(null),
+  verdict: z.object({ label: z.string(), narrative: z.string() }).nullable().default(null),
   judgeReversalCount: z.number().default(0),
 });
 export type Run = z.infer<typeof Run>;
@@ -132,7 +148,14 @@ export const BrowserTestResult = z.object({
 });
 export type BrowserTestResult = z.infer<typeof BrowserTestResult>;
 
-export const SampleStatus = z.enum(["queued", "generating", "testing", "scoring", "scored", "failed"]);
+export const SampleStatus = z.enum([
+  "queued",
+  "generating",
+  "testing",
+  "scoring",
+  "scored",
+  "failed",
+]);
 
 export const SampleScore = z.union([
   z.object({ value: z.number() }),
@@ -204,6 +227,22 @@ export const HumanAnnotation = z.object({
 });
 export type HumanAnnotation = z.infer<typeof HumanAnnotation>;
 
+/**
+ * Where a run executed: the provenance a configuration fingerprint cannot
+ * carry. Recorded by the runner at run time and shipped in the bundle.
+ */
+export const RunEnvironment = z.object({
+  node: z.string(), // "v22.20.0"
+  platform: z.string(), // "linux x64 6.8.0"
+  runner: z.string(), // "build-arena-runner v0.1.0"
+  chromium: z.string().nullable(), // "chromium 141.0.7390.37", null if checks never ran
+  servedModels: z.record(z.string(), z.string()), // endpoint id → model the provider reported serving
+  localHardware: z.string().nullable().default(null), // MODEL_LAB_LOCAL_HARDWARE, e.g. "RTX 4090 · 24 GB"
+  quantizations: z.record(z.string(), z.string()).default({}), // endpoint id → "q4_K_M"
+  recordedAt: z.string(),
+});
+export type RunEnvironment = z.infer<typeof RunEnvironment>;
+
 export const RunManifest = z.object({
   runId: z.string(),
   fingerprint: z.string(),
@@ -215,5 +254,7 @@ export const RunManifest = z.object({
   modelCount: z.number(),
   scorers: z.array(ScorerType),
   gitCommit: z.string().nullable().default(null),
+  /** null for runs recorded before provenance existed, and for the fixture demo */
+  environment: RunEnvironment.nullable().default(null),
 });
 export type RunManifest = z.infer<typeof RunManifest>;

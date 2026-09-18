@@ -3,3 +3,5 @@
 *.jpg binary
 *.woff2 binary
 .thumbnail binary
+# Retained upstream notices/source snippets are byte-hashed in their manifests.
+licenses/**/*.txt -text -whitespace

@@ -1,0 +1,152 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+    inputs:
+      revision:
+        description: Exact candidate commit for a manually requested release
+        required: false
+        type: string
+      skip_image_checks:
+        description: Source-only release verification; never enables container publishing
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: typecheck · lint · test · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # Every step below is guaranteed zero-spend: the mock flag substitutes all
+      # providers and disables the judge, and no key is ever present in CI.
+      MODEL_LAB_MOCK_PROVIDERS: "1"
+      MODEL_LAB_STORE: memory
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.revision || github.sha }}
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4; version from packageManager
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Resolve pinned browser version
+        id: pw
+        run: echo "version=$(node -p "require('./runners/build-arena/browser-runtime.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Chromium
+        id: pw-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/model-lab-browser
+          key: model-lab-browser-${{ runner.os }}-${{ steps.pw.outputs.version }}-${{ hashFiles('runners/build-arena/browser-runtime.json') }}
+
+      - name: Install hash-pinned Chromium (cache miss)
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm browser:install
+
+      - name: Install Chromium system libraries
+        run: pnpm --filter @model-lab/build-arena-runner exec playwright install-deps chromium
+
+      # The workspace test scripts retain memory/SQLite conformance, runner
+      # units, real browser taxonomy checks, budget admission and mock selftest,
+      # plus the new targeted release-hardening regressions.
+      - name: Store, runner and web regression suites
+        run: pnpm test
+
+      - name: Image-layer scanner regression
+        run: python3 scripts/check_image_layers.py
+
+      # Audit build tooling as well as the smaller production runtime graph.
+      - name: All workspace JavaScript dependency advisories
+        run: pnpm audit --audit-level high
+
+      - name: CLI (mock run through the run service, with the fail-under gate)
+        run: pnpm cli run --pack raycaster-oneshot --models anthropic/claude-sonnet-4-6,openai/gpt-5-mini,baseline/blank-html --mock --store memory --quiet --fail-under 0.5
+
+      - name: Build
+        run: pnpm build
+
+  secret-scan:
+    name: redacted tree and history secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.revision || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify narrow public-reference classification and failure handling
+        run: python3 -m unittest discover -s scripts -p test_release_secret_scan.py
+      - name: Scan candidate and fetched Git history without network access
+        run: python3 scripts/release_secret_scan.py
+      - name: Retain redacted scan evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-secret-scan
+          path: artifacts-data/release-secrets.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  docker-smoke:
+    name: Linux amd64 image · restart · restore
+    if: inputs.skip_image_checks != true
+    needs: [verify, secret-scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.revision || github.sha }}
+          persist-credentials: false
+      - name: Build once, inspect every image layer and exercise the container
+        run: python3 scripts/docker_release_check.py --image model-lab:ci
+      - name: Offline scan of the tested image using fresh public advisories
+        run: python3 scripts/image_vulnerability_scan.py --image model-lab:ci
+      - name: Retain synthetic release-check evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: linux-amd64-release-check
+          path: |
+            artifacts-data/release-check.json
+            artifacts-data/release-check-logs/
+            artifacts-data/image-vulnerabilities.json
+            artifacts-data/image-vulnerabilities-summary.json
+          if-no-files-found: warn
+          retention-days: 14

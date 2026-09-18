@@ -32,9 +32,10 @@ export function CategoryBars({ categories }: { categories: CategoryRow[] }) {
       {categories.map((c) => (
         <div
           key={c.name}
+          className="category-score-row"
           style={{
             display: "grid",
-            gridTemplateColumns: "150px 1fr",
+            gridTemplateColumns: "150px minmax(0, 1fr)",
             gap: 12,
             alignItems: "center",
           }}
@@ -52,7 +53,13 @@ export function CategoryBars({ categories }: { categories: CategoryRow[] }) {
           </span>
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             {c.bars.map((b) => (
-              <div key={b.key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div
+                key={b.key}
+                role="group"
+                aria-label={b.key}
+                title={b.key}
+                style={{ display: "flex", alignItems: "center", gap: 8 }}
+              >
                 <span
                   aria-hidden
                   style={{
@@ -63,7 +70,14 @@ export function CategoryBars({ categories }: { categories: CategoryRow[] }) {
                     flex: "0 1 auto",
                   }}
                 />
-                <span style={{ ...mono, fontSize: 11, color: "var(--color-muted)", whiteSpace: "nowrap" }}>
+                <span
+                  style={{
+                    ...mono,
+                    fontSize: 11,
+                    color: "var(--color-muted)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
                   {b.label}
                 </span>
               </div>

@@ -31,10 +31,7 @@
  *    mock provider (a mock flag must never spend money or hit a network).
  *  - MODEL_LAB_MOCK_PROVIDERS=0 → never substitute (force real providers,
  *    e.g. a local Ollama with no cloud keys).
- *  - unset → auto: when NO selected endpoint has its required API key present
- *    (Ollama counts as keyless — presence of a local server can't be proven by
- *    an env var), the whole run is mocked. Otherwise substitution is
- *    PER-ENDPOINT: exactly the endpoints whose required key is absent (e.g.
+ *  - unset → auto: substitution is PER-ENDPOINT. Endpoints whose required key is absent (e.g.
  *    deepseek/google before keys exist) run the mock provider — the runner's
  *    model.started message shows "· mock" for those endpoints — while keyed
  *    endpoints and keyless-by-design Ollama run real.
@@ -66,6 +63,7 @@ import { getStore, type RunStore } from "@model-lab/store";
 import {
   FsRunStore,
   RUNNER_VERSION,
+  captureSourceRevision,
   computeFingerprint,
   promptHash,
   startRun as runnerStartRun,
@@ -78,6 +76,7 @@ import {
 } from "@model-lab/build-arena-runner";
 import { registerRun, type RunRecord } from "@/lib/live/run-registry";
 import { loadPackFromDisk, tasksForPack } from "@/lib/server/packs";
+import { acquireRunLease, reconcileInterruptedRuns, type RunLease } from "./run-recovery";
 
 /** Input contract — matches the wizard's POST /api/runs body (agent A). */
 export interface StartRunInput {
@@ -86,6 +85,8 @@ export interface StartRunInput {
   packSlug: string;
   endpointIds: string[];
   samplesPerModel: number;
+  /** hard ceiling in USD; the workspace default when omitted */
+  maxBudgetUsd?: number;
 }
 
 /** Configuration/lookup failures the API maps to HTTP 400. */
@@ -164,6 +165,7 @@ interface ActiveRun {
   handle: RunHandle;
   feed: EventFeed;
   config: RunnerConfig;
+  lease: RunLease | null;
 }
 
 /* Survives next-dev module reloads, mirroring lib/live/run-registry. Finished
@@ -172,8 +174,10 @@ const globalStash = globalThis as typeof globalThis & {
   __modelLabRunService?: Map<string, ActiveRun>;
   __modelLabRegistrySeeded?: WeakSet<RunStore>;
 };
-const activeRuns: Map<string, ActiveRun> = (globalStash.__modelLabRunService ??=
-  new Map<string, ActiveRun>());
+const activeRuns: Map<string, ActiveRun> = (globalStash.__modelLabRunService ??= new Map<
+  string,
+  ActiveRun
+>());
 /* Store instances whose registry tables were seeded this process (once per
    process per instance; a store instance is a process-lifetime singleton). */
 const seededStores: WeakSet<RunStore> = (globalStash.__modelLabRegistrySeeded ??=
@@ -214,6 +218,8 @@ function requiredKeyEnv(providerId: string): string | null {
       return "DEEPSEEK_API_KEY";
     case "ollama":
       return null; // keyless by design
+    case "baseline":
+      return null; // deterministic control, never a real call
     default:
       // matches the runner's explicit-baseUrl convention: <PROVIDERID>_API_KEY
       return `${providerId.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_API_KEY`;
@@ -228,17 +234,40 @@ function hasRequiredKey(providerId: string): boolean {
 }
 
 /**
- * Per-endpoint mock decision (see module doc). Auto mode mocks the WHOLE run
- * when the selection is fully keyless (keyless demo fidelity); in a mixed
- * selection only the endpoints missing their required key are substituted —
- * keyless-by-design providers (ollama) run real.
+ * Auto mode mocks only endpoints missing a required key. Keyless local
+ * providers run real even when no cloud key is configured. Reachability is
+ * established by the actual local call, not by a cloud credential's presence.
  */
-function resolveMockPolicy(selected: ModelEndpoint[]): (ep: ModelEndpoint) => boolean {
+export function resolveMockPolicy(): (ep: Pick<ModelEndpoint, "providerId">) => boolean {
   const flag = (process.env["MODEL_LAB_MOCK_PROVIDERS"] ?? "").trim();
   if (flag === "1") return () => true;
   if (flag === "0") return () => false;
-  if (selected.every((ep) => !hasRequiredKey(ep.providerId))) return () => true;
   return (ep) => requiredKeyEnv(ep.providerId) !== null && !hasRequiredKey(ep.providerId);
+}
+
+/** One registry endpoint with what this environment can do with it (the CLI's `models`). */
+export interface EndpointAvailability {
+  id: string;
+  providerId: string;
+  modelId: string;
+  deployment: ModelEndpoint["deployment"];
+  /** the provider's key is present (always false for keyless Ollama) */
+  keyed: boolean;
+  /** what a run started right now would do with it */
+  mocked: boolean;
+}
+
+/** Every registry endpoint, resolved under the current mock policy. */
+export function listEndpointAvailability(): EndpointAvailability[] {
+  const mockFor = resolveMockPolicy();
+  return endpointCatalog.map((ep) => ({
+    id: ep.id,
+    providerId: ep.providerId,
+    modelId: ep.modelId,
+    deployment: ep.deployment,
+    keyed: hasRequiredKey(ep.providerId),
+    mocked: ep.providerId === "baseline" ? true : mockFor(ep),
+  }));
 }
 
 /** providerId → runner baseKind (+ explicit baseUrl where needed). */
@@ -266,7 +295,11 @@ function baseFor(providerId: string): { baseKind: BaseKind; baseUrl?: string } {
 
 function toEndpointConfig(ep: ModelEndpoint, mock: boolean): EndpointConfig {
   const def = modelDefinitions.find((m) => m.id === ep.modelId);
-  const base = mock ? { baseKind: "mock" as BaseKind } : baseFor(ep.providerId);
+  // The baseline control is the mock's blank document whatever the policy says.
+  const base =
+    mock || ep.providerId === "baseline"
+      ? { baseKind: "mock" as BaseKind }
+      : baseFor(ep.providerId);
   const config: EndpointConfig = {
     id: ep.id,
     providerId: ep.providerId,
@@ -279,6 +312,7 @@ function toEndpointConfig(ep: ModelEndpoint, mock: boolean): EndpointConfig {
     supportsSeed: def?.supportsSeed ?? false,
   };
   if ("baseUrl" in base && base.baseUrl !== undefined) config.baseUrl = base.baseUrl;
+  if (ep.quantization != null && ep.quantization !== "") config.quantization = ep.quantization;
   return config;
 }
 
@@ -337,7 +371,7 @@ const DEFAULT_JUDGE_PRICE_OUT = 15;
  * opt-out via MODEL_LAB_JUDGE=0. A forced all-mock run (MODEL_LAB_MOCK_PROVIDERS=1)
  * never judges — a mock flag must never spend money or hit a network.
  */
-function resolveJudgeConfig(mode: RunMode): RunnerConfig["judge"] {
+export function resolveJudgeConfig(mode: RunMode): RunnerConfig["judge"] {
   if (mode !== "build-arena") return undefined;
   if ((process.env["ANTHROPIC_API_KEY"] ?? "") === "") return undefined;
   if ((process.env["MODEL_LAB_JUDGE"] ?? "").trim() === "0") return undefined;
@@ -425,7 +459,9 @@ function synthesizeRun(cfg: RunnerConfig, startedAt: string): Run {
     promptHash: promptHash(cfg.pack.prompt),
     // verified runs: per-model sample count = task count (1 sample per task)
     samplesPerModel:
-      cfg.mode === "verified" ? cfg.pack.tasks?.length ?? cfg.samplesPerModel : cfg.samplesPerModel,
+      cfg.mode === "verified"
+        ? (cfg.pack.tasks?.length ?? cfg.samplesPerModel)
+        : cfg.samplesPerModel,
     modelCount: cfg.endpoints.length,
     budgetCeilingUsd: cfg.maxBudgetUsd,
     costSpentUsd: 0,
@@ -434,7 +470,7 @@ function synthesizeRun(cfg: RunnerConfig, startedAt: string): Run {
     completedAt: null,
     elapsedSec: 0,
     runnerVersion: RUNNER_VERSION,
-    gitCommit: null,
+    gitCommit: captureSourceRevision().commit,
     compositeWeighting: { browser: 50, visual: 35, efficiency: 15 },
     verdict: null,
     judgeReversalCount: 0,
@@ -487,9 +523,7 @@ function synthesizeConfiguration(cfg: RunnerConfig): RunConfiguration {
           ],
     configDifferences: cfg.endpoints
       .filter((ep) => cfg.seed !== null && !ep.supportsSeed)
-      .map(
-        (ep) => `${ep.modelId} (${ep.providerId}) runs unseeded — provider lacks seed support`,
-      ),
+      .map((ep) => `${ep.modelId} (${ep.providerId}) runs unseeded — provider lacks seed support`),
   };
 }
 
@@ -515,6 +549,7 @@ async function persistRunCreation(
       totalLatencyMs: null,
       costUsd: 0,
       visualScore: null,
+      visualSource: null,
       testsPassed: null,
       testsTotal: null,
       retries: 0,
@@ -660,6 +695,12 @@ async function pumpEvents(
   active.record = finished;
   registerRun(finished); // live page + GET /api/runs see the terminal status
   active.feed.finish();
+  if (store !== null && active.lease !== null) {
+    const persisted = await store.getRun(active.record.id).catch(() => null);
+    if (persisted !== null && !["running", "queued", "paused"].includes(persisted.run.status)) {
+      active.lease.release();
+    }
+  }
 }
 
 /* ------------------------------------------------------------------------- *
@@ -678,13 +719,11 @@ export async function startRun(input: StartRunInput): Promise<{ runId: string }>
   });
   const verified = input.mode === "verified";
   const pack = verified ? toVerifiedPackConfig(input.packSlug) : toPackConfig(input.packSlug);
-  const mockFor = resolveMockPolicy(selected);
+  const mockFor = resolveMockPolicy();
   const endpoints = selected.map((ep) => toEndpointConfig(ep, mockFor(ep)));
   const runId = newRunId();
   const name =
-    input.name ??
-    benchmarkPacks.find((p) => p.slug === input.packSlug)?.name ??
-    input.packSlug;
+    input.name ?? benchmarkPacks.find((p) => p.slug === input.packSlug)?.name ?? input.packSlug;
 
   const cfg: RunnerConfig = {
     runId,
@@ -698,7 +737,7 @@ export async function startRun(input: StartRunInput): Promise<{ runId: string }>
     maxOutputTokens: resolveMaxOutputTokens(),
     seed: defaultRunConfiguration.seed,
     concurrency: workspaceSettings.defaultConcurrency,
-    maxBudgetUsd: workspaceSettings.defaultRunBudgetUsd,
+    maxBudgetUsd: input.maxBudgetUsd ?? workspaceSettings.defaultRunBudgetUsd,
     transportRetries: defaultRunConfiguration.retryPolicy.transportRetries,
   };
   // LLM-judge phase (build-arena + ANTHROPIC_API_KEY + not opted out/mocked)
@@ -709,8 +748,7 @@ export async function startRun(input: StartRunInput): Promise<{ runId: string }>
   // Only a MOCKED qwen-ish endpoint qualifies: never sabotage a real run.
   if (!verified && input.samplesPerModel >= 2) {
     const qwenish = endpoints.find(
-      (ep) =>
-        ep.baseKind === "mock" && (ep.id.includes("qwen") || ep.modelId.includes("qwen")),
+      (ep) => ep.baseKind === "mock" && (ep.id.includes("qwen") || ep.modelId.includes("qwen")),
     );
     if (qwenish !== undefined) {
       cfg.failSample = { endpointId: qwenish.id, sampleIndex: 2 };
@@ -730,21 +768,37 @@ export async function startRun(input: StartRunInput): Promise<{ runId: string }>
     createdAt,
     status: "running",
   };
-  registerRun(record);
-
   const store = await getStoreSafe();
+  if (store !== null) await reconcileInterruptedRuns(store);
+  const lease = store !== null ? acquireRunLease(store, runId) : null;
   if (store !== null) {
     // Non-fatal: the live run continues even if the store rejects it, but the
     // failure (e.g. a seedRegistry error against a fresh database) is logged.
     await persistRunCreation(store, cfg, createdAt).catch(warnPersist("runCreation", store));
   }
 
-  const fsStore = new FsRunStore();
-  const handle = runnerStartRun(cfg, { store: fsStore });
-  const active: ActiveRun = { record, handle, feed: new EventFeed(), config: cfg };
+  let fsStore: FsRunStore;
+  let handle: RunHandle;
+  try {
+    fsStore = new FsRunStore();
+    handle = runnerStartRun(cfg, { store: fsStore });
+  } catch (err) {
+    lease?.stop();
+    if (store !== null) {
+      const ended = await store
+        .updateRunStatus(runId, { status: "failed", completedAt: new Date().toISOString() })
+        .catch(warnPersist("runStartupFailure", store));
+      if (ended !== undefined) lease?.release();
+    }
+    throw err;
+  }
+  const active: ActiveRun = { record, handle, feed: new EventFeed(), config: cfg, lease };
   activeRuns.set(runId, active);
+  registerRun(record);
 
-  void pumpEvents(active, store, fsStore);
+  void pumpEvents(active, store, fsStore)
+    .catch(warnPersist("eventPump", store ?? undefined))
+    .finally(() => lease?.stop());
   return { runId };
 }
 
@@ -757,18 +811,18 @@ export function isActiveRun(runId: string): boolean {
  * AsyncIterable of the run's events: buffered-from-start, then live; the
  * iterable ends once the run is terminal. Stored (persisted) runs replay
  * their event log and end immediately. Returns null when the run is unknown
- * to both the in-process service and the store — callers fall back to the
- * Phase 1 fixture replay.
+ * to both the in-process service and the store. Storage failures propagate;
+ * an unknown run never substitutes a fixture event stream.
  */
 export async function subscribeRun(runId: string): Promise<AsyncIterable<RunEvent> | null> {
   const active = activeRuns.get(runId);
   if (active !== undefined) return active.feed.stream();
 
-  const store = await getStoreSafe();
-  if (store === null) return null;
-  const run = await store.getRun(runId).catch(() => null);
+  const store = await getStore();
+  await reconcileInterruptedRuns(store);
+  const run = await store.getRun(runId);
   if (run === null) return null;
-  const stored = await store.listEvents(runId).catch(() => []);
+  const stored = await store.listEvents(runId);
   return (async function* replay(): AsyncGenerator<RunEvent, void, void> {
     for (const entry of stored) {
       const { id: _storeEventId, ...event } = entry;
