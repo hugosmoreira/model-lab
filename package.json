@@ -18,6 +18,9 @@
     "node": ">=22.13",
     "pnpm": ">=10"
   },
+  "dependencies": {
+    "tsx": "^4.23.13"
+  },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.0",
     "@eslint/js": "^9.0.0",
@@ -25,7 +28,6 @@
     "eslint-config-next": "^15.5.25",
     "globals": "^16.0.0",
     "prettier": "^3.9.6",
-    "tsx": "^4.23.13",
     "typescript-eslint": "^8.70.0"
   },
   "pnpm": {

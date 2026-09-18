@@ -15,6 +15,39 @@ these advisory-specific conclusions.
 
 ## Evidence identity and limits
 
+### Production dependency follow-up
+
+The 2026-09-18 follow-up image is
+`sha256:c6c3b6ef2ef58879b92447e5db0bdf90d32a26dd8d456eb23d8b5b0abf8d21e2`.
+It retains the Debian 13 base and Expat repair, but installs only the frozen
+production workspace graph after the build. Its complete synthetic runtime,
+CLI, crash/restart and backup/restore rehearsal passed. All 14 layers were
+checked (24,321 entries); removed development packages, Sharp, old Expat and
+the twelve synthetic secret/state markers were absent. The actual pnpm
+inventory fell from 335 to 37 packages; Trivy identifies 51 Node packages
+including nested components and reports no Node findings. Native matches
+remain 54 HIGH / 1 CRITICAL across 172 Debian packages, so the gate still fails.
+
+A controlled comparison used the current official Node 22 Bookworm index
+`sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5`
+without changing the tracked Dockerfile. Experimental image
+`sha256:3037d3bf0296814b2f24efdc15dd9a6ee15557b920269c4561c6a19d586ef191`
+passed the same runtime rehearsal, but its scan recorded 66 HIGH / 6 CRITICAL
+matches across 158 Debian packages (zero Node findings). Its smaller
+[GBM dependency graph](https://packages.debian.org/bookworm/libgbm1) avoids
+LLVM/libxml2, but introduces additional unresolved matches in older GLib,
+HarfBuzz, SQLite and other packages. Bookworm is under
+[LTS support through June 2028](https://www.debian.org/News/2026/20260712);
+support status alone does not resolve these findings. **The base switch was
+rejected.** Counts are package matches, not independent validated vulnerabilities.
+
+Both local images are dirty/experimental builds based on `d3d9eba`; neither is
+an exact-commit release certification. The ignored
+`artifacts-data/container-alternatives/` directory retains each release report,
+raw advisory report, summary and log. The comparison is separate from the
+historical per-advisory evidence below; no old conclusion is silently transferred
+to a different image, and no native advisory suppression was introduced.
+
 The initial input was `artifacts-data/image-vulnerabilities-remediation.json`
 and its `-summary.json`, reporting Debian 13.7 and image
 `model-lab:remediation-check`:

@@ -6,7 +6,7 @@ image's `MIT` label describes Model Lab; it does not relicense the image's conte
 
 This document records the active filesystem of the Linux/amd64 candidate inspected
 on 2026-09-18, image
-`sha256:d5e17b681522e2ce14ef322958e416458c132f24fef25800ffece3190e2af67b`.
+`sha256:c6c3b6ef2ef58879b92447e5db0bdf90d32a26dd8d456eb23d8b5b0abf8d21e2`.
 It uses Node 22.23.2, Playwright 1.63.0 and the official CfT headless-shell
 153.0.8010.52 asset. The final release report must bind these records to the
 publication digest. This image's supplemental notices and all four Expat license,
@@ -16,8 +16,9 @@ a development snapshot, not an exact-commit release certification.
 
 ## Where the retained notices are
 
-The candidate contains 335 installed pnpm packages, including development
-dependencies. All 335 report license metadata; 17 have no notice file matching
+The candidate contains 37 installed pnpm packages, reduced from 335 by a frozen
+production reinstall before runtime packaging. All 37 report license metadata;
+four have no notice file matching
 the inventory's package-root filename rule. This rule does not inspect source
 headers or README text and is not, by itself, a finding that a license is absent.
 
@@ -38,8 +39,11 @@ docker run --rm --network none --read-only --workdir /app \
 ```
 
 The inventory does not enumerate every nested Rust/C/C++ component. Global npm,
-Corepack and `/pnpm` are absent from this candidate's active filesystem. Its
-retained workspace development dependencies remain distributed components.
+Corepack and `/pnpm` are absent from this candidate's active filesystem.
+The runtime retains `tsx` for the CLI and TypeScript for Next's configuration
+loader. ESLint, Prettier, Tailwind build tools and `stable-hash` are excluded
+from every runtime image layer. The full development checkout still installs
+its development dependencies and retains their notices.
 Sharp and its `@img/sharp-*` bindings, Xvfb and the separate Playwright FFmpeg
 program have been removed from the runtime. The saved-layer inventory confirms
 Sharp and older Expat binaries are absent from all 14 image layers. The browser
@@ -51,8 +55,6 @@ still has its own FFmpeg component.
 | --- | --- | --- |
 | CfT `chrome-headless-shell@153.0.8010.52` | Shipped Chromium BSD-style license plus collected component terms; [exact artifact/source evidence](licenses/chrome-headless-shell-153.0.8010.52/README.md) | Retain the complete notice. Establish the applicable headless-shell product terms and covered-source delivery route before binary publication. |
 | `libexpat1@2.8.4-0modellab1` | MIT; unmodified [upstream 2.8.4](https://github.com/libexpat/libexpat/releases/tag/R_2_8_4), SHA-256 `656ae1cc8da3b4ea513bb4e254f33e6243938084c0ec6239da873376b09985a7` | The local same-ABI package replaces Debian's older parser. `/usr/share/doc/libexpat1/` retains `copyright`, `changelog`, `build-recipe.sh` and `source-provenance.txt`; final-image checks verify their hashes. |
-| `axe-core@4.13.0` | MPL-2.0; [versioned source](https://github.com/dequelabs/axe-core/tree/v4.13.0). Package includes `LICENSE` and `LICENSE-3RD-PARTY.txt`. | Retain both notices and provide a working source route for the covered version. |
-| `lightningcss@1.32.0` and `lightningcss-linux-x64-gnu@1.32.0` | MPL-2.0; [versioned source](https://github.com/parcel-bundler/lightningcss/tree/v1.32.0). Both include `LICENSE`. | Retain notices and account for the native binding's covered source and bundled components. |
 | `caniuse-lite@1.0.30001806` | CC-BY-4.0; package author Ben Briggs; [Browserslist source](https://github.com/browserslist/caniuse-lite) and [Can I Use data](https://caniuse.com/) | Retain attribution and license notice. Record any changes to distributed data. Model Lab has not intentionally modified this installed package. |
 | Debian base and Chromium dependencies | Mixed licenses. Inspected Debian notices include GPL-family terms in Bash/coreutils and MPL-2.0 in NSS. | Preserve the complete notices; record installed package/source versions and the applicable source delivery arrangements for the exact base image. |
 
@@ -63,9 +65,11 @@ Attribution and change notices for the data package follow
 These references supplement the actual component licenses; this index is not a
 replacement for their full text or a completed source-distribution package.
 
-Other recorded package licenses are MIT, Apache-2.0, ISC, BSD-2-Clause,
-BSD-3-Clause, 0BSD, CC0-1.0, BlueOak-1.0.0 (`minimatch@10.2.6`) and Python-2.0
-(`argparse@2.0.1`). Keep their existing notices when copying or trimming the image.
+The former development inventory also included MPL-licensed axe-core and
+lightningcss, BlueOak-licensed minimatch and Python-licensed argparse. Their
+standalone pnpm packages are absent from the current production inventory.
+Keep all remaining package and embedded-component notices when copying or
+trimming the image; a root-package count does not enumerate nested components.
 
 ## Open checks before publishing the container
 
@@ -89,6 +93,10 @@ BSD-3-Clause, 0BSD, CC0-1.0, BlueOak-1.0.0 (`minimatch@10.2.6`) and Python-2.0
    author, full license or source revision; `stable-hash@0.0.5` names Shu Ding
    and MIT but its published archive and exact repository revision omit the
    full permission text. Published evidence is retained; no grant was invented.
+   `stable-hash` is now absent from every runtime image layer, so its omission
+   remains a development-checkout concern, not a blocker for this image.
+   `client-only` is the one remaining installed-package notice gap; the other
+   three root-filename checks have retained exact-version supplemental notices.
 3. **Publish verifiable distribution evidence.** Attach the final image inventory,
    notice collection and version-matched source delivery information to the
    release. Verify recipients can retrieve the required material. Recheck if

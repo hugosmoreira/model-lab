@@ -23,6 +23,11 @@ Prepared locally; no GitHub release or container publication has occurred.
 - An unprivileged Linux image, image-layer sentinel tests, restart/restore checks,
   offline redacted tree/history secret scanning and a manually gated GHCR workflow.
   Publication and repository settings remain separate maintainer operations.
+- A production-only runtime dependency install, preserving the web server and
+  source CLI while excluding development tooling from every image layer.
+- A separate manual source-release workflow that verifies the exact tagged
+  commit and prepares a draft source archive with checksums. Container publishing
+  retains its full native advisory and distribution gates.
 
 - CI on GitHub Actions: typecheck, lint, format check, store conformance,
   runner unit tests, the check-taxonomy regression, the mock selftest, and a

@@ -116,7 +116,14 @@ be rerun after browser/platform changes. See [SECURITY.md](../SECURITY.md).
   in the report. Ten focused tests cover tree/history evidence, changed content,
   scanner failures and Linux mount ownership. No private dotenv files, ignored run data, local Git
   configuration or hooks were mounted in the scanner. Exact-commit CI repeats it.
-- License inventory includes development dependencies and retained OS/Node/browser
+- The production-dependency follow-up image `c6c3b6e` passed the complete runtime
+  and layer rehearsal, reducing the installed pnpm graph from 335 to 37 packages.
+  Removed tools include ESLint, Prettier, Tailwind build dependencies and
+  `stable-hash`. Trivy identifies 51 Node packages with zero findings; the native
+  result remains 54 HIGH / 1 CRITICAL. An isolated Bookworm comparison was
+  rejected after reporting more high/critical matches. See the advisory review
+  for full immutable identities and the limits of this development evidence.
+- The current license inventory covers production dependencies and retained OS/Node/browser
   notices. See the repository's third-party notices and the final image report for
   distribution work; npm metadata alone is not license clearance.
 
@@ -126,18 +133,25 @@ rehearsals are development evidence, not proof for a later immutable image.
 
 ## Publication steps
 
-1. Finish the candidate gates, commit the reviewed tree and obtain passing CI on
-   that exact revision in a private review request.
-2. Resolve binary vulnerability/license delivery gates and record the tested image
-   ID. Confirm the intended public repository/package contents and visibility.
-3. Configure required checks, branch/tag protections and the `github-release`
+1. Review the source candidate in private PR #3. Obtain passing application and
+   secret checks on its exact revision. Container findings remain independently
+   visible and block the container release, not the source-only workflow.
+2. Configure required checks, branch/tag protections and the `github-release`
    environment. Verify private vulnerability reporting availability. The maintainer
    supplied `info@webstudiolabs.com`; no test message was sent.
-4. Merge the reviewed candidate, tag its verified main revision, then run the manual
-   release workflow. It tests before pushing, pulls the published digest before
-   version promotion and retains checksums/provenance evidence where supported.
-5. Attach the verified packet to the GitHub release and test installation from the
-   published digest. Change public visibility only after reviewing the actual packet.
+3. For a source release, merge the reviewed source candidate, tag the verified
+   main revision and dispatch `source-release.yml` from main. It verifies that
+   exact commit again and prepares a **draft** source archive with checksums,
+   commit identity and explicit limitations. It does not publish the draft or
+   change repository visibility. The workflow has been statically validated;
+   dispatch and draft creation have not been exercised.
+4. Review the actual draft source packet before publishing it or changing
+   repository visibility. Source installation still downloads dependencies
+   under their respective terms; no browser or prebuilt dependency is bundled.
+5. Before a later container release, resolve binary vulnerability/license
+   delivery gates and record the tested image ID. The existing `release.yml`
+   still requires all image checks, tests before pushing, pulls the published
+   digest before version promotion and retains checksums/provenance evidence.
 
 No paid provider benchmark, public visibility change, release, image publication
 or hosted deployment has been performed. A new n=3 model comparison requires

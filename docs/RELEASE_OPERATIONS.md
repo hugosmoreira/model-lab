@@ -4,6 +4,31 @@ This is the operational procedure for the single-server, Linux amd64, SQLite
 release profile. [The release plan](RELEASE_PLAN.md) records which gates have
 actually passed. These procedures do not publish a release by themselves.
 
+## Source release before container publication
+
+The source release can proceed independently once the reviewed source commit's
+application and secret checks pass. Native image findings remain visible in PR
+CI and continue to block the container publication workflow.
+
+Before the first release, configure the `github-release` environment's reviewer
+and main-branch restrictions. Review and merge the candidate, align all package
+versions/CITATION, and create its reviewed version tag on main. Dispatch
+**Prepare reviewed source release** (`source-release.yml`) from main with that
+existing tag. The workflow requires main ancestry, checks out the exact commit,
+reruns application/browser/build/dependency/secret checks, and uses `git archive`
+to package only committed source. It attaches `SOURCE_REVISION` and `SHA256SUMS`
+to a **draft** GitHub release. Notes link to the immutable source revision and
+explicitly separate source support from container certification. The workflow
+does not create a tag, publish the draft, upload an image or change visibility.
+
+Review the actual draft's source archive, checksums, links, known limitations
+and intended repository visibility before publication. GitHub's generated
+source archives and the attached archive contain source, not installed browser
+or Node binaries. The operator downloads dependencies during the documented
+source setup. The workflow is statically validated; no dispatch, tag or draft
+release has been created yet. Container publication still follows all gates
+below and the existing `release.yml` workflow.
+
 ## Reproduce the container gate
 
 Install Docker and Python 3.10 or newer, then run from a clean candidate checkout:
@@ -115,10 +140,14 @@ license, source URL/hash and build recipe under `/usr/share/doc/libexpat1`.
 The image check verifies package metadata, library target/hash and the actual
 browser loader path. This narrowly fixes Expat; it does not resolve other native
 advisories or turn the image scan into a passing gate.
-Development dependencies currently remain in the runtime image so source-based
-workspace tools and the CLI work. Retain their license notices and include them
-in packaged-dependency review; a production-only package audit does not inspect
-every package shipped in this image. The application image is not a hardened
+After building, the image reinstalls the frozen production dependency graph
+offline from the build's package store, before copying any application files to
+the runtime stage. This preserves workspace links while excluding linting,
+formatting and CSS build tools from every runtime layer. `tsx` and TypeScript
+are explicit runtime dependencies for the source CLI and Next's configuration
+loader. CI audits the full build graph as well as scanning the final image.
+Retain the notices of the packages actually installed in that image.
+The application image is not a hardened
 multi-tenant execution service or an OS-level isolation certification.
 
 ## Offline backup

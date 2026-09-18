@@ -101,9 +101,10 @@ def build_image(image, work, report):
     archive = work / "image.tar"
     command("docker", "image", "save", "--output", archive, image, timeout=600)
     report["sentinelLayerCheck"] = inspect_image_archive(archive, marker)
-    report["nativeDecoderLayerExclusion"] = inspect_forbidden_layer_paths(
+    report["runtimeDependencyLayerExclusion"] = inspect_forbidden_layer_paths(
         archive, (
             r"^app/node_modules/\.pnpm/(?:sharp@|@img\+sharp-)",
+            r"^app/node_modules/\.pnpm/(?:eslint(?:@|-)|@eslint\+|@typescript-eslint\+|typescript-eslint@|prettier@|stable-hash@|tailwindcss@|@tailwindcss\+)",
             r"^(?:usr/)?lib/[^/]+/libexpat\.so\.(?!1\.12\.4$)[0-9]+\.[0-9]+\.[0-9]+$",
         ),
     )

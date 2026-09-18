@@ -48,11 +48,16 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 # The build never talks to a provider: keys are absent and mocks are forced.
 RUN MODEL_LAB_MOCK_PROVIDERS=1 MODEL_LAB_STORE=memory pnpm build
+# pnpm prune does not recursively prune workspaces. Reinstall the production
+# graph from the verified build store, preserving workspace links and the CLI.
+# This happens before runtime COPY: dev packages never enter published layers.
+# tsx runs the source CLI; TypeScript loads next.config.ts at server startup.
+RUN rm -rf node_modules apps/web/node_modules packages/schemas/node_modules \
+    packages/store/node_modules runners/build-arena/node_modules \
+  && pnpm install --prod --frozen-lockfile --offline
 # No route uses next/image. Check the built config, then remove unused native
 # decoders before COPY so their binaries never enter any runtime image layer.
 RUN node scripts/remove_unused_image_optimizer.mjs
-# Dev dependencies stay: `pnpm prune --prod` drops the workspace's bin links
-# (next itself), and they are small next to the browser.
 
 # ---------------------------------------------------------------------------
 FROM base AS runtime

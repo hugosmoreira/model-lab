@@ -300,19 +300,23 @@ normal/adversarial XML controls, all 72 ABI exports, actual browser loading and
 retained source/license/build provenance were verified independently. All-layer
 checks exclude older Expat binaries and the removed Sharp bundle.
 
-The final development image is
-`sha256:d5e17b681522e2ce14ef322958e416458c132f24fef25800ffece3190e2af67b`.
+The current development image is
+`sha256:c6c3b6ef2ef58879b92447e5db0bdf90d32a26dd8d456eb23d8b5b0abf8d21e2`.
 Its full runtime gate passes. The 2026-09-18 advisory database reports 54 HIGH and
 one CRITICAL native-package occurrences (20 unique advisory IDs), with zero matches
-across 353 identified Node packages. The Debian feed still matches the local Expat
+across 51 identified Node packages. Its installed pnpm graph is now 37 packages,
+down from 335, after removing development tools before runtime packaging.
+The Debian feed still matches the local Expat
 build despite its independently verified fixes; those records remain visible.
 Unresolved libxml2/native findings and binary distribution questions keep the strict
 publication gate blocked. No blanket suppression or vulnerability waiver was added.
 
 Retained notices and source provenance are recorded in
 [third-party notices](../THIRD_PARTY_NOTICES.md). Binary distribution questions,
-including the exact Chrome Headless Shell grant and two upstream npm notice gaps,
-remain explicit. The historical libvips source packet is not a runtime release gate
+including the exact Chrome Headless Shell grant and the installed `client-only`
+notice gap, remain explicit. The other gap (`stable-hash`) is now outside the
+image and remains documented for the development checkout.
+The historical libvips source packet is not a runtime release gate
 once absence of that bundle from every layer is verified.
 
 - Build in clean Linux CI from the exact candidate commit with the lockfile.
@@ -349,8 +353,13 @@ The first Linux secret job exposed report-directory ownership after capabilities
 were dropped; the host-UID/GID correction is reproduced, regression-tested and
 passed GitHub's secret-scan job on `bde2f59`. Current exact-revision check results
 are attached to the draft. The image advisory gate remains deliberately strict.
-Publication remains open and depends on R10. Earlier preparation PRs were not
-merged or closed.
+Container publication remains open and depends on R10. Source publication now
+has a separate manual path: `source-release.yml` reuses the application and
+secret gates for an existing reviewed tag on main, then prepares a draft source
+archive with checksums and commit identity. It has no container publishing
+permissions and does not change visibility or publish the draft. Ordinary PR CI
+and the container release continue to run the full image gate. Earlier
+preparation PRs were not merged or closed.
 
 Create a release packet containing the exact commit, proposed tag, changelog,
 migration notes, supported platform/storage matrix, known limitations, image
@@ -401,6 +410,22 @@ works; no private results are exposed.
 
 ## Release decision and progress record
 
+### Packaging and source-release follow-up (2026-09-18)
+
+- Verified a frozen offline production reinstall after the build, keeping
+  `tsx` for the CLI and TypeScript for Next's startup configuration loader.
+  Installed pnpm packages fell from 335 to 37; the full runtime/CLI/recovery
+  rehearsal and all 14 image layers passed. The raw native gate remains blocked.
+- Rejected the isolated Node 22 Bookworm alternative. Its smaller GBM graph
+  removed LLVM/libxml2 but reported 66 HIGH / 6 CRITICAL matches versus the
+  retained Debian 13 profile's 54 HIGH / 1 CRITICAL. Both raw reports are kept;
+  the comparison is documented in the native advisory review.
+- Prepared a source-only draft-release workflow and explicit source release
+  notes. Static workflow validation passes; actual dispatch awaits a reviewed,
+  merged and tagged candidate. This is a source publication route, not a native
+  advisory waiver. Removing `stable-hash` closes its image notice requirement;
+  it does not resolve that notice in a full development checkout.
+
 A polished first release means milestones 1–4 are satisfied for the advertised
 scope, not that every future feature exists. Keep the hosted demo optional.
 Do not mark a security finding closed solely because documentation now mentions
@@ -412,14 +437,15 @@ it; demonstrate its remediation or a verified mitigation that removes the path.
 | R1–R3: application safety | Verified; native image review tracked under R10 | Guard, browser-boundary, stream and diagnostic regressions; every-layer secret/state exclusions |
 | R4–R6: spending and evidence | Verified for supported local stores | Budget/provider regressions, evidence compatibility, memory/SQLite conformance and concurrent final votes |
 | R7–R9: product and replay | Verified | Full production flow, keyboard navigation, 390/412/1024 px layouts, three PNG export sizes, real error/404 states, replay and frontend tests |
-| R10: distributable | Functional checks pass; native advisory/distribution gates blocked | Final development image `d5e17b6`; all-layer exclusions, upstream Expat fix/ABI/provenance, CLI/HTTP/restart/crash/restore checks; raw scan retains 54 HIGH / 1 CRITICAL native matches |
-| R11: GitHub release | Private draft PR #3; unpublished | Implementation commit `62fbed4`, aligned candidate versions and manual release workflow; exact-revision CI and publication gates pending |
+| R10: distributable | Functional checks pass; native advisory/distribution gates blocked | Production dependency image `c6c3b6e`; 37 installed pnpm packages, all-layer exclusions and full CLI/HTTP/restart/crash/restore checks; raw scan retains 54 HIGH / 1 CRITICAL native matches |
+| R11: GitHub release | Private draft PR #3; source draft workflow prepared; unpublished | Aligned candidate versions, exact-source verification and source archive/checksum workflow; container release still requires its full gates |
 | R12: demo / new benchmark claims | Optional / open | Add selected target and relevant runtime/evidence checks |
 
-Next: use exact-revision CI on private draft PR #3 as the acceptance record and
-resolve the documented native advisory and binary distribution gates before image
-promotion. A source-only
-release can be reviewed separately; it must not imply container certification.
+Next: review the source candidate with exact-revision application and secret CI
+on private draft PR #3, then configure release protection and prepare its draft
+source packet from a reviewed main tag. Keep native advisory and binary
+distribution work open before any image promotion. The source-only release
+must not imply container certification.
 Full workspace tests, typecheck, lint, formatting and the production build have
 passed on the repaired application. The final offline
 tree/history secret scan passes with zero unresolved findings; one exact public

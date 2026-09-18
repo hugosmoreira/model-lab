@@ -10,6 +10,11 @@ on:
         description: Exact candidate commit for a manually requested release
         required: false
         type: string
+      skip_image_checks:
+        description: Source-only release verification; never enables container publishing
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -81,8 +86,8 @@ jobs:
       - name: Image-layer scanner regression
         run: python3 scripts/check_image_layers.py
 
-      # Development packages currently ship in the source-based CLI image too.
-      - name: All packaged JavaScript dependency advisories
+      # Audit build tooling as well as the smaller production runtime graph.
+      - name: All workspace JavaScript dependency advisories
         run: pnpm audit --audit-level high
 
       - name: CLI (mock run through the run service, with the fail-under gate)
@@ -118,6 +123,7 @@ jobs:
 
   docker-smoke:
     name: Linux amd64 image · restart · restore
+    if: inputs.skip_image_checks != true
     needs: [verify, secret-scan]
     runs-on: ubuntu-latest
     timeout-minutes: 45

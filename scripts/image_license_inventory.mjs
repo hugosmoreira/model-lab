@@ -82,8 +82,7 @@ const list = [...packages.values()].sort((a, b) =>
 process.stdout.write(
   JSON.stringify(
     {
-      scope:
-        "Installed pnpm workspace packages, including development dependencies; metadata is not a legal review",
+      scope: "Installed pnpm workspace packages in this image; metadata is not a legal review",
       node: process.version,
       packages: list,
       packagesWithoutRootNotice: list

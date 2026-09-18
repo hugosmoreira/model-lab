@@ -12,6 +12,10 @@ overrides:
 importers:
 
   .:
+    dependencies:
+      tsx:
+        specifier: ^4.23.13
+        version: 4.23.13
     devDependencies:
       '@eslint/eslintrc':
         specifier: ^3.3.0
@@ -31,9 +35,6 @@ importers:
       prettier:
         specifier: ^3.9.6
         version: 3.9.6
-      tsx:
-        specifier: ^4.23.13
-        version: 4.23.13
       typescript-eslint:
         specifier: ^8.70.0
         version: 8.70.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
@@ -67,6 +68,9 @@ importers:
       react-dom:
         specifier: ^19.1.0
         version: 19.2.8(react@19.2.8)
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
       zod:
         specifier: ^4.1.0
         version: 4.4.3
@@ -86,9 +90,6 @@ importers:
       tailwindcss:
         specifier: ^4.1.0
         version: 4.3.3
-      typescript:
-        specifier: ^5.9.0
-        version: 5.9.3
 
   packages/schemas:
     dependencies:

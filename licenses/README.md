@@ -55,7 +55,9 @@ This collection materially improves notice retention but is not a complete
 corresponding-source release. The native libvips source/relinking gaps apply only
 when that optional binary is distributed; the current runtime has removed it.
 For the actual image, resolve the browser product-terms and covered-source
-questions, Debian source-delivery arrangements and the two documented package
-notice omissions. Publish required material through a durable recipient-accessible
+questions, Debian source-delivery arrangements and the installed `client-only`
+notice omission. The production image excludes `stable-hash` in every layer;
+its documented omission still applies to the development checkout. Publish
+required material through a durable recipient-accessible
 route. A local ignored cache is not evidence that this delivery is complete.
 See [the distribution review](../THIRD_PARTY_NOTICES.md).
