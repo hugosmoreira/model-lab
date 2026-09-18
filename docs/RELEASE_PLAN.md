@@ -1,10 +1,10 @@
 # Model Lab release plan
 
-Status: release hardening implemented on `codex/release-hardening`; the full
-application gates, production user journey and Linux restart/restore rehearsal
-pass. Native-library advisory and binary-distribution review remain open. The
-independent patch review found three further defects, now repaired with regression
-tests. Public visibility, tags, images and hosting have not changed.
+Status: PR #3 is merged and `v0.2.0-rc.1` identifies the source candidate on main.
+The private source draft and its downloaded assets are verified. Application,
+build and secret checks pass on the tagged commit. Native-library advisory and
+binary-distribution review remain open. Repository visibility is still private;
+no release, container or hosted service has been published.
 
 Prepared 2026-09-17 from the [project audit](AUDIT-2026-09-17.md).
 This is the execution plan for the [roadmap](ROADMAP.md). Update this document
@@ -18,7 +18,9 @@ results. Start with local/private use and SQLite. Offer a keyless, read-only
 hosted demo after the release candidate passes.
 
 Prepared version: `0.2.0-rc.1` in all five packages, runner metadata and CITATION.
-No tag exists yet. Target `v0.2.0` only after the release-candidate checks.
+Annotated tag `v0.2.0-rc.1` points to
+`d60431a1f2fa8efb68be97f911e50758f092f510`. Target `v0.2.0` only after
+the release-candidate checks and feedback.
 Keep pre-1.0 expectations
 explicit while storage and replay contracts change.
 
@@ -346,20 +348,23 @@ mitigation decision. New security findings are triaged before promotion.
 
 ### R11. Prepare the GitHub publication
 
-Status: [private draft PR #3](https://github.com/hugosmoreira/model-lab/pull/3)
-created from `codex/release-hardening`. Implementation commit
-`62fbed43b5f4bed1108d58855a9002b9d0a07896` passed the complete application CI job.
-The first Linux secret job exposed report-directory ownership after capabilities
-were dropped; the host-UID/GID correction is reproduced, regression-tested and
-passed GitHub's secret-scan job on `bde2f59`. Current exact-revision check results
-are attached to the draft. The image advisory gate remains deliberately strict.
+Status: [PR #3](https://github.com/hugosmoreira/model-lab/pull/3) merged on
+2026-09-18. The annotated source tag points to the verified merge commit; its
+[private draft release](https://github.com/hugosmoreira/model-lab/releases/tag/untagged-74b72c0e8b73af286455)
+contains the source ZIP, `SOURCE_REVISION` and `SHA256SUMS`. The complete
+application/build and redacted secret jobs pass in
+[tagged-commit CI](https://github.com/hugosmoreira/model-lab/actions/runs/35353105305).
+Downloaded draft assets match both the local checksums and GitHub's recorded
+digests. The image advisory gate remains deliberately strict.
 Container publication remains open and depends on R10. Source publication now
 has a separate manual path: `source-release.yml` reuses the application and
 secret gates for an existing reviewed tag on main, then prepares a draft source
 archive with checksums and commit identity. It has no container publishing
 permissions and does not change visibility or publish the draft. Ordinary PR CI
-and the container release continue to run the full image gate. Earlier
-preparation PRs were not merged or closed.
+and the container release continue to run the full image gate. The current draft
+was prepared manually because GitHub rejected the required private-environment
+protections. The protected workflow was not dispatched. No separate action was
+taken on the earlier preparation PRs.
 
 Create a release packet containing the exact commit, proposed tag, changelog,
 migration notes, supported platform/storage matrix, known limitations, image
@@ -410,6 +415,33 @@ works; no private results are exposed.
 
 ## Release decision and progress record
 
+### Private source draft completed (2026-09-18)
+
+- Merged only the approved PR #3 head after its application/build and secret
+  jobs passed. Verified the merged Git tree equals the checked PR tree.
+- Created annotated tag `v0.2.0-rc.1` without replacing an existing tag. It
+  resolves to `d60431a1f2fa8efb68be97f911e50758f092f510` on main. The same two
+  source jobs passed again for that exact main commit in run `35353105305`.
+- Prepared private draft release ID `391519300`, marked prerelease and not
+  published. Ran the source workflow's version, clean-tree, archive, checksum
+  and immutable-link steps through the documented maintainer procedure.
+- The 399-file source ZIP is 3,092,212 bytes, SHA-256
+  `754c007a3ed659172f862ffb4f0f375886fa522225b0a3b7688991a7007fc84b`.
+  Downloaded all three assets from GitHub, verified their checksums/server
+  digests, and checked that the ZIP records the exact commit. No installed
+  dependencies or private runtime data are included.
+- The repository remains private. Protection configurations are prepared but
+  unavailable on the current private-repository plan; they have not been
+  claimed as active. Public visibility and publishing the draft require the
+  maintainer's final review. On this plan, visibility must change before those
+  protections can be activated; apply and verify them before publishing the draft.
+- Tagged-commit CI also completed the full image/layer/CLI/recovery/restore
+  rehearsal on clean image
+  `sha256:d0bfc3dce9924a185c7b393947466e6398746d77e66c108bf5bac5320438faa5`.
+  Its 37 installed pnpm packages and 13 saved layers pass the packaging checks.
+  The only failed CI step is the native advisory scan: 54 HIGH / 1 CRITICAL
+  matches, with zero Node findings. These remain unsuppressed and block images.
+
 ### Source release authorization and protection preflight (2026-09-18)
 
 The maintainer approved proceeding with the source-only path: merge the
@@ -439,8 +471,9 @@ verification. Protection activation remains a public-publication gate.
   retained Debian 13 profile's 54 HIGH / 1 CRITICAL. Both raw reports are kept;
   the comparison is documented in the native advisory review.
 - Prepared a source-only draft-release workflow and explicit source release
-  notes. Static workflow validation passes; actual dispatch awaits a reviewed,
-  merged and tagged candidate. This is a source publication route, not a native
+  notes. Static workflow validation passes; the protected workflow has not been
+  dispatched because its environment prerequisite is unavailable. The private
+  draft was prepared through the recorded maintainer procedure. This is a source publication route, not a native
   advisory waiver. Removing `stable-hash` closes its image notice requirement;
   it does not resolve that notice in a full development checkout.
 
@@ -456,14 +489,14 @@ it; demonstrate its remediation or a verified mitigation that removes the path.
 | R4–R6: spending and evidence | Verified for supported local stores | Budget/provider regressions, evidence compatibility, memory/SQLite conformance and concurrent final votes |
 | R7–R9: product and replay | Verified | Full production flow, keyboard navigation, 390/412/1024 px layouts, three PNG export sizes, real error/404 states, replay and frontend tests |
 | R10: distributable | Functional checks pass; native advisory/distribution gates blocked | Production dependency image `c6c3b6e`; 37 installed pnpm packages, all-layer exclusions and full CLI/HTTP/restart/crash/restore checks; raw scan retains 54 HIGH / 1 CRITICAL native matches |
-| R11: GitHub release | Private draft PR #3; source draft workflow prepared; unpublished | Aligned candidate versions, exact-source verification and source archive/checksum workflow; container release still requires its full gates |
+| R11: GitHub release | PR #3 merged; source tag and private draft verified; unpublished | Exact tagged-commit source checks, downloaded ZIP/revision/checksum verification; public protection activation and draft publication pending |
 | R12: demo / new benchmark claims | Optional / open | Add selected target and relevant runtime/evidence checks |
 
-Next: review the source candidate with exact-revision application and secret CI
-on private draft PR #3, then configure release protection and prepare its draft
-source packet from a reviewed main tag. Keep native advisory and binary
-distribution work open before any image promotion. The source-only release
-must not imply container certification.
+Next: review the actual private draft and approve the public visibility change.
+Once that is approved, activate and read back the prepared GitHub protections
+as soon as the repository is public, then publish the reviewed source prerelease.
+Keep native advisory and binary distribution work open before any image
+promotion. The source-only release must not imply container certification.
 Full workspace tests, typecheck, lint, formatting and the production build have
 passed on the repaired application. The final offline
 tree/history secret scan passes with zero unresolved findings; one exact public

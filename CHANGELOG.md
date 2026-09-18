@@ -6,7 +6,8 @@ All notable changes to Model Lab are recorded here. The format follows
 
 ## Unreleased — 0.2.0-rc.1 candidate
 
-Prepared locally; no GitHub release or container publication has occurred.
+Source tag and private draft prepared; no public release or container publication
+has occurred.
 
 ### Added
 

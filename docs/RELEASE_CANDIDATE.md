@@ -2,12 +2,20 @@
 
 Status: application and functional image checks pass; native dependency and
 binary-distribution gates remain open; **not published**.
-The candidate branch is `codex/release-hardening`, reviewed in
-[private draft PR #3](https://github.com/hugosmoreira/model-lab/pull/3).
-Implementation commit `62fbed43b5f4bed1108d58855a9002b9d0a07896` is pushed.
-Package versions, runner metadata and citation metadata are aligned. Exact-revision
-CI and immutable-image evidence must accompany publication; a draft PR does not
-clear the remaining gates.
+[PR #3](https://github.com/hugosmoreira/model-lab/pull/3) is merged. Source tag
+`v0.2.0-rc.1` resolves to `d60431a1f2fa8efb68be97f911e50758f092f510` on main.
+Its application/build and secret checks pass in
+[run 35353105305](https://github.com/hugosmoreira/model-lab/actions/runs/35353105305).
+The [private source draft](https://github.com/hugosmoreira/model-lab/releases/tag/untagged-74b72c0e8b73af286455)
+is prepared and its downloaded assets match the recorded digests. The source
+ZIP's SHA-256 is `754c007a3ed659172f862ffb4f0f375886fa522225b0a3b7688991a7007fc84b`.
+Package versions, runner metadata and citation metadata are aligned. The private
+draft does not clear native-image or public-publication gates.
+
+The exact tagged commit's clean image is
+`sha256:d0bfc3dce9924a185c7b393947466e6398746d77e66c108bf5bac5320438faa5`.
+Its full functional/layer gate passes; the separate native advisory gate fails
+on 54 HIGH / 1 CRITICAL package matches. No image is included in this release.
 
 ## Scope
 
@@ -133,11 +141,15 @@ rehearsals are development evidence, not proof for a later immutable image.
 
 ## Publication steps
 
-The current private-repository plan does not support the intended branch rules
+The private source merge, tag and draft steps are complete. The current
+private-repository plan does not support the intended branch rules
 or required environment reviewers. See the
 [protection preflight](github-protection/README.md). The maintainer has authorized
 the source-only merge/tag/private-draft preparation, with explicit check and
-source verification. Protected publication and public visibility remain pending.
+source verification. Review the actual draft before approving public visibility;
+once public, activate and verify the prepared protections before publishing it.
+The sequence below describes the release procedure; its source candidate and
+private draft have already been prepared through the documented manual path.
 
 1. Review the source candidate in private PR #3. Obtain passing application and
    secret checks on its exact revision. Container findings remain independently
@@ -159,7 +171,7 @@ source verification. Protected publication and public visibility remain pending.
    still requires all image checks, tests before pushing, pulls the published
    digest before version promotion and retains checksums/provenance evidence.
 
-No paid provider benchmark, public visibility change, release, image publication
-or hosted deployment has been performed. A new n=3 model comparison requires
+No paid provider benchmark, public visibility change, public release, image
+publication or hosted deployment has been performed. A new n=3 model comparison requires
 deliberately selected models and an approved spend; synthetic tests make no new
 model-ranking claim. A hosted demo is an optional later deployment.

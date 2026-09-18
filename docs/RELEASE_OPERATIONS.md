@@ -32,8 +32,12 @@ Review the actual draft's source archive, checksums, links, known limitations
 and intended repository visibility before publication. GitHub's generated
 source archives and the attached archive contain source, not installed browser
 or Node binaries. The operator downloads dependencies during the documented
-source setup. The workflow is statically validated; no dispatch, tag or draft
-release has been created yet. Container publication still follows all gates
+source setup. The workflow is statically validated and has not been dispatched.
+The maintainer instead merged PR #3, created `v0.2.0-rc.1`, and prepared a private
+draft using its packaging commands after exact-commit source CI passed. All three
+uploaded assets were downloaded and checksum-verified; see the current release
+plan for identifiers. Do not recreate or move the existing tag, and do not run
+the create-draft workflow again for that same existing draft. Container publication still follows all gates
 below and the existing `release.yml` workflow.
 
 ## Reproduce the container gate

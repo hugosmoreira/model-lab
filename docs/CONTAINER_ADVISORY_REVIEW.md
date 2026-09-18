@@ -15,6 +15,21 @@ these advisory-specific conclusions.
 
 ## Evidence identity and limits
 
+### Tagged source candidate CI
+
+Source tag `v0.2.0-rc.1` resolves to
+`d60431a1f2fa8efb68be97f911e50758f092f510`. Its clean
+[CI run 35353105305](https://github.com/hugosmoreira/model-lab/actions/runs/35353105305)
+built and functionally verified image
+`sha256:d0bfc3dce9924a185c7b393947466e6398746d77e66c108bf5bac5320438faa5`.
+All 13 saved layers, the offline CLI, HTTP mutation guards, run/restart/crash
+recovery and offline backup/restore checks pass. The inventory records 37 pnpm
+packages; Trivy identifies 51 Node packages with no findings and 172 Debian
+packages with 54 HIGH / 1 CRITICAL / 90 MEDIUM / 108 LOW / 1 UNKNOWN matches.
+The native scan is the sole failed step. Its full report remains unsuppressed.
+The private GitHub draft contains source only; this CI result does not authorize
+container publication or alter the scoped advisory conclusions below.
+
 ### Production dependency follow-up
 
 The 2026-09-18 follow-up image is
