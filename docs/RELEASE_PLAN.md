@@ -346,8 +346,9 @@ Status: [private draft PR #3](https://github.com/hugosmoreira/model-lab/pull/3)
 created from `codex/release-hardening`. Implementation commit
 `62fbed43b5f4bed1108d58855a9002b9d0a07896` passed the complete application CI job.
 The first Linux secret job exposed report-directory ownership after capabilities
-were dropped; the host-UID/GID correction is reproduced and regression-tested.
-CI verification of that correction and the image job continues on the draft.
+were dropped; the host-UID/GID correction is reproduced, regression-tested and
+passed GitHub's secret-scan job on `bde2f59`. Current exact-revision check results
+are attached to the draft. The image advisory gate remains deliberately strict.
 Publication remains open and depends on R10. Earlier preparation PRs were not
 merged or closed.
 
@@ -415,8 +416,9 @@ it; demonstrate its remediation or a verified mitigation that removes the path.
 | R11: GitHub release | Private draft PR #3; unpublished | Implementation commit `62fbed4`, aligned candidate versions and manual release workflow; exact-revision CI and publication gates pending |
 | R12: demo / new benchmark claims | Optional / open | Add selected target and relevant runtime/evidence checks |
 
-Next: complete exact-revision CI on private draft PR #3, then resolve the documented
-native advisory and binary distribution gates before image promotion. A source-only
+Next: use exact-revision CI on private draft PR #3 as the acceptance record and
+resolve the documented native advisory and binary distribution gates before image
+promotion. A source-only
 release can be reviewed separately; it must not imply container certification.
 Full workspace tests, typecheck, lint, formatting and the production build have
 passed on the repaired application. The final offline

@@ -340,10 +340,17 @@ here. No source-backed conclusion erases or suppresses a raw scanner record.
 
 The final HIGH/CRITICAL set differs from the original 20-row triage table:
 CVE-2023-5574 is absent, while CVE-2026-9538 is now matched to `perl-base`
-`5.40.1-6+deb13u1` with `fix_deferred` status. The new Archive::Tar advisory
-needs a separate component/reachability assessment; a `perl-base` source-package
-match alone neither proves the module is installed nor proves its absence.
-It remains unassessed here and is not covered by the Expat fix conclusion.
+`5.40.1-6+deb13u1` with `fix_deferred` status. A separate bounded review establishes
+**not affected in the examined image**: the flaw is Archive::Tar's allocation from
+an untrusted tar entry size, not the Perl interpreter. The exact final image has
+only `perl-base`, no `perl`, `perl-modules` or `libarchive-tar-perl` package, and no
+`Archive/Tar.pm`, `Archive/Tar/*` or `ptar` entrypoint under `/usr`, `/opt` or `/app`.
+No application caller was found. These checks used a read-only, offline, capability-
+restricted container and are recorded in the synthetic review evidence; no PoC
+was needed because the vulnerable component is absent. The raw package match
+remains in the report, and other native findings still block publication.
+[Debian advisory](https://security-tracker.debian.org/tracker/CVE-2026-9538),
+[upstream fix](https://github.com/jib/archive-tar-new/commit/f9af01426038e29d9578825a0cd3626946ab08c7).
 
 Before publication:
 

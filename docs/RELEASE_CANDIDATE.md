@@ -85,8 +85,9 @@ be rerun after browser/platform changes. See [SECURITY.md](../SECURITY.md).
 - [Application CI on implementation commit `62fbed4`](https://github.com/hugosmoreira/model-lab/actions/runs/35304843250)
   also passed all of those gates, dependency audit and the CLI run. Its separate
   secret job exposed a Linux report-directory ownership issue; the corrected
-  scanners preserve dropped capabilities and run as the host UID/GID. Exact-head
-  CI, including that correction and the image job, remains required.
+  scanners preserve dropped capabilities and run as the host UID/GID. GitHub's
+  secret-scan job passed the correction on `bde2f59`. The current PR checks are
+  the exact-revision acceptance record; the native image gate remains strict.
 - The production UI walkthrough completed new run, live progress, results,
   captured artifacts, rating and CSV/JSON/PNG exports with synthetic outputs.
   Keyboard focus, error/404 recovery, 390/412 px phone layouts and 1024 px layouts
