@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { SCORE_LABELS, type ScoreSource } from "@/lib/score-presentation";
 import type { ShareAspect } from "@model-lab/schemas";
 
 /**
@@ -34,6 +35,7 @@ export function isShareCardTemplate(template: string): template is ShareCardTemp
 export interface ShareCardRow {
   /** model id (mono) — identity, never status */
   id: string;
+  mocked?: boolean;
   /** model identity color — square dot + bar + scatter point share one hue */
   color: string;
   /** formatted score for the labelled score column, e.g. "9.2" or footnoted "6.8*" */
@@ -48,13 +50,14 @@ export interface ShareCardRow {
   /* -- numeric/source values (templates + CSV/JSON exports) -------------- */
   /** raw visual mean, null when unscored */
   visualValue: number | null;
+  scoreSource: ScoreSource;
   /** samples behind the visual mean */
   visualN: number | null;
   costUsd: number;
   latencyMs: number | null;
   /** samples attempted for this model (samplesPerModel) */
   sampleCount: number;
-  /** render failures — preserved as evidence, never hidden */
+  /** sample failures — preserved as evidence, never hidden */
   failedSamples: number;
   /** error excerpt for the failing sample, e.g. "Uncaught TypeError: …" */
   failureNote: string | null;
@@ -111,7 +114,7 @@ const THEMES: Record<ShareCardTheme, ThemeTokens> = {
   },
 };
 
-const SIZES: Record<ShareAspect, { w: number; h: number }> = {
+export const SHARE_CARD_SIZES: Record<ShareAspect, { w: number; h: number }> = {
   "16:9": { w: 640, h: 360 },
   "1:1": { w: 500, h: 500 },
   "4:5": { w: 420, h: 525 },
@@ -125,8 +128,8 @@ const GRID: CSSProperties = {
   display: "grid",
   // name · bar · score · capability · cost — the score and capability columns
   // are wide enough for their labels (JUDGE·RUBRIC, CAPABILITY) to sit inside.
-  gridTemplateColumns: "150px 1fr 78px 74px 58px",
-  gap: 10,
+  gridTemplateColumns: "minmax(110px,1.6fr) minmax(0,1fr) 110px 50px 40px",
+  gap: 8,
 };
 
 /** Column caption under the scorecard rows — small, spaced, never wider than its column. */
@@ -169,7 +172,7 @@ function ScorecardBody({
         flex: 1,
         display: "flex",
         flexDirection: "column",
-        gap: 9,
+        gap: rows.length > 5 ? 4 : 9,
         justifyContent: "center",
         minHeight: 0,
       }}
@@ -182,13 +185,16 @@ function ScorecardBody({
               alignItems: "center",
               gap: 7,
               fontFamily: MONO,
-              fontSize: 11.5,
+              fontSize: 10.5,
+              lineHeight: 1.2,
               color: t.text,
               minWidth: 0,
+              overflowWrap: "anywhere",
             }}
           >
             <ModelSquare color={r.color} />
             {r.id}
+            {r.mocked ? " [mock]" : ""}
           </span>
           <span
             aria-hidden
@@ -210,7 +216,21 @@ function ScorecardBody({
               }}
             />
           </span>
-          <span style={{ fontFamily: MONO, fontSize: 11.5, color: t.text }}>{r.visual}</span>
+          <span
+            title={SCORE_LABELS[r.scoreSource]}
+            style={{
+              fontFamily: MONO,
+              fontSize: 10.5,
+              lineHeight: 1.2,
+              color: t.text,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {r.visual}
+            <span style={{ fontSize: 8, color: t.muted }}>
+              {` ${r.scoreSource} · ${r.visualValue == null ? "unscored" : `n=${r.visualN ?? "?"}`}`}
+            </span>
+          </span>
           <span style={{ fontFamily: MONO, fontSize: 11.5, color: testsColor[r.testsState] }}>
             {r.tests}
           </span>
@@ -221,7 +241,9 @@ function ScorecardBody({
       <div style={{ ...GRID, marginTop: -2 }}>
         <span />
         <span />
-        <span style={{ ...COLUMN_LABEL, color: t.faint }}>{scoreLabel}</span>
+        <span title={scoreLabel} style={{ ...COLUMN_LABEL, color: t.faint }}>
+          SCORE / 10
+        </span>
         <span style={{ ...COLUMN_LABEL, color: t.faint }}>CAPABILITY</span>
         <span style={{ ...COLUMN_LABEL, color: t.faint }}>COST</span>
       </div>
@@ -306,7 +328,7 @@ function CostQualityBody({
         viewBox={`0 0 ${VB_W} ${VB_H}`}
         preserveAspectRatio="xMidYMid meet"
         role="img"
-        aria-label="Cost versus visual quality scatter plot"
+        aria-label={`Cost versus score: ${pts.map((p) => `${p.row.id}, ${SCORE_LABELS[p.row.scoreSource]} ${p.score}, n=${p.row.visualN ?? "unknown"}`).join("; ")}`}
         style={{ width: "100%", height: "100%", display: "block" }}
       >
         {/* axes */}
@@ -359,7 +381,7 @@ function CostQualityBody({
           </g>
         ))}
         {/* pareto frontier */}
-        {frontier.length >= 2 && (
+        {new Set(pts.map((p) => p.row.scoreSource)).size === 1 && frontier.length >= 2 && (
           <polyline
             points={frontier.map((p) => `${x(p.row.costUsd)},${y(p.score)}`).join(" ")}
             fill="none"
@@ -396,7 +418,7 @@ function CostQualityBody({
                 fontSize={9}
                 fill={t.faint}
               >
-                n={p.row.visualN ?? 0}
+                {SCORE_LABELS[p.row.scoreSource]} · n={p.row.visualN ?? "unknown"}
                 {p.row.failedSamples > 0 ? ` · ${p.row.failedSamples} fail` : ""} · {p.row.cost}
               </text>
             </g>
@@ -415,7 +437,7 @@ function CostQualityBody({
           letterSpacing="1"
           fill={t.faint}
         >
-          COST / RUN (USD) · pareto dashed
+          COST / RUN (USD)
         </text>
       </svg>
     </div>
@@ -471,10 +493,10 @@ function SurpriseFailureBody({ rows, t }: { rows: ShareCardRow[]; t: ThemeTokens
               color: t.testsWarn,
             }}
           >
-            RENDER FAILURES
+            SAMPLE FAILURES
           </span>
           <span style={{ fontSize: 11, color: t.faint }}>
-            across {sampleTotal} samples — failure preserved as evidence
+            across {sampleTotal} samples — failures preserved as evidence
           </span>
         </span>
       </div>
@@ -497,8 +519,8 @@ function SurpriseFailureBody({ rows, t }: { rows: ShareCardRow[]; t: ThemeTokens
             {failing.id}
             <span style={{ color: t.testsWarn }}>
               {failing.failedSamples === 1
-                ? "1 render fail"
-                : `${failing.failedSamples} render fails`}{" "}
+                ? "1 sample fail"
+                : `${failing.failedSamples} sample fails`}{" "}
               · {failing.tests} tests
             </span>
           </span>
@@ -519,7 +541,7 @@ function SurpriseFailureBody({ rows, t }: { rows: ShareCardRow[]; t: ThemeTokens
           )}
         </div>
       ) : (
-        <span style={{ fontSize: 12, color: t.muted }}>no render failures in this run</span>
+        <span style={{ fontSize: 12, color: t.muted }}>no sample failures in this run</span>
       )}
 
       {/* Contrast line */}
@@ -537,10 +559,13 @@ function SurpriseFailureBody({ rows, t }: { rows: ShareCardRow[]; t: ThemeTokens
         >
           <ModelSquare color={cheapestPassing.color} />
           <span style={{ minWidth: 0 }}>
-            the cheapest passing model —{" "}
+            the lowest-cost scored model without failed samples —{" "}
             <span style={{ fontFamily: MONO, color: t.text }}>{cheapestPassing.id}</span> — scored{" "}
-            <span style={{ fontFamily: MONO, color: t.text }}>{cheapestPassing.visual}/10</span> at{" "}
-            <span style={{ fontFamily: MONO, color: t.text }}>{cheapestPassing.cost}</span>
+            <span style={{ fontFamily: MONO, color: t.text }}>
+              {cheapestPassing.visual}/10 ({SCORE_LABELS[cheapestPassing.scoreSource]}, n=
+              {cheapestPassing.visualN ?? "unknown"})
+            </span>{" "}
+            at <span style={{ fontFamily: MONO, color: t.text }}>{cheapestPassing.cost}</span>
           </span>
         </span>
       )}
@@ -558,7 +583,7 @@ export function ShareCard({
   theme,
   aspect,
   template = "new-model-scorecard",
-  scoreLabel = "VISUAL·HUMAN",
+  scoreLabel = "SCORE",
 }: {
   rows: ShareCardRow[];
   content: ShareCardContent;
@@ -569,7 +594,7 @@ export function ShareCard({
   scoreLabel?: string;
 }) {
   const t = THEMES[theme];
-  const { w, h } = SIZES[aspect];
+  const { w, h } = SHARE_CARD_SIZES[aspect];
 
   return (
     <div
@@ -621,10 +646,18 @@ export function ShareCard({
 
       {/* Title block */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4, margin: "14px 0 4px" }}>
-        <span style={{ fontSize: 23, fontWeight: 700, color: t.text, letterSpacing: "-0.01em" }}>
+        <span
+          style={{
+            fontSize: 21,
+            lineHeight: 1.2,
+            fontWeight: 700,
+            color: t.text,
+            letterSpacing: "-0.01em",
+          }}
+        >
           {content.title}
         </span>
-        <span style={{ fontSize: 13.5, color: t.muted }}>{content.takeaway}</span>
+        <span style={{ fontSize: 12, lineHeight: 1.3, color: t.muted }}>{content.takeaway}</span>
       </div>
 
       {/* Template body */}
@@ -640,7 +673,7 @@ export function ShareCard({
       <div
         style={{
           display: "flex",
-          gap: 10,
+          gap: 6,
           borderTop: `1px solid ${t.border}`,
           paddingTop: 10,
           fontFamily: MONO,

@@ -11,6 +11,7 @@ import { z } from "zod";
 import type { HumanAnnotation } from "@model-lab/schemas";
 import { getStore, StoreError } from "@model-lab/store";
 import { isReadOnly, readOnlyResponse } from "@/lib/server/read-only";
+import { guardMutationRequest } from "@/lib/server/mutation-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,8 @@ const AnnotationRequest = z.object({
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ runId: string }> }) {
   if (isReadOnly()) return readOnlyResponse();
+  const rejected = guardMutationRequest(req);
+  if (rejected !== null) return rejected;
   const { runId } = await params;
 
   let body: unknown;
@@ -64,8 +67,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ run
     const store = await getStore();
     await store.insertAnnotation(annotation);
   } catch (err) {
+    if (err instanceof StoreError && err.code === "INVALID") {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
     if (err instanceof StoreError && err.code === "NOT_FOUND") {
-      return NextResponse.json({ error: `Unknown run: ${runId}` }, { status: 404 });
+      return NextResponse.json({ error: err.message }, { status: 404 });
     }
     return NextResponse.json({ error: "Annotation could not be saved." }, { status: 500 });
   }
@@ -76,9 +82,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ run
   const { runId } = await params;
   try {
     const store = await getStore();
+    if ((await store.getRun(runId)) === null) {
+      return NextResponse.json({ error: "Run not found." }, { status: 404 });
+    }
     const annotations = await store.listAnnotations(runId);
     return NextResponse.json({ annotations });
   } catch {
-    return NextResponse.json({ annotations: [] });
+    return NextResponse.json(
+      { error: "Annotations are temporarily unavailable." },
+      { status: 503 },
+    );
   }
 }

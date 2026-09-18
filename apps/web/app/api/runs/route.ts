@@ -18,7 +18,9 @@ import { RunMode } from "@model-lab/schemas";
 import { getStore } from "@model-lab/store";
 import { listRuns as listRegistryRuns, type RunRecord } from "@/lib/live/run-registry";
 import { isReadOnly, readOnlyResponse } from "@/lib/server/read-only";
+import { guardMutationRequest } from "@/lib/server/mutation-guard";
 import { RunServiceError, startRun } from "@/lib/server/run-service";
+import { reconcileInterruptedRuns } from "@/lib/server/run-recovery";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +37,8 @@ export type CreateRunRequest = z.infer<typeof CreateRunRequest>;
 
 export async function POST(req: NextRequest) {
   if (isReadOnly()) return readOnlyResponse();
+  const rejected = guardMutationRequest(req);
+  if (rejected !== null) return rejected;
 
   let body: unknown;
   try {
@@ -74,6 +78,7 @@ export async function GET() {
   let storeRecords: RunRecord[] = [];
   try {
     const store = await getStore();
+    await reconcileInterruptedRuns(store);
     const runs = await store.listRuns();
     storeRecords = await Promise.all(
       runs.map(async (run): Promise<RunRecord> => {
@@ -93,7 +98,7 @@ export async function GET() {
       }),
     );
   } catch {
-    // store unavailable/misconfigured — registry records still list
+    return NextResponse.json({ error: "Run storage is temporarily unavailable." }, { status: 503 });
   }
 
   const byId = new Map<string, RunRecord>();

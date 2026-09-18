@@ -4,7 +4,8 @@ import { ShareStudio } from "@/components/share/ShareStudio";
 import type { ShareCardRow } from "@/components/share/ShareCard";
 import { capabilityForModel } from "@/lib/checks";
 import { fixtures, modelColor, modelIdOf } from "@/lib/data";
-import { DEMO_RUN_ID, getRunView } from "@/lib/server/loaders";
+import { getRunView } from "@/lib/server/loaders";
+import { modelScoreSource, scoreAxisLabel } from "@/lib/score-presentation";
 import { usd } from "@/lib/format";
 
 /** Reads the persistence store — must render per request. */
@@ -32,11 +33,11 @@ export default async function Page({
   const models = view.runModels;
 
   const defaultTitle =
-    runId === DEMO_RUN_ID
+    view.source === "fixtures"
       ? DEMO_TITLE
       : `One prompt. ${run.modelCount} model${run.modelCount === 1 ? "" : "s"}. ${view.packName}.`;
   const defaultTakeaway =
-    runId === DEMO_RUN_ID
+    view.source === "fixtures"
       ? DEMO_TAKEAWAY
       : "Same brief, identical configuration — here is how they compare.";
 
@@ -47,26 +48,7 @@ export default async function Page({
     return check?.note ?? null;
   };
 
-  /**
-   * One score column, one source, named on the card: a person's rating when
-   * anyone rated a build; otherwise the judge's rubric grade when the run was
-   * judged; otherwise the browser capability ratio ×10. A browser number is
-   * never presented under a "visual" label.
-   */
-  const humanScoreOf = (rm: (typeof models)[number]) =>
-    rm.visualSource === "human" && rm.visualScore != null ? rm.visualScore : null;
   const rubric = view.judge?.briefScores ?? {};
-  const scoreMode: "human" | "rubric" | "browser" = models.some((rm) => humanScoreOf(rm) != null)
-    ? "human"
-    : models.some((rm) => rubric[rm.endpointId] != null)
-      ? "rubric"
-      : "browser";
-  const scoreLabel =
-    scoreMode === "human"
-      ? "VISUAL·HUMAN"
-      : scoreMode === "rubric"
-        ? "JUDGE·RUBRIC"
-        : "BROWSER·CAPABILITY";
 
   const rows: ShareCardRow[] = models.map((rm) => {
     // Same headline number the Results page shows: capability checks only,
@@ -75,20 +57,18 @@ export default async function Page({
       view.artifacts.filter((a) => a.endpointId === rm.endpointId).map((a) => a.checks),
       { passed: rm.testsPassed, total: rm.testsTotal ?? view.capabilityTotal },
     );
-    const human = humanScoreOf(rm);
-    const browserScore =
-      cap.passed != null && cap.total > 0 ? Math.round((cap.passed / cap.total) * 100) / 10 : null;
-    const scoreValue =
-      scoreMode === "human"
-        ? (human?.value ?? null)
-        : scoreMode === "rubric"
-          ? (rubric[rm.endpointId] ?? null)
-          : browserScore;
-    // Asterisk when a human mean covers fewer samples than configured.
-    const partialSamples =
-      scoreMode === "human" && human != null && human.n < config.samplesPerModel;
+    const scoreValue = rm.visualScore?.value ?? rubric[rm.endpointId] ?? null;
+    const scoreSource =
+      rm.visualScore != null
+        ? modelScoreSource(rm)
+        : rubric[rm.endpointId] != null
+          ? ("rubric" as const)
+          : modelScoreSource(rm);
+    const visualN = rm.visualScore?.n ?? null;
+    const partialSamples = visualN != null && visualN < config.samplesPerModel;
     return {
       id: modelIdOf(rm.endpointId),
+      mocked: view.mockedEndpointIds.includes(rm.endpointId),
       color: modelColor(rm.endpointId),
       visual: scoreValue != null ? `${scoreValue.toFixed(1)}${partialSamples ? "*" : ""}` : "—",
       pct: scoreValue != null ? Math.round(scoreValue * 10) : 0,
@@ -101,33 +81,22 @@ export default async function Page({
             : "partial",
       cost: usd(rm.costUsd),
       visualValue: scoreValue,
-      visualN:
-        scoreMode === "human" ? (human?.n ?? null) : (rm.visualScore?.n ?? config.samplesPerModel),
+      scoreSource,
+      visualN,
       costUsd: rm.costUsd,
       latencyMs: rm.totalLatencyMs,
-      sampleCount: config.samplesPerModel,
+      sampleCount: view.samples.filter((s) => s.endpointId === rm.endpointId).length,
       failedSamples: rm.failedSampleCount,
       failureNote: rm.failedSampleCount > 0 ? failureNoteFor(rm.endpointId) : null,
     };
   });
 
-  // Footnote for the asterisked score, e.g. "* mean of n=2 — one sample failed".
-  const flagged =
-    scoreMode === "human"
-      ? models.find((rm) => {
-          const human = humanScoreOf(rm);
-          return human != null && human.n < config.samplesPerModel;
-        })
-      : undefined;
-  const footnote =
-    flagged?.visualScore != null
-      ? `* mean of n=${flagged.visualScore.n} — ${
-          flagged.failedSampleCount === 1
-            ? "one sample failed"
-            : `${flagged.failedSampleCount} samples failed`
-        }`
-      : null;
-
+  const scoreLabel = scoreAxisLabel(
+    rows.filter((row) => row.visualValue != null).map((row) => row.scoreSource),
+  );
+  const footnote = rows.some((row) => row.visualN != null && row.visualN < config.samplesPerModel)
+    ? "* measured n is below the configured sample count; missing scores are not zero"
+    : "Missing scores are not zero; compare only like scoring sources";
   // "raycaster-oneshot v1.3 · n=3/model · first-shot · temp 0.7 · scorers: …"
   const human = config.scorers.find((s) => s.type === "human" && s.enabled);
   const judge = config.scorers.find((s) => s.type === "llm-judge" && s.enabled);
@@ -138,11 +107,19 @@ export default async function Page({
     // (gates + diagnostics are reported, not scored).
     scorerParts.push(`browser(${view.capabilityTotal} of ${view.checksTotal} scored)`);
   }
+  if (config.scorers.some((s) => s.type === "objective" && s.enabled))
+    scorerParts.push("objective");
   if (human) scorerParts.push(`human rubric ${human.rubricVersion ?? ""}`.trimEnd());
   if (judge) scorerParts.push(`judge${judge.orderSwapped ? " (order-swapped)" : ""}`);
   const methodology = [
+    ...(view.source === "fixtures" ? ["ILLUSTRATIVE DEMO"] : []),
+    ...(view.mockedEndpointIds.length > 0
+      ? [
+          `SYNTHETIC MOCK OUTPUTS (${view.mockedEndpointIds.length}/${models.length} endpoints; simulated costs)`,
+        ]
+      : []),
     `${run.pack.slug} ${run.pack.version}`,
-    `n=${config.samplesPerModel}/model`,
+    `planned n=${config.samplesPerModel}/model`,
     config.retryPolicy.generation === "none" ? "first-shot" : "retries allowed",
     `temp ${config.temperature}`,
     `scorers: ${scorerParts.join(" + ")}`,

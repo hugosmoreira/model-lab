@@ -5,15 +5,16 @@
  *
  * `getRunView(runId)` resolves everything the Results / Samples / Artifacts
  * pages consume, from ONE of two sources:
- *  - the demo run (run_8f3ac21e) — and any unknown/deep-linked id — keeps the
+ *  - the seeded demo run (run_8f3ac21e) keeps the
  *    rich fixture scenario (judge matrix, human rubric, verdict narrative);
  *  - every run known to the persistence store renders ITS OWN data, with
  *    derived fields (latency ranges, warn counts) computed from its samples
  *    and events. Fields a real run lacks (verdict, judge data) come back null
  *    so pages can degrade gracefully.
  *
- * `listAllRuns()` merges store runs + the in-process registry + the fixture
- * demo rows, newest first, for the runs index and Mission Control.
+ * Missing runs return 404. Store failures propagate to the error boundary.
+ * `listAllRuns()` lists recorded runs, newest first; illustrative rows are
+ * never merged into a live workspace.
  */
 import type {
   Artifact,
@@ -30,11 +31,12 @@ import type {
   WtlCell,
 } from "@model-lab/schemas";
 import * as fx from "@model-lab/schemas/fixtures";
+import { notFound } from "next/navigation";
 import { FsRunStore } from "@model-lab/build-arena-runner";
 import { getStore, type RunStore } from "@model-lab/store";
 import { BROWSER_CHECK_COUNT, CAPABILITY_CHECK_COUNT, capabilityChecksOf } from "@/lib/checks";
 import { humanVisualByEndpoint, latestOverrideBySample, sampleKey } from "@/lib/human-score";
-import { listRuns as listRegistryRuns } from "@/lib/live/run-registry";
+import { reconcileInterruptedRuns } from "./run-recovery";
 
 export const DEMO_RUN_ID = "run_8f3ac21e";
 
@@ -46,6 +48,7 @@ export interface LatencyRange {
   min: number;
   median: number;
   max: number;
+  n: number;
 }
 
 /** Judge-derived data — present only when the run had an llm-judge scorer. */
@@ -84,14 +87,10 @@ export interface RunView {
   judge: RunJudgeView | null;
   /** Append-only human audit trail. */
   annotations: HumanAnnotation[];
-}
-
-async function getStoreSafe(): Promise<RunStore | null> {
-  try {
-    return await getStore();
-  } catch {
-    return null;
-  }
+  /** Existing participant/sample references only; safe for score aggregation. */
+  scoreAnnotations: HumanAnnotation[];
+  /** Synthetic providers recorded by the runner, independent of today's environment. */
+  mockedEndpointIds: string[];
 }
 
 /** min/median/max per endpoint over the run's own sample latencies. */
@@ -114,7 +113,7 @@ function latencyRangesFrom(samples: SampleResult[]): Record<string, LatencyRange
       sorted.length % 2 === 1
         ? (sorted[mid] ?? min)
         : Math.round(((sorted[mid - 1] ?? min) + (sorted[mid] ?? max)) / 2);
-    out[endpointId] = { min, median, max };
+    out[endpointId] = { min, median, max, n: values.length };
   }
   return out;
 }
@@ -142,7 +141,7 @@ async function judgePairsFrom(store: RunStore, runId: string): Promise<JudgePair
     listJudgePairs?: (runId: string) => Promise<JudgePairResult[]>;
   };
   if (typeof reads.listJudgePairs !== "function") return [];
-  return reads.listJudgePairs(runId).catch((): JudgePairResult[] => []);
+  return reads.listJudgePairs(runId);
 }
 
 interface RubricView {
@@ -331,59 +330,25 @@ function maxOver<T>(items: readonly T[], pick: (item: T) => number): number {
   return items.reduce((max, item) => Math.max(max, pick(item)), 0);
 }
 
-/** The demo scenario exactly as the pages consumed it pre-Phase 3. */
-async function fixtureView(annotations: HumanAnnotation[]): Promise<RunView> {
-  return {
-    source: "fixtures",
-    run: fx.runCompleted,
-    configuration: fx.runConfiguration,
-    runModels: fx.getRunModels("completed"),
-    samples: fx.samples,
-    artifacts: fx.artifacts,
-    manifest: fx.runManifest,
-    challengePrompt: fx.challengePrompt,
-    packName:
-      fx.benchmarkPacks.find((p) => p.slug === fx.runCompleted.pack.slug)?.name ??
-      fx.runCompleted.name,
-    checksTotal: fx.CHECK_NAMES.length,
-    capabilityTotal:
-      maxOver(fx.artifacts, (a) => capabilityChecksOf(a.checks).length) || CAPABILITY_CHECK_COUNT,
-    latencyRanges: fx.latencyRanges,
-    checkWarnCounts: warnCountsFrom([...fx.liveEvents, ...fx.completionEvents]),
-    judge: {
-      wtlMatrix: fx.wtlMatrix,
-      judgePairs: fx.judgePairs,
-      briefScores: fx.judgeBriefScores,
-    },
-    annotations,
-  };
-}
-
 /**
- * Resolve everything the run detail pages need. The demo run and unknown ids
- * render the fixture scenario; store-known runs render their own data.
+ * Resolve recorded data only. The seeded demo's narrative is illustrative;
+ * its existence must still be established by the selected store.
  */
-export async function getRunView(runId: string): Promise<RunView> {
-  const store = await getStoreSafe();
+export async function getRunView(runId: string, selectedStore?: RunStore): Promise<RunView> {
+  const store = selectedStore ?? (await getStore());
+  await reconcileInterruptedRuns(store);
+  const stored = await store.getRun(runId);
+  if (stored === null) notFound();
 
-  if (runId === DEMO_RUN_ID || store === null) {
-    const annotations = store !== null ? await store.listAnnotations(runId).catch(() => []) : [];
-    return fixtureView(annotations);
-  }
-
-  const stored = await store.getRun(runId).catch(() => null);
-  if (stored === null) {
-    // Unknown id (fixture-only deep link) — preserve the Phase 0 behavior.
-    return fixtureView([]);
-  }
+  const isDemo = runId === DEMO_RUN_ID && stored.run.fingerprint === fx.runCompleted.fingerprint;
 
   const { run, configuration } = stored;
   const [runModels, samples, rawArtifacts, events, annotations, judgePairs] = await Promise.all([
-    store.listRunModels(runId).catch(() => []),
-    store.listSamples(runId).catch(() => []),
-    store.listArtifacts(runId).catch(() => []),
-    store.listEvents(runId).catch(() => []),
-    store.listAnnotations(runId).catch(() => []),
+    store.listRunModels(runId),
+    store.listSamples(runId),
+    store.listArtifacts(runId),
+    store.listEvents(runId),
+    store.listAnnotations(runId),
     judgePairsFrom(store, runId),
   ]);
 
@@ -407,16 +372,23 @@ export async function getRunView(runId: string): Promise<RunView> {
   // Judge view — persisted pairs + rubric grades from judge.vote events.
   // No pairs recorded → judge stays null and the pages render EmptyStates.
   const rubric = rubricFrom(events);
-  const judge: RunJudgeView | null =
-    judgePairs.length > 0
+  const judge: RunJudgeView | null = isDemo
+    ? { wtlMatrix: fx.wtlMatrix, judgePairs: fx.judgePairs, briefScores: fx.judgeBriefScores }
+    : judgePairs.length > 0
       ? { wtlMatrix: wtlMatrixFrom(judgePairs), judgePairs, briefScores: rubric.scores }
       : null;
   const judgeReversals = judgePairs.filter((p) => p.reversed).length;
 
   // Human visual — derived from scored annotations (latest per sample wins).
   // Overrides the VIEW only; recorded scores in the store stay untouched.
-  const humanVisual = humanVisualByEndpoint(annotations);
-  const scoredSamples = latestOverrideBySample(annotations);
+  // Historical orphan annotations remain in the audit trail, but cannot affect a score.
+  const participants = new Set(runModels.map((rm) => rm.endpointId));
+  const sampleKeys = new Set(samples.map((s) => sampleKey(s.endpointId, s.sampleIndex)));
+  const validAnnotations = annotations.filter(
+    (a) => participants.has(a.endpointId) && sampleKeys.has(sampleKey(a.endpointId, a.sampleIndex)),
+  );
+  const humanVisual = humanVisualByEndpoint(validAnnotations);
+  const scoredSamples = latestOverrideBySample(validAnnotations);
   const runModelsView = runModels.map((rm) => {
     const hv = humanVisual.get(rm.endpointId);
     if (hv !== undefined) return { ...rm, visualScore: hv, visualSource: "human" as const };
@@ -432,9 +404,7 @@ export async function getRunView(runId: string): Promise<RunView> {
     return rm;
   });
   const samplesView = samples.map((s) =>
-    scoredSamples.has(sampleKey(s.endpointId, s.sampleIndex))
-      ? { ...s, humanReviewed: true, primaryScorer: "human" as const }
-      : s,
+    scoredSamples.has(sampleKey(s.endpointId, s.sampleIndex)) ? { ...s, humanReviewed: true } : s,
   );
 
   // Judge rubric commentary fills the Artifact inspector when the artifact
@@ -445,7 +415,7 @@ export async function getRunView(runId: string): Promise<RunView> {
   });
 
   return {
-    source: "store",
+    source: isDemo ? "fixtures" : "store",
     // Reversal count is derived from the persisted pairs (evidence-first).
     run: judgePairs.length > 0 ? { ...run, judgeReversalCount: judgeReversals } : run,
     configuration,
@@ -461,6 +431,19 @@ export async function getRunView(runId: string): Promise<RunView> {
     checkWarnCounts: warnCountsFrom(events),
     judge,
     annotations,
+    scoreAnnotations: validAnnotations,
+    mockedEndpointIds: [
+      ...new Set(
+        events
+          .filter(
+            (event) =>
+              event.type === "model.started" &&
+              event.message.split(" · ")[2] === "mock" &&
+              event.endpointId != null,
+          )
+          .map((event) => event.endpointId!),
+      ),
+    ],
   };
 }
 
@@ -469,6 +452,7 @@ export async function getRunView(runId: string): Promise<RunView> {
  * ------------------------------------------------------------------------- */
 
 export interface RunListEntry {
+  source: "fixtures" | "store";
   id: string;
   name: string;
   mode: RunMode;
@@ -491,88 +475,25 @@ function relativeWhen(iso: string): string {
   return days === 1 ? "yesterday" : `${days}d ago`;
 }
 
-/** ISO sort key for the fixture rows' authored relative labels. */
-function fixtureSortKey(when: string, index: number): string {
-  let offsetMs: number;
-  if (when === "now") offsetMs = 0;
-  else if (when === "yesterday") offsetMs = 24 * 3_600_000;
-  else {
-    const m = /^(\d+)\s*([mhd])\s+ago$/.exec(when);
-    const unit = m?.[2] === "m" ? 60_000 : m?.[2] === "h" ? 3_600_000 : 86_400_000;
-    offsetMs = m?.[1] != null ? Number(m[1]) * unit : (index + 1) * 86_400_000;
-  }
-  // − index keeps the authored order stable among equal offsets
-  return new Date(Date.now() - offsetMs - index).toISOString();
-}
-
-/**
- * All runs, newest first: persisted store runs + in-process registry runs
- * (freshly started, store unavailable) + the fixture demo rows. The demo run
- * keeps its fixture presentation ("running · now") — Mission Control's active
- * run panel tells that story.
- */
-export async function listAllRuns(): Promise<RunListEntry[]> {
-  const byId = new Map<string, { entry: RunListEntry; sortKey: string }>();
-
-  // Fixture rows first (lowest precedence).
-  fx.recentRuns.forEach((r, index) => {
-    const sortKey =
-      r.id === DEMO_RUN_ID ? fx.runCompleted.startedAt : fixtureSortKey(r.when, index);
-    byId.set(r.id, {
-      entry: {
-        id: r.id,
-        name: r.name,
-        mode: r.mode,
-        status: r.status,
-        modelCount: r.modelCount,
-        samplesPerModel: r.samplesPerModel,
-        costUsd: r.costUsd,
-        when: r.when,
-      },
-      sortKey,
-    });
-  });
-
-  // Store runs (skip the demo — its fixture row is the canonical presentation).
-  const store = await getStoreSafe();
-  if (store !== null) {
-    const runs = await store.listRuns().catch((): Run[] => []);
-    for (const run of runs) {
-      if (run.id === DEMO_RUN_ID) continue;
-      byId.set(run.id, {
-        entry: {
-          id: run.id,
-          name: run.name,
-          mode: run.mode,
-          status: run.status,
-          modelCount: run.modelCount,
-          samplesPerModel: run.samplesPerModel,
-          costUsd: run.costSpentUsd,
-          when: relativeWhen(run.startedAt),
-        },
-        sortKey: run.startedAt,
-      });
-    }
-  }
-
-  // Registry-only runs (in-flight in this process; store write may have failed).
-  for (const record of listRegistryRuns()) {
-    if (record.id === DEMO_RUN_ID || byId.has(record.id)) continue;
-    const pack = fx.benchmarkPacks.find((p) => p.slug === record.config.packSlug);
-    byId.set(record.id, {
-      entry: {
-        id: record.id,
-        name: record.config.name ?? pack?.name ?? record.config.packSlug,
-        mode: record.config.mode,
-        status: record.status,
-        modelCount: record.config.endpointIds.length,
-        samplesPerModel: record.config.samplesPerModel,
-        costUsd: 0,
-        when: relativeWhen(record.createdAt),
-      },
-      sortKey: record.createdAt,
-    });
-  }
-
-  return [...byId.values()].sort((a, b) => b.sortKey.localeCompare(a.sortKey)).map((x) => x.entry);
+/** All persisted runs, newest first. Store errors are never presented as an empty workspace. */
+export async function listAllRuns(selectedStore?: RunStore): Promise<RunListEntry[]> {
+  const store = selectedStore ?? (await getStore());
+  await reconcileInterruptedRuns(store);
+  const runs = await store.listRuns();
+  return [...runs]
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+    .map((run) => ({
+      source:
+        run.id === DEMO_RUN_ID && run.fingerprint === fx.runCompleted.fingerprint
+          ? "fixtures"
+          : "store",
+      id: run.id,
+      name: run.name,
+      mode: run.mode,
+      status: run.status,
+      modelCount: run.modelCount,
+      samplesPerModel: run.samplesPerModel,
+      costUsd: run.costSpentUsd,
+      when: relativeWhen(run.startedAt),
+    }));
 }

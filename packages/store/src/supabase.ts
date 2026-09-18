@@ -37,6 +37,7 @@ import {
   type SeedFixtures,
   type StoredRunEvent,
 } from "./types";
+import { validateAnnotation, validateVote } from "./evaluations";
 
 // ---------------------------------------------------------------------------
 // row shapes (Postgres column names; jsonb arrives pre-parsed as unknown)
@@ -444,6 +445,7 @@ export class SupabaseStore implements RunStore {
   // -- append-only human audit trail ----------------------------------------
 
   async insertAnnotation(a: HumanAnnotation): Promise<void> {
+    validateAnnotation(a);
     const { error } = await this.client.from("annotations").insert({
       run_id: a.runId,
       endpoint_id: a.endpointId,
@@ -453,7 +455,7 @@ export class SupabaseStore implements RunStore {
       author: a.author,
       at: a.at,
     });
-    this.must(error, "insertAnnotation");
+    this.mustEvaluation(error, "insertAnnotation");
   }
 
   async listAnnotations(runId: string): Promise<HumanAnnotation[]> {
@@ -479,6 +481,7 @@ export class SupabaseStore implements RunStore {
   // -- head-to-head votes ---------------------------------------------------
 
   async upsertVote(v: PairwiseVote): Promise<void> {
+    validateVote(v);
     // NOTE: pairTotal is not a column (0001_init.sql); it is reconstructed on
     // read as the number of vote rows in the run.
     const { error } = await this.client.from("pairwise_votes").upsert(
@@ -496,7 +499,7 @@ export class SupabaseStore implements RunStore {
       },
       { onConflict: "run_id,pair_index" },
     );
-    this.must(error, "upsertVote");
+    this.mustEvaluation(error, "upsertVote");
   }
 
   async listVotes(runId: string): Promise<PairwiseVote[]> {
@@ -734,6 +737,19 @@ export class SupabaseStore implements RunStore {
   }
 
   // -- internals ------------------------------------------------------------
+
+  private mustEvaluation(error: { code: string; message: string } | null, op: string): void {
+    if (error?.code === "23503") {
+      throw new StoreError(
+        "NOT_FOUND",
+        "Evaluation references a run, participant or sample that does not exist.",
+      );
+    }
+    if (error?.code === "ML001") {
+      throw new StoreError("IMMUTABLE", "This pair already has a final vote.");
+    }
+    this.must(error, op);
+  }
 
   private must(error: { message: string } | null, op: string): void {
     if (error) throw new StoreError("BACKEND", `SupabaseStore.${op}: ${error.message}`);

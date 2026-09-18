@@ -1,45 +1,25 @@
 import { NextRequest } from "next/server";
-import { liveEvents, completionEvents } from "@model-lab/schemas/fixtures";
 import type { RunEvent } from "@model-lab/schemas";
 import { subscribeRun } from "@/lib/server/run-service";
 
 export const dynamic = "force-dynamic";
-
-/**
- * Live-run event stream (SSE).
- *
- * Phase 2 routing:
- *  - ACTIVE runs (started by POST /api/runs in this process) stream the native
- *    Build Arena runner's events: buffered-from-start, then live, terminal
- *    "event: done" after run.completed / run.partial / run.cancelled.
- *  - Stored real runs replay their persisted event log, then "event: done".
- *  - run_8f3ac21e (the demo) and unknown run ids keep the Phase 1 fixture
- *    replay on a compressed clock, so deep links and the demo screen still
- *    exercise the full streaming path without a runner.
- *
- * Wire contract (unchanged from Phase 1): one "data: <RunEvent JSON>\n\n"
- * frame per event; ": keep-alive" comment frames may appear between events;
- * terminal frame "event: done\ndata: {}\n\n".
- */
-
-const DEMO_RUN_ID = "run_8f3ac21e";
 const HEARTBEAT_MS = 15_000;
-
 const SSE_HEADERS = {
   "Content-Type": "text/event-stream",
   "Cache-Control": "no-cache, no-transform",
   Connection: "keep-alive",
 } as const;
 
+/** Active runs stream live; completed runs replay only their recorded events. */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
-
-  /* The demo run intentionally keeps the paced fixture replay even though it
-     exists in the store — replaying its stored log would flash 43 events at
-     once instead of simulating a live run. */
-  const source = runId === DEMO_RUN_ID ? null : await subscribeRun(runId);
-  if (source !== null) return streamEvents(req, source);
-  return fixtureReplay(req, runId);
+  try {
+    const source = await subscribeRun(runId);
+    if (source === null) return Response.json({ error: "Run not found." }, { status: 404 });
+    return streamEvents(req, source);
+  } catch {
+    return Response.json({ error: "Run events are temporarily unavailable." }, { status: 503 });
+  }
 }
 
 /** Streams a run-service subscription (active: buffered + live; stored: replay). */
@@ -96,50 +76,6 @@ function streamEvents(req: NextRequest, source: AsyncIterable<RunEvent>): Respon
         /* feed failed — close without the done frame; client shows "error" */
       }
       close();
-    },
-  });
-
-  return new Response(stream, { headers: SSE_HEADERS });
-}
-
-/**
- * Phase 1 fixture replay — kept verbatim for the demo run and unknown ids:
- * replays the fixture event script on a compressed clock so the Live Run
- * screen exercises the full streaming path without a real runner.
- */
-function fixtureReplay(req: NextRequest, runId: string): Response {
-  const script: RunEvent[] = [...liveEvents, ...completionEvents].map((e) => ({
-    ...e,
-    runId,
-  }));
-
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    async start(controller) {
-      const send = (event: RunEvent) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
-      };
-
-      let closed = false;
-      req.signal.addEventListener("abort", () => {
-        closed = true;
-        try {
-          controller.close();
-        } catch {
-          /* already closed */
-        }
-      });
-
-      // Compressed replay clock: ~1.2s between events (demo pacing).
-      for (const event of script) {
-        if (closed) return;
-        send(event);
-        await new Promise((r) => setTimeout(r, 1200));
-      }
-      if (!closed) {
-        controller.enqueue(encoder.encode("event: done\ndata: {}\n\n"));
-        controller.close();
-      }
     },
   });
 

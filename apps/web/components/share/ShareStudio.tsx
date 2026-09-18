@@ -13,13 +13,13 @@ import {
   downloadDataUrl,
   downloadText,
 } from "@/lib/share/download";
-import { ShareCard, isShareCardTemplate } from "./ShareCard";
+import { ShareCard, SHARE_CARD_SIZES, isShareCardTemplate } from "./ShareCard";
 import type { ShareCardContent, ShareCardRow, ShareCardTheme } from "./ShareCard";
 
 const TEMPLATE_LABELS: Record<ShareTemplate, string> = {
   "new-model-scorecard": "New Model Scorecard",
   "head-to-head-winner": "Head-to-Head Winner",
-  "cost-vs-quality": "Cost vs Quality",
+  "cost-vs-quality": "Cost vs Score",
   "category-breakdown": "Category Breakdown",
   "wtl-matrix": "Win/Tie/Loss Matrix",
   "artifact-montage": "Artifact Montage",
@@ -219,6 +219,19 @@ export function ShareStudio({
   const [copied, setCopied] = useState<CopiedKind | null>(null);
 
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLElement | null>(null);
+  const [canvasWidth, setCanvasWidth] = useState<number | null>(null);
+  const cardSize = SHARE_CARD_SIZES[aspect];
+  const previewScale = Math.min(1, (canvasWidth ?? cardSize.w) / cardSize.w);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas == null) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry != null) setCanvasWidth(Math.max(1, entry.contentRect.width));
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, []);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
@@ -310,6 +323,7 @@ export function ShareStudio({
     <>
       {/* Controls */}
       <aside
+        className="share-controls"
         style={{
           flex: "0 1 260px",
           minWidth: 220,
@@ -527,6 +541,7 @@ export function ShareStudio({
 
       {/* Canvas stage */}
       <section
+        ref={canvasRef}
         style={{
           flex: "1 1 480px",
           minWidth: 0,
@@ -539,15 +554,32 @@ export function ShareStudio({
         }}
       >
         {isShareCardTemplate(template) ? (
-          <div ref={stageRef} style={{ display: "flex", maxWidth: "100%" }}>
-            <ShareCard
-              template={template}
-              rows={rows}
-              content={content}
-              theme={theme}
-              aspect={aspect}
-              scoreLabel={scoreLabel}
-            />
+          <div
+            style={{
+              width: cardSize.w * previewScale,
+              height: cardSize.h * previewScale,
+              flex: "0 0 auto",
+            }}
+          >
+            <div
+              ref={stageRef}
+              style={{
+                display: "flex",
+                width: cardSize.w,
+                height: cardSize.h,
+                transform: `scale(${previewScale})`,
+                transformOrigin: "top left",
+              }}
+            >
+              <ShareCard
+                template={template}
+                rows={rows}
+                content={content}
+                theme={theme}
+                aspect={aspect}
+                scoreLabel={scoreLabel}
+              />
+            </div>
           </div>
         ) : (
           <div className="panel" style={{ width: "min(420px, 100%)" }}>

@@ -5,7 +5,7 @@ import { useState } from "react";
 import type { BrowserTestResult, ConsoleLine, HumanAnnotation } from "@model-lab/schemas";
 import { ModelDot, SectionLabel } from "@/components/ui/primitives";
 import { CATEGORY_META, groupByCategory, tallyCapability } from "@/lib/checks";
-import { ArtifactSandbox } from "./ArtifactSandbox";
+import { ArtifactSandbox, capturedPreviewSource } from "./ArtifactSandbox";
 import { FailureTrace, ScenePlaceholder } from "./ScenePlaceholder";
 import { RateBuildPanel } from "./RateBuildPanel";
 import { encodeEndpointId, type BuildVM, type ViewerData } from "./model";
@@ -96,7 +96,7 @@ function StatCard({ label, value, color }: { label: string; value: string; color
   );
 }
 
-/** Framed fail-state stand-in shown INSTEAD of the sandbox iframe. */
+/** Framed failure evidence when the runner did not produce a working render. */
 function FailFrame({
   widthPx,
   lines,
@@ -128,7 +128,7 @@ function FailFrame({
 
 function ScreenshotPane({ build, widthPx }: { build: BuildVM; widthPx: number | null }) {
   const capture = build.artifact.checks.find((c) => c.name === "screenshot.captured");
-  const screenshotSrc = build.artifact.screenshotRef;
+  const screenshotSrc = capturedPreviewSource(build.artifact.screenshotRef);
   return (
     <div
       style={{
@@ -377,8 +377,6 @@ export function ArtifactViewer({
   const [sel, setSel] = useState(initialIdx);
   const [tab, setTab] = useState<TabId>("preview");
   const [vp, setVp] = useState<ViewportId>("desktop");
-  // ⟳ / ⏻ bump this counter; the sandbox iframe key includes it, forcing a remount
-  const [frameKey, setFrameKey] = useState(0);
 
   const build = data.builds[sel] ?? data.builds[0];
   if (!build) return null;
@@ -606,26 +604,6 @@ export function ArtifactViewer({
             ))}
             <button
               type="button"
-              title="Reload artifact"
-              aria-label="Reload artifact"
-              onClick={() => setFrameKey((k) => k + 1)}
-              className="hover-border"
-              style={toolBtn}
-            >
-              ⟳
-            </button>
-            <button
-              type="button"
-              title="Restart isolated preview"
-              aria-label="Restart isolated preview"
-              onClick={() => setFrameKey((k) => k + 1)}
-              className="hover-border"
-              style={toolBtn}
-            >
-              ⏻
-            </button>
-            <button
-              type="button"
               title="Download artifact"
               aria-label="Download artifact"
               onClick={downloadArtifact}
@@ -651,11 +629,7 @@ export function ArtifactViewer({
         >
           {tab === "preview" &&
             (build.renderOk ? (
-              <ArtifactSandbox
-                key={`${build.endpointId}:${frameKey}`}
-                artifact={build.artifact}
-                widthPx={widthPx}
-              />
+              <ArtifactSandbox key={build.endpointId} artifact={build.artifact} widthPx={widthPx} />
             ) : (
               <FailFrame
                 widthPx={widthPx}
@@ -701,7 +675,7 @@ export function ArtifactViewer({
               padding: "3px 8px",
             }}
           >
-            {build.sandboxBadgeLabel}
+            captured preview · scripts inactive
           </span>
         </div>
       </section>

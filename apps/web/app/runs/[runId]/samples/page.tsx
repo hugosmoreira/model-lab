@@ -1,3 +1,4 @@
+import { DemoNotice } from "@/components/ui/DemoNotice";
 import { TopBar } from "@/components/shell/TopBar";
 import { SampleExplorer } from "@/components/samples/SampleExplorer";
 import type { SampleRowData } from "@/components/samples/shared";
@@ -30,6 +31,7 @@ export default async function Page({ params }: { params: Promise<{ runId: string
   return (
     <>
       <TopBar title={`Sample Explorer — ${runId}`} />
+      <DemoNotice demo={view.source === "fixtures"} />
       <SampleExplorer
         runId={runId}
         rows={rows}

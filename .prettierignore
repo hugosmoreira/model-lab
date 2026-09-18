@@ -12,5 +12,8 @@ docs/example-run
 runners/build-arena/test/fixtures
 **/*.html
 
+# Unmodified third-party notices and source recipes have recorded content hashes.
+licenses
+
 # prose keeps its hand-set line breaks
 **/*.md

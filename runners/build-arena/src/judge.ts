@@ -36,6 +36,14 @@ import type {
 } from "@model-lab/schemas";
 import { AnthropicProvider } from "./providers/anthropic";
 import { errorMessage } from "./providers/util";
+import { boundedGenerate, MAX_JUDGE_BYTES, ProviderSafetyError } from "./providers/limits";
+import {
+  BudgetAdmissionError,
+  BudgetLedger,
+  reserveCost,
+  tokenCost,
+  type BudgetReservation,
+} from "./budget";
 import type {
   EndpointConfig,
   GenerateRequest,
@@ -53,12 +61,10 @@ export const RENDER_FAILED_SCORE_CAP = 5.0;
 /** Artifact HTML is truncated to this many chars per slot in judge prompts. */
 export const JUDGE_MAX_HTML_CHARS = 60_000;
 /**
- * Budget-projection allowance per attached capture. The checks runner captures
- * at 1280×720, which costs about (1280×720)/750 ≈ 1229 input tokens on
- * Anthropic; rounded up so the ceiling is never crossed by a projection that
- * ignored the images. Actual spend always uses the provider's reported usage.
+ * Conservative admission allowance per capture, shared with the budget ledger.
+ * This is an estimate; provider-reported usage remains authoritative.
  */
-export const JUDGE_IMAGE_TOKENS_ESTIMATE = 1_300;
+export const JUDGE_IMAGE_TOKENS_ESTIMATE = 4_096;
 
 const round1 = (n: number): number => Math.round(n * 10) / 10;
 const round4 = (n: number): number => Math.round(n * 10_000) / 10_000;
@@ -88,6 +94,8 @@ export interface JudgePhaseOptions {
   emit: JudgeEmit;
   getSpentUsd: () => number;
   addSpendUsd: (usd: number) => void;
+  /** Shared with generation so judge retries cannot reuse committed funds. */
+  budget?: BudgetLedger;
   shouldStop: () => boolean;
   signal?: AbortSignal;
   /** injectable for tests; defaults to the real AnthropicProvider */
@@ -282,36 +290,22 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
    * Never kill the run at judge stage: when the projected spend of the next
    * call would cross the ceiling, warn once and skip everything remaining. */
   let budgetExhausted = false;
-  const callCosts: number[] = [];
-  const estimateCallCost = (promptChars: number): number => {
-    if (callCosts.length > 0) {
-      return Math.max(...callCosts); // observed worst case beats a guess
-    }
-    const estTokensIn = Math.ceil(promptChars / 4) + 200;
-    return (
-      (estTokensIn * judge.priceInPerMtokUsd + JUDGE_MAX_TOKENS * judge.priceOutPerMtokUsd) /
-      1_000_000
-    );
-  };
-  const budgetAllows = (promptChars: number, imageCount = 0): boolean => {
-    if (budgetExhausted) return false;
-    if (cfg.maxBudgetUsd <= 0) return true;
-    const imageCost =
-      (imageCount * JUDGE_IMAGE_TOKENS_ESTIMATE * judge.priceInPerMtokUsd) / 1_000_000;
-    const projected = options.getSpentUsd() + estimateCallCost(promptChars) + imageCost;
-    if (projected < cfg.maxBudgetUsd) return true;
+  const budget = options.budget ?? new BudgetLedger(cfg.maxBudgetUsd, options.getSpentUsd());
+  const prices = { input: judge.priceInPerMtokUsd, output: judge.priceOutPerMtokUsd };
+  const stopForBudget = (message: string): void => {
     budgetExhausted = true;
     emit("budget.status", {
       level: "warn",
-      message: `judge: projected $${projected.toFixed(2)} ≥ budget $${cfg.maxBudgetUsd.toFixed(2)} — remaining judge calls skipped`,
+      message: `judge: ${message} — remaining judge calls skipped`,
       payload: {
         spentUsd: round4(options.getSpentUsd()),
-        projectedUsd: round4(projected),
+        projectedUsd: round4(budget.committedUsd),
+        reservedUsd: round4(budget.reservedUsd),
+        uncertainUsd: round4(budget.uncertainUsd),
         ceilingUsd: cfg.maxBudgetUsd,
         judgeSkipped: true,
       },
     });
-    return false;
   };
 
   /**
@@ -335,34 +329,71 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
     };
     if (images.length > 0) req.images = images;
     if (options.signal !== undefined) req.signal = options.signal;
+    if (options.shouldStop() || options.signal?.aborted)
+      throw new ProviderSafetyError("judge cancelled");
+    const reservations: BudgetReservation[] = [];
+    const admit = (): void => {
+      if (budgetExhausted) throw new BudgetAdmissionError("judge budget exhausted");
+      try {
+        reservations.push(budget.reserve(reserveCost(req, prices)));
+      } catch (err) {
+        stopForBudget(errorMessage(err));
+        throw err;
+      }
+    };
+    req.beforeRetry = admit;
+    admit();
     let text = "";
     let tokensIn = 0;
     let tokensOut = 0;
-    for await (const chunk of provider.generate(req)) {
-      if (chunk.type === "delta") text += chunk.text;
-      else {
-        tokensIn = chunk.tokensIn;
-        tokensOut = chunk.tokensOut;
+    let complete = false;
+    let usageSource: "reported" | "estimated" = "estimated";
+    let usageComplete = false;
+    try {
+      for await (const chunk of boundedGenerate(provider, req, MAX_JUDGE_BYTES)) {
+        if (chunk.type === "delta") text += chunk.text;
+        else {
+          tokensIn = chunk.tokensIn;
+          tokensOut = chunk.tokensOut;
+          usageSource = chunk.usageSource ?? "reported";
+          usageComplete = chunk.usageComplete ?? true;
+        }
       }
+      complete = true;
+      if (usageSource === "estimated") {
+        if (tokensIn === 0) tokensIn = Math.ceil((req.prompt.length + JUDGE_SYSTEM.length) / 4);
+        if (tokensOut === 0 && text.length > 0) tokensOut = Math.ceil(text.length / 4);
+      }
+      return text;
+    } finally {
+      const cost = tokenCost(prices, tokensIn, tokensOut);
+      const final = reservations.pop();
+      for (const reservation of reservations) budget.settle(reservation, 0, false);
+      if (final !== undefined)
+        budget.settle(final, cost, complete && usageSource === "reported" && usageComplete);
+      options.addSpendUsd(cost);
+      const spent = options.getSpentUsd();
+      const pct =
+        cfg.maxBudgetUsd > 0 ? Math.min(999, Math.round((spent / cfg.maxBudgetUsd) * 100)) : 0;
+      emit("budget.status", {
+        message: `$${spent.toFixed(2)} spent · ${pct}% of ceiling (judge: ${judge.model})`,
+        payload: {
+          spentUsd: round4(spent),
+          projectedUsd: round4(spent),
+          ceilingUsd: cfg.maxBudgetUsd,
+          judgeCostUsd: round4(cost),
+          reservedUsd: round4(budget.reservedUsd),
+          uncertainUsd: round4(budget.uncertainUsd),
+          usageSource,
+          usageComplete,
+          tokensIn,
+          tokensOut,
+          complete,
+        },
+      });
+      if (budget.committedUsd > cfg.maxBudgetUsd)
+        stopForBudget("provider usage exceeded the reservation");
     }
-    if (tokensOut === 0 && text.length > 0) tokensOut = Math.ceil(text.length / 4);
-    const cost =
-      (tokensIn * judge.priceInPerMtokUsd + tokensOut * judge.priceOutPerMtokUsd) / 1_000_000;
-    callCosts.push(cost);
-    options.addSpendUsd(cost);
-    const spent = options.getSpentUsd();
-    const pct =
-      cfg.maxBudgetUsd > 0 ? Math.min(999, Math.round((spent / cfg.maxBudgetUsd) * 100)) : 0;
-    emit("budget.status", {
-      message: `$${spent.toFixed(2)} spent · ${pct}% of ceiling (judge: ${judge.model})`,
-      payload: {
-        spentUsd: round4(spent),
-        projectedUsd: round4(spent),
-        ceilingUsd: cfg.maxBudgetUsd,
-        judgeCostUsd: round4(cost),
-      },
-    });
-    return text;
   };
 
   /**
@@ -379,6 +410,13 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
     try {
       return { text: await judgeCall(prompt, send), sawRender: true };
     } catch (err) {
+      if (
+        err instanceof ProviderSafetyError ||
+        err instanceof BudgetAdmissionError ||
+        options.signal?.aborted ||
+        options.shouldStop()
+      )
+        throw err;
       visionEnabled = false;
       visionDisabledReason = errorMessage(err);
       emit("check.warn", {
@@ -399,7 +437,6 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
     const first = await judgeCallSeeing(prompt, images);
     const parsedFirst = parse(first.text);
     if (parsedFirst !== null) return { value: parsedFirst, sawRender: first.sawRender };
-    if (!budgetAllows(prompt.length + JSON_ONLY_REMINDER.length)) return null;
     const second = await judgeCallSeeing(prompt + JSON_ONLY_REMINDER, images);
     const parsedSecond = parse(second.text);
     return parsedSecond !== null ? { value: parsedSecond, sawRender: second.sawRender } : null;
@@ -471,7 +508,6 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
     if (options.shouldStop() || budgetExhausted) break;
     const images = model.capture !== null && visionEnabled ? [model.capture] : [];
     const prompt = rubricPrompt(brief, model.html, !model.renderOk, images.length > 0);
-    if (!budgetAllows(prompt.length, images.length)) break;
     let verdict: { value: RubricVerdict; sawRender: boolean } | null = null;
     try {
       verdict = await judgeCallParsed(prompt, parseRubricVerdict, images);
@@ -541,12 +577,11 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
       const imagesBA = bothSeen ? [slot(b, "A"), slot(a, "B")] : [];
       const promptAB = pairPrompt(brief, a.html, b.html, bothSeen);
       const promptBA = pairPrompt(brief, b.html, a.html, bothSeen);
-      if (!budgetAllows(Math.max(promptAB.length, promptBA.length), imagesAB.length)) continue;
       let ab: { value: PairVerdict; sawRender: boolean } | null = null;
       let ba: { value: PairVerdict; sawRender: boolean } | null = null;
       try {
         ab = await judgeCallParsed(promptAB, parsePairVerdict, imagesAB);
-        if (ab !== null && budgetAllows(promptBA.length, imagesBA.length)) {
+        if (ab !== null && !budgetExhausted) {
           ba = await judgeCallParsed(promptBA, parsePairVerdict, imagesBA);
         }
       } catch (err) {

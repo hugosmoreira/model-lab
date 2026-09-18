@@ -1,0 +1,65 @@
+[
+  {
+    "name": "esrecurse",
+    "version": "4.3.0",
+    "file": "esrecurse-4.3.0-README-NOTICE.txt",
+    "sourcePath": "/app/node_modules/.pnpm/eslint-scope@8.4.0/node_modules/esrecurse/README.md",
+    "image": "sha256:ec448303018e1a7d0e43a6d9494f8f475aad8c99cf5b47a18c2aae30cfefd171",
+    "sha256": "cb1764d4708e870cc694de13d499af2e6ee98d2751026e3a3f79de608f4f4ea0",
+    "fullLicenseText": true
+  },
+  {
+    "name": "imurmurhash",
+    "version": "0.1.4",
+    "file": "imurmurhash-0.1.4-README-NOTICE.txt",
+    "sourcePath": "/app/node_modules/.pnpm/eslint@9.39.5_jiti@2.7.0/node_modules/imurmurhash/README.md",
+    "image": "sha256:ec448303018e1a7d0e43a6d9494f8f475aad8c99cf5b47a18c2aae30cfefd171",
+    "sha256": "338b862a4b5959b1583d99ab35801b23375150693c6cc3bf8fcd9156a0e25ddd",
+    "fullLicenseText": true
+  },
+  {
+    "name": "keyv",
+    "version": "4.5.4",
+    "file": "keyv-4.5.4-README-NOTICE.txt",
+    "sourcePath": "/app/node_modules/.pnpm/flat-cache@4.0.1/node_modules/keyv/README.md",
+    "image": "sha256:ec448303018e1a7d0e43a6d9494f8f475aad8c99cf5b47a18c2aae30cfefd171",
+    "sha256": "7c52c9115673b3e47e2a78c9c911558b7b2f23b144a3927e5fa862e1409727ba",
+    "fullLicenseText": false
+  },
+  {
+    "name": "language-tags",
+    "version": "1.0.9",
+    "file": "language-tags-1.0.9-README-NOTICE.txt",
+    "sourcePath": "/app/node_modules/.pnpm/eslint-plugin-jsx-a11y@6.10.2_eslint@9.39.5_jiti@2.7.0_/node_modules/language-tags/README.md",
+    "image": "sha256:ec448303018e1a7d0e43a6d9494f8f475aad8c99cf5b47a18c2aae30cfefd171",
+    "sha256": "053fcb19e45c4ed1c275c5f4d25470195c5ca4a71de3f58d97da2b5d6738a260",
+    "fullLicenseText": false
+  },
+  {
+    "name": "language-subtag-registry",
+    "version": "0.3.23",
+    "file": "language-subtag-registry-0.3.23-README-NOTICE.txt",
+    "sourcePath": "/app/node_modules/.pnpm/language-subtag-registry@0.3.23/node_modules/language-subtag-registry/README.md",
+    "image": "sha256:ec448303018e1a7d0e43a6d9494f8f475aad8c99cf5b47a18c2aae30cfefd171",
+    "sha256": "54b081c717705e23ac85e1ecb5fbd174e18d641b2643ccd8d08cdccf4e00f20d",
+    "fullLicenseText": false
+  },
+  {
+    "name": "natural-compare",
+    "version": "1.4.0",
+    "file": "natural-compare-1.4.0-README-NOTICE.txt",
+    "sourcePath": "/app/node_modules/.pnpm/@typescript-eslint+eslint-plugin@8.70.0_@typescript-eslint+parser@8.70.0_eslint@9.39.5__748c9a660256d0e52b56564aa9609124/node_modules/natural-compare/README.md",
+    "image": "sha256:ec448303018e1a7d0e43a6d9494f8f475aad8c99cf5b47a18c2aae30cfefd171",
+    "sha256": "b1a41a2bed2722f10267002c9cc5d3675622962ad8487c4de28ee720ac92bd2e",
+    "fullLicenseText": false
+  },
+  {
+    "name": "stable-hash",
+    "version": "0.0.5",
+    "file": "stable-hash-0.0.5-README-NOTICE.txt",
+    "sourcePath": "/app/node_modules/.pnpm/eslint-import-resolver-typescript@3.10.1_eslint-plugin-import@2.32.0_eslint@9.39.5_jiti@2.7.0_/node_modules/stable-hash/README.md",
+    "image": "sha256:ec448303018e1a7d0e43a6d9494f8f475aad8c99cf5b47a18c2aae30cfefd171",
+    "sha256": "504df5e11687a563c07748c97a0375316751ebe4043b851a6f9caa7ab6e0372a",
+    "fullLicenseText": false
+  }
+]

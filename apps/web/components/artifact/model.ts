@@ -72,9 +72,9 @@ export interface BuildVM {
   sampleLabel: string;
   /** "42" | "unseeded" */
   seedLabel: string;
-  /** "sandboxed · network blocked" (grid chip, ok state) */
+  /** "captured preview · scripts inactive" (grid chip, ok state) */
   sandboxChipLabel: string;
-  /** "sandboxed · network blocked · 30s limit" (viewer stage badge) */
+  /** "captured preview · scripts inactive" (viewer stage badge) */
   sandboxBadgeLabel: string;
   artifact: Artifact;
   sortScore: number;
@@ -129,10 +129,7 @@ export function getBuilds(data: RunArtifactData): BuildVM[] {
     const errors = a.consoleLines.filter((l) => l.level === "error").length;
     const warns = a.consoleLines.filter((l) => l.level === "warn").length;
     const costLabel = usd(rm?.costUsd ?? 0);
-    const sandboxParts = [
-      a.sandbox.isolatedOrigin ? "sandboxed" : null,
-      a.sandbox.networkBlocked ? "network blocked" : null,
-    ].filter((p): p is string => p != null);
+    const sandboxParts = ["captured preview", "scripts inactive"];
     const sampleTag = a.isBestOfModel ? "best" : a.renderOk ? "stored" : "failed";
 
     return {
@@ -173,7 +170,7 @@ export function getBuilds(data: RunArtifactData): BuildVM[] {
       sampleLabel: `${a.sampleIndex}/${cfg.samplesPerModel} (${sampleTag})`,
       seedLabel: (rm?.unseeded ?? false) || cfg.seed == null ? "unseeded" : String(cfg.seed),
       sandboxChipLabel: sandboxParts.join(" · "),
-      sandboxBadgeLabel: [...sandboxParts, `${a.sandbox.execLimitSec}s limit`].join(" · "),
+      sandboxBadgeLabel: sandboxParts.join(" · "),
       artifact: a,
       // "score" sort: human rating when there is one, else the capability ratio.
       sortScore:

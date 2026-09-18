@@ -8,11 +8,18 @@
  * Throws Error on the first failed expectation; resolves with the number of
  * assertions that passed.
  */
-import type { Run, RunEvent, SampleResult } from "@model-lab/schemas";
+import type {
+  HumanAnnotation,
+  PairwiseVote,
+  Run,
+  RunEvent,
+  SampleResult,
+} from "@model-lab/schemas";
 import { demoFixtures } from "./demo";
 import { StoreError, type RunStore } from "./types";
 
 const ENDPOINT = "anthropic/claude-sonnet-4-6";
+const OTHER_ENDPOINT = "openai/gpt-5.2-mini";
 
 export async function runStoreConformance(store: RunStore): Promise<number> {
   let passed = 0;
@@ -237,7 +244,7 @@ export async function runStoreConformance(store: RunStore): Promise<number> {
   const tail = await store.listEvents(runId, e1.id);
   ok(tail.length === 2 && tail[0]?.message === "two", "listEvents(afterId) tails correctly");
 
-  await store.insertAnnotation({
+  const annotation: HumanAnnotation = {
     runId,
     endpointId: ENDPOINT,
     sampleIndex: 1,
@@ -245,39 +252,141 @@ export async function runStoreConformance(store: RunStore): Promise<number> {
     scoreOverride: 7.5,
     author: "conformance",
     at: new Date().toISOString(),
-  });
+  };
+  await store.insertAnnotation(annotation);
   const annotations = await store.listAnnotations(runId);
   ok(
     annotations.length === 1 && annotations[0]?.note === "conformance annotation",
     "annotation appended",
   );
 
-  await store.upsertVote({
+  await store.insertAnnotation({ ...annotation, note: "correction", scoreOverride: 8.5 });
+  const corrections = await store.listAnnotations(runId);
+  ok(
+    corrections.length === 2 &&
+      corrections[0]?.scoreOverride === 7.5 &&
+      corrections[1]?.scoreOverride === 8.5,
+    "corrections preserve the original annotation in append order",
+  );
+  const unchangedScore = (await store.listSamples(runId))[0]?.score;
+  ok(
+    unchangedScore != null && "value" in unchangedScore && unchangedScore.value === 8,
+    "annotations do not mutate the recorded sample score",
+  );
+  await throws(
+    () => store.insertAnnotation({ ...annotation, runId: "run_does_not_exist" }),
+    "NOT_FOUND",
+    "annotation missing run rejected",
+  );
+  await throws(
+    () => store.insertAnnotation({ ...annotation, endpointId: "missing/endpoint" }),
+    "NOT_FOUND",
+    "annotation missing endpoint rejected",
+  );
+  await throws(
+    () => store.insertAnnotation({ ...annotation, endpointId: OTHER_ENDPOINT }),
+    "NOT_FOUND",
+    "annotation catalog endpoint outside run rejected",
+  );
+  await throws(
+    () => store.insertAnnotation({ ...annotation, sampleIndex: 99 }),
+    "NOT_FOUND",
+    "annotation missing sample rejected",
+  );
+  await throws(
+    () => store.insertAnnotation({ ...annotation, sampleIndex: 0 }),
+    "INVALID",
+    "annotation invalid sample index rejected",
+  );
+  ok(
+    (await store.listAnnotations(runId)).length === 2,
+    "rejected annotations never enter audit history",
+  );
+
+  const participant = runModels[0];
+  if (!participant) throw new Error("conformance participant missing");
+  await store.upsertRunModel({ ...participant, endpointId: OTHER_ENDPOINT });
+
+  const pendingVote: PairwiseVote = {
     runId,
     pairIndex: 1,
     pairTotal: 1,
-    pairing: [ENDPOINT, "openai/gpt-5.2-mini"],
+    pairing: [ENDPOINT, OTHER_ENDPOINT],
     criterion: "conformance",
     orderSwapped: false,
     vote: null,
     confidence: "med",
     votedAt: null,
     final: false,
-  });
-  await store.upsertVote({
-    runId,
-    pairIndex: 1,
-    pairTotal: 1,
-    pairing: [ENDPOINT, "openai/gpt-5.2-mini"],
-    criterion: "conformance",
-    orderSwapped: false,
+  };
+  await throws(
+    () => store.upsertVote({ ...pendingVote, runId: "run_does_not_exist" }),
+    "NOT_FOUND",
+    "vote missing run rejected",
+  );
+  await throws(
+    () => store.upsertVote({ ...pendingVote, pairing: [ENDPOINT, "missing/endpoint"] }),
+    "NOT_FOUND",
+    "vote missing endpoint rejected",
+  );
+  const outsideEndpoint = fx.runModels.find(
+    (rm) => rm.endpointId !== ENDPOINT && rm.endpointId !== OTHER_ENDPOINT,
+  )?.endpointId;
+  if (!outsideEndpoint) throw new Error("conformance needs a catalog endpoint outside the run");
+  await throws(
+    () => store.upsertVote({ ...pendingVote, pairing: [ENDPOINT, outsideEndpoint] }),
+    "NOT_FOUND",
+    "vote endpoint outside run rejected",
+  );
+  await throws(
+    () => store.upsertVote({ ...pendingVote, pairing: [ENDPOINT, ENDPOINT] }),
+    "INVALID",
+    "self comparison rejected",
+  );
+  await store.upsertVote(pendingVote);
+  const finalVote: PairwiseVote = {
+    ...pendingVote,
     vote: "A",
     confidence: "high",
     votedAt: new Date().toISOString(),
     final: true,
-  });
+  };
+  const competingWrites = await Promise.allSettled([
+    store.upsertVote(finalVote),
+    store.upsertVote({ ...finalVote, vote: "B" }),
+  ]);
+  ok(
+    competingWrites.filter((result) => result.status === "fulfilled").length === 1,
+    "only one concurrent final vote succeeds",
+  );
+  const rejectedVote = competingWrites.find((result) => result.status === "rejected");
+  ok(
+    rejectedVote?.status === "rejected" &&
+      rejectedVote.reason instanceof StoreError &&
+      rejectedVote.reason.code === "IMMUTABLE",
+    "concurrent final vote conflict is IMMUTABLE",
+  );
   const votes = await store.listVotes(runId);
-  ok(votes.length === 1 && votes[0]?.vote === "A" && votes[0]?.final === true, "vote upserted");
+  ok(
+    votes.length === 1 &&
+      (votes[0]?.vote === "A" || votes[0]?.vote === "B") &&
+      votes[0]?.final === true,
+    "one final vote persisted",
+  );
+  await throws(
+    () => store.upsertVote({ ...finalVote, vote: "tie" }),
+    "IMMUTABLE",
+    "final vote replacement rejected",
+  );
+  await throws(
+    () => store.upsertVote(pendingVote),
+    "IMMUTABLE",
+    "final vote cannot be made unfinished",
+  );
+  ok(
+    (await store.listVotes(runId))[0]?.vote === votes[0]?.vote,
+    "final choice survives replacement attempts",
+  );
 
   ok((await store.getRun("run_does_not_exist")) === null, "getRun(unknown) is null");
 

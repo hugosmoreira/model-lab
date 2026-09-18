@@ -1,8 +1,9 @@
 # Architecture
 
-Model Lab is a pnpm workspace. Boundaries are deliberate: the frontend never talks to
-model providers, generated code never escapes the sandbox, and the run executor is
-swappable behind one interface.
+Model Lab is a pnpm workspace. The frontend calls the local API, provider calls
+run on the server, and generated HTML runs only in the restricted runner browser.
+The UI displays captured evidence. See [SECURITY.md](../SECURITY.md) for the
+tested controls and their limitations; browser restrictions are not an OS sandbox.
 
 ```
 apps/web            Next.js 15 (App Router) — UI, local API routes, SSE event stream
@@ -16,8 +17,8 @@ benchmark-packs/    Versioned challenge + eval pack definitions
 ## Run lifecycle
 
 1. **Configure** (`/runs/new`) — pick mode, pack, 2–8 model endpoints, shared
-   generation settings. Cost is estimated from per-endpoint pricing; a hard budget
-   ceiling is part of the config.
+   generation settings. Cost is estimated from per-endpoint pricing; the configured
+   budget bounds conservative request admission, not the provider's invoice.
 2. **Execute** — `POST /api/runs` hands a config to the runner. Endpoints run in
    parallel (bounded by concurrency), samples sequentially per endpoint. Every step
    emits a typed `RunEvent`.
@@ -46,8 +47,9 @@ One streaming `Provider` interface: `generate(req) → AsyncGenerator<delta | us
 Implementations: native Anthropic, OpenAI-compatible (OpenAI, OpenRouter, DeepSeek,
 Google's OpenAI surface, any custom base URL), Ollama for local models, and a
 deterministic keyless mock used for tests and demos. An endpoint whose API key is
-absent transparently falls back to the mock and is labeled `· mock` in the event
-stream, so a partially-configured workspace still runs end to end.
+absent falls back to the mock and is labeled `· mock` in the event stream.
+Ollama remains real without a cloud key. Forced mock mode overrides generation,
+judging and provider health checks for deterministic provider-free tests.
 
 The OpenAI-compatible adapter adapts its request shape when a server rejects legacy
 parameters (e.g. `max_tokens` → `max_completion_tokens`), retrying at most once per
@@ -142,9 +144,23 @@ screenshots are written write-once to the runner's data directory.
 
 Every run stores a content-addressed fingerprint over its canonical configuration,
 plus prompt hash, exact endpoint identifiers, provider, generation parameters, runner
-version, and git commit. The exported bundle contains `manifest.json`, `models.json`,
-`benchmark.json`, `samples.jsonl`, `scores.json`, `artifacts/`, `screenshots/`, and a
-README with replay instructions.
+version, and available source revision. A creation-time configuration is immutable.
+The exported bundle contains `replay.json`, `manifest.json`, `models.json`,
+`benchmark.json`, `samples.jsonl`, `scores.json`, exact artifact/screenshot/raw
+references, checksums, and a README. The versioned replay contract reconstructs
+the recorded configuration and fingerprint, including native objective tasks and
+actual scorers. Legacy imports explicitly record incomplete provenance. Repeating
+the configuration does not promise identical nondeterministic model output.
+
+New evidence paths hash the full run and endpoint identities, and files are
+write-once. Legacy paths remain readable without rewriting historical data.
+CLI exports are persistent; HTTP downloads use an isolated temporary export that
+is removed after ZIP creation, including failure paths.
+
+The runner bundle records the runner's snapshot and judge evidence. Later human
+annotations and pair votes live in the metadata database; retain a database backup
+for that history. Share Studio's CSV/JSON reflects the current displayed score
+sources. A runner bundle alone is not a full application-state backup.
 
 The fingerprint identifies a configuration; it cannot identify where that
 configuration ran. So the runner also records an **environment** alongside the run:

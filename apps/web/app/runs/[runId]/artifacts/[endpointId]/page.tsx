@@ -1,3 +1,4 @@
+import { DemoNotice } from "@/components/ui/DemoNotice";
 import { notFound } from "next/navigation";
 import { TopBar } from "@/components/shell/TopBar";
 import { ArtifactViewer } from "@/components/artifact/ArtifactViewer";
@@ -23,12 +24,13 @@ export default async function ArtifactViewerPage({
   return (
     <>
       <TopBar title={`Artifact Viewer — ${build.artifact.filename}`} />
+      <DemoNotice demo={view.source === "fixtures"} />
       {/* key: remount (and reset selection state) when navigating between artifacts */}
       <ArtifactViewer
         key={endpointId}
         data={data}
         initialEndpointId={endpointId}
-        annotations={view.annotations}
+        annotations={view.scoreAnnotations}
       />
     </>
   );

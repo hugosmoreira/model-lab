@@ -12,7 +12,7 @@ import { ProviderCard } from "./ProviderCard";
 
 interface Health {
   providerId: string;
-  status: "connected" | "disconnected" | "rate-limited" | "no-key" | "unsupported";
+  status: "connected" | "disconnected" | "rate-limited" | "no-key" | "unsupported" | "mocked";
   latencyMs: number | null;
   modelsAvailable: number | null;
   credentialEnv: string | null;
@@ -43,7 +43,8 @@ function withHealth(p: Provider, h: Health | undefined): Provider {
     };
   }
   const keyless = h.credentialEnv === null;
-  const keyed = !keyless && h.status !== "no-key";
+  const mocked = h.status === "mocked";
+  const keyed = !keyless && h.status !== "no-key" && !mocked;
   return {
     ...p,
     status:
@@ -55,12 +56,14 @@ function withHealth(p: Provider, h: Health | undefined): Provider {
     healthLatencyMs: h.latencyMs,
     modelsAvailable: p.isLocal ? null : h.modelsAvailable,
     modelsLoaded: p.isLocal ? h.modelsAvailable : null,
-    lastTestedAt: h.checkedAt,
-    credentialMasked: keyless
-      ? "none needed (local)"
-      : keyed
-        ? `${h.credentialEnv} · set`
-        : `${h.credentialEnv} · not set`,
+    lastTestedAt: mocked || h.status === "no-key" ? null : h.checkedAt,
+    credentialMasked: mocked
+      ? "not checked (mock mode)"
+      : keyless
+        ? "none needed (local)"
+        : keyed
+          ? `${h.credentialEnv} · set`
+          : `${h.credentialEnv} · not set`,
     credentialStore: keyless ? "none" : keyed ? "env" : "unset",
     warning:
       h.detail !== null && h.status !== "connected" && h.status !== "no-key"
@@ -97,16 +100,19 @@ export function LiveProviders({ initial }: { initial: Provider[] }) {
   const cards = initial
     .filter((p) => byId.get(p.id)?.status !== "unsupported")
     .map((p) => withHealth(p, byId.get(p.id)));
-  const probed = (health?.providers ?? []).filter((h) => h.status !== "unsupported").length;
+  const probed = (health?.providers ?? []).filter((h) => h.latencyMs !== null).length;
+  const mocked = (health?.providers ?? []).some((h) => h.status === "mocked");
 
   return (
     <>
       <p style={{ margin: 0, fontSize: 12.5, color: "var(--color-muted)" }} aria-live="polite">
         {checking
-          ? "Probing providers — one model-list request each, nothing is spent…"
+          ? "Checking provider availability…"
           : error !== null
             ? `Health check failed: ${error}`
-            : `${probed} providers probed${health?.cached ? " (cached for a minute)" : ""}. Keys are read from this server's environment; only whether one is set is shown.`}
+            : mocked
+              ? "Forced mock mode: no provider network requests were made."
+              : `${probed} providers probed${health?.cached ? " (cached for a minute)" : ""}. Keys are read from this server's environment; only whether one is set is shown.`}
       </p>
       <div
         style={{
@@ -122,6 +128,7 @@ export function LiveProviders({ initial }: { initial: Provider[] }) {
             now={Date.now()}
             onTest={() => void load(true)}
             testing={checking}
+            mocked={byId.get(p.id)?.status === "mocked"}
           />
         ))}
       </div>

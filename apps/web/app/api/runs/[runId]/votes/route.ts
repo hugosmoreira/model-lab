@@ -18,9 +18,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import type { PairwiseVote } from "@model-lab/schemas";
 import { getStore, StoreError } from "@model-lab/store";
-import { DEMO_RUN_ID, getRunView } from "@/lib/server/loaders";
+import { getRunView } from "@/lib/server/loaders";
 import { buildPairQueue } from "@/lib/server/pairs";
 import { isReadOnly, readOnlyResponse } from "@/lib/server/read-only";
+import { guardMutationRequest } from "@/lib/server/mutation-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -30,28 +31,30 @@ const VoteRequest = z.object({
   confidence: z.enum(["low", "med", "high"]).default("med"),
 });
 
-/** The demo run is always votable; other ids must exist in the store. */
-async function isKnownRun(runId: string): Promise<boolean> {
-  if (runId === DEMO_RUN_ID) return true;
+/** Only an actual stored run can receive votes, including the demo. */
+async function runLookupError(runId: string): Promise<Response | null> {
   try {
     const store = await getStore();
-    return (await store.getRun(runId)) !== null;
+    return (await store.getRun(runId)) === null
+      ? NextResponse.json({ error: "Run not found." }, { status: 404 })
+      : null;
   } catch {
-    return false;
+    return NextResponse.json({ error: "Run storage is temporarily unavailable." }, { status: 503 });
   }
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
-  if (!(await isKnownRun(runId))) {
-    return NextResponse.json({ error: `Unknown run: ${runId}` }, { status: 404 });
-  }
+  const lookupError = await runLookupError(runId);
+  if (lookupError !== null) return lookupError;
   const queue = await buildPairQueue(await getRunView(runId));
   return NextResponse.json(queue);
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ runId: string }> }) {
   if (isReadOnly()) return readOnlyResponse();
+  const rejected = guardMutationRequest(req);
+  if (rejected !== null) return rejected;
   const { runId } = await params;
 
   let body: unknown;
@@ -68,9 +71,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ run
     );
   }
 
-  if (!(await isKnownRun(runId))) {
-    return NextResponse.json({ error: `Unknown run: ${runId}` }, { status: 404 });
-  }
+  const lookupError = await runLookupError(runId);
+  if (lookupError !== null) return lookupError;
 
   const view = await getRunView(runId);
   const queue = await buildPairQueue(view);
@@ -109,8 +111,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ run
     const store = await getStore();
     await store.upsertVote(record);
   } catch (err) {
+    if (err instanceof StoreError && err.code === "INVALID") {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
     if (err instanceof StoreError && err.code === "NOT_FOUND") {
-      return NextResponse.json({ error: `Unknown run: ${runId}` }, { status: 404 });
+      return NextResponse.json({ error: err.message }, { status: 404 });
+    }
+    if (err instanceof StoreError && err.code === "IMMUTABLE") {
+      return NextResponse.json({ error: "This pair already has a final vote." }, { status: 409 });
     }
     return NextResponse.json({ error: "Vote could not be saved." }, { status: 500 });
   }

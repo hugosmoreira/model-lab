@@ -48,6 +48,7 @@ export function ProviderCard({
   now = Date.parse(FIXTURE_NOW_ISO),
   onTest,
   testing = false,
+  mocked = false,
 }: {
   provider: Provider;
   /** clock for the "last test" label; the fixture anchor for the demo, Date.now() when live */
@@ -55,9 +56,15 @@ export function ProviderCard({
   /** when present, "Test connection" is live and calls it */
   onTest?: () => void;
   testing?: boolean;
+  /** Provider probes are disabled by forced mock mode. */
+  mocked?: boolean;
 }) {
   const meta = STATUS_META[p.status];
-  const statusText = p.status === "connected" && p.isLocal ? "connected · local" : p.status;
+  const statusText = mocked
+    ? "mock · no network"
+    : p.status === "connected" && p.isLocal
+      ? "connected · local"
+      : p.status;
   const contextAction = p.status === "disconnected" ? "Connect" : "Disable";
 
   return (
@@ -120,11 +127,13 @@ export function ProviderCard({
       <div style={{ display: "flex", gap: 7, marginTop: "auto", fontSize: 12 }}>
         <button
           type="button"
-          disabled={onTest === undefined || testing}
+          disabled={onTest === undefined || testing || mocked}
           title={
-            onTest === undefined
-              ? "live on a persistent store; the demo workspace shows fixture status"
-              : "probe this provider's model list again"
+            mocked
+              ? "provider probes are disabled in forced mock mode"
+              : onTest === undefined
+                ? "live on a persistent store; the demo workspace shows fixture status"
+                : "probe this provider's model list again"
           }
           onClick={onTest}
           className="hover-border"
@@ -136,10 +145,10 @@ export function ProviderCard({
             padding: "5px 11px",
             fontSize: 12,
             fontFamily: "inherit",
-            cursor: onTest === undefined || testing ? "not-allowed" : "pointer",
+            cursor: onTest === undefined || testing || mocked ? "not-allowed" : "pointer",
           }}
         >
-          {testing ? "Testing…" : "Test connection"}
+          {mocked ? "Probes disabled" : testing ? "Testing…" : "Test connection"}
         </button>
         <button
           type="button"

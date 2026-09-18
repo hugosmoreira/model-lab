@@ -1,9 +1,10 @@
 {
   "name": "model-lab",
   "private": true,
-  "version": "0.1.0",
-  "packageManager": "pnpm@10.34.4",
+  "version": "0.2.0-rc.1",
+  "packageManager": "pnpm@10.34.5",
   "scripts": {
+    "browser:install": "node --experimental-strip-types --disable-warning=ExperimentalWarning apps/web/scripts/install-browser.mjs",
     "dev": "pnpm --filter @model-lab/web dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",

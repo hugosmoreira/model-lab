@@ -44,6 +44,7 @@ import {
   type SeedFixtures,
   type StoredRunEvent,
 } from "./types";
+import { validateAnnotation, validateVote } from "./evaluations";
 
 // ---------------------------------------------------------------------------
 // path resolution
@@ -505,14 +506,69 @@ create table if not exists share_exports (
 
 const TERMINAL_SAMPLE_STATUSES = new Set<string>(["scored", "failed"]);
 
+// Triggers also protect writes from another SQLite connection. They apply to
+// future writes without deleting historical annotations in existing databases.
+const EVALUATION_GUARDS_SQL = `
+create trigger if not exists annotations_require_sample
+before insert on annotations
+when not exists (
+  select 1 from samples s
+  join run_models rm on rm.run_id = s.run_id and rm.endpoint_id = s.endpoint_id
+  join runs r on r.id = s.run_id
+  where s.run_id = new.run_id and s.endpoint_id = new.endpoint_id
+    and s.sample_index = new.sample_index
+)
+begin
+  select raise(abort, 'evaluation_reference_not_found');
+end;
+
+create trigger if not exists pairwise_votes_require_participants
+before insert on pairwise_votes
+when not exists (select 1 from runs where id = new.run_id)
+  or not exists (select 1 from run_models where run_id = new.run_id and endpoint_id = new.endpoint_a)
+  or not exists (select 1 from run_models where run_id = new.run_id and endpoint_id = new.endpoint_b)
+begin
+  select raise(abort, 'evaluation_reference_not_found');
+end;
+
+create trigger if not exists pairwise_votes_validate_update
+before update on pairwise_votes
+begin
+  select raise(abort, 'final_vote_immutable') where old.final = 1;
+  select raise(abort, 'evaluation_reference_not_found')
+    where not exists (select 1 from runs where id = new.run_id)
+      or not exists (select 1 from run_models where run_id = new.run_id and endpoint_id = new.endpoint_a)
+      or not exists (select 1 from run_models where run_id = new.run_id and endpoint_id = new.endpoint_b);
+end;
+`;
+
+function rethrowEvaluationError(error: unknown): never {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("evaluation_reference_not_found")) {
+    throw new StoreError(
+      "NOT_FOUND",
+      "Evaluation references a run, participant or sample that does not exist.",
+    );
+  }
+  if (message.includes("final_vote_immutable")) {
+    throw new StoreError("IMMUTABLE", "This pair already has a final vote.");
+  }
+  throw new StoreError("BACKEND", `SQLite evaluation write failed: ${message}`);
+}
+
 export class SqliteStore implements RunStore {
   private readonly db: DatabaseSync;
+  /** Exact opened database path, used for adjacent process ownership records. */
+  readonly databasePath: string;
 
   constructor(path: string = defaultSqlitePath()) {
+    this.databasePath = resolve(path);
     mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
+    this.db.exec("pragma busy_timeout = 5000;");
     this.db.exec("pragma journal_mode = wal;");
     this.db.exec(SCHEMA_SQL);
+    this.db.exec(EVALUATION_GUARDS_SQL);
   }
 
   /** Closes the underlying database handle (tests / graceful shutdown). */
@@ -790,12 +846,17 @@ export class SqliteStore implements RunStore {
   // -- append-only human audit trail ----------------------------------------
 
   async insertAnnotation(a: HumanAnnotation): Promise<void> {
-    this.db
-      .prepare(
-        `insert into annotations (run_id, endpoint_id, sample_index, note, score_override, author, at)
-         values (?,?,?,?,?,?,?)`,
-      )
-      .run(a.runId, a.endpointId, a.sampleIndex, a.note, a.scoreOverride, a.author, a.at);
+    validateAnnotation(a);
+    try {
+      this.db
+        .prepare(
+          `insert into annotations (run_id, endpoint_id, sample_index, note, score_override, author, at)
+           values (?,?,?,?,?,?,?)`,
+        )
+        .run(a.runId, a.endpointId, a.sampleIndex, a.note, a.scoreOverride, a.author, a.at);
+    } catch (error) {
+      rethrowEvaluationError(error);
+    }
   }
 
   async listAnnotations(runId: string): Promise<HumanAnnotation[]> {
@@ -818,11 +879,13 @@ export class SqliteStore implements RunStore {
   // -- head-to-head votes ---------------------------------------------------
 
   async upsertVote(v: PairwiseVote): Promise<void> {
+    validateVote(v);
     // NOTE: pairTotal is not a column (0001_init.sql); it is reconstructed on
     // read as the number of vote rows in the run.
-    this.db
-      .prepare(
-        `insert into pairwise_votes (
+    try {
+      this.db
+        .prepare(
+          `insert into pairwise_votes (
            run_id, pair_index, endpoint_a, endpoint_b, criterion,
            order_swapped, vote, confidence, voted_at, final
          ) values (?,?,?,?,?,?,?,?,?,?)
@@ -835,19 +898,22 @@ export class SqliteStore implements RunStore {
            confidence = excluded.confidence,
            voted_at = excluded.voted_at,
            final = excluded.final`,
-      )
-      .run(
-        v.runId,
-        v.pairIndex,
-        v.pairing[0],
-        v.pairing[1],
-        v.criterion,
-        b(v.orderSwapped),
-        v.vote,
-        v.confidence,
-        v.votedAt,
-        b(v.final),
-      );
+        )
+        .run(
+          v.runId,
+          v.pairIndex,
+          v.pairing[0],
+          v.pairing[1],
+          v.criterion,
+          b(v.orderSwapped),
+          v.vote,
+          v.confidence,
+          v.votedAt,
+          b(v.final),
+        );
+    } catch (error) {
+      rethrowEvaluationError(error);
+    }
   }
 
   async listVotes(runId: string): Promise<PairwiseVote[]> {

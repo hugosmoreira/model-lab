@@ -34,7 +34,7 @@ export function endpointProviderLabel(endpointId: string): string {
     ep.providerId,
     ep.deployment === "aggregator" ? "hosted" : ep.deployment,
   ];
-  if (ep.hardware) parts.push(ep.hardware);
+  // Hardware belongs to a recorded run environment, not the static endpoint catalog.
   return parts.join(" · ");
 }
 

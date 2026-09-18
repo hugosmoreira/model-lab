@@ -5,11 +5,12 @@
  * Shared settings → Scoring & safeguards → Review & launch) with a live cost
  * rail. All display values derive from fixtures; wizard state lives in one
  * useState object. Start Run POSTs the actual selection to /api/runs and
- * routes to the created run's live stream (Phase 1: simulated replay).
+ * routes to the created run's recorded live event stream.
  */
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
+import type { EndpointAvailability } from "@/lib/server/run-service";
 import type { ModelEndpoint, Provider, RunMode } from "@model-lab/schemas";
 import { Callout, EmptyState, ModelDot, ProgressBar, StatusDot } from "@/components/ui/primitives";
 import { fixtures, getModelForEndpoint } from "@/lib/data";
@@ -112,21 +113,17 @@ interface WizardState {
 const SAMPLE_OPTIONS: readonly number[] = [1, 2, 3, 5];
 
 function providerDisplayName(p: Provider): string {
-  return p.isLocal ? `${p.name} · local${p.localHardware ? ` ${p.localHardware}` : ""}` : p.name;
+  return p.isLocal ? `${p.name} · local` : p.name;
 }
 
-function providerNote(p: Provider): string {
-  if (p.isLocal) {
-    const quants = Array.from(
-      new Set(
-        fixtures.endpoints
-          .filter((e) => e.providerId === p.id && e.quantization != null)
-          .map((e) => e.quantization as string),
-      ),
-    );
-    return ["online", ...quants].join(" · ");
-  }
-  return p.healthLatencyMs != null ? `connected · ${p.healthLatencyMs}ms` : "connected";
+function providerNote(p: Provider, availability: EndpointAvailability[]): string {
+  const endpoints = availability.filter((endpoint) => endpoint.providerId === p.id);
+  if (endpoints.length > 0 && endpoints.every((endpoint) => endpoint.mocked))
+    return "mock outputs · no provider request";
+  if (p.isLocal) return "local service · connection not checked";
+  return endpoints.some((endpoint) => endpoint.keyed)
+    ? "key configured · connection not checked"
+    : "API key required";
 }
 
 function endpointTags(ep: ModelEndpoint): string {
@@ -146,7 +143,15 @@ const CreateRunResponse = z.object({ runId: z.string().min(1) });
  * there (env-overridable) and differs from the demo run's recorded 16k — the
  * wizard must show the number the run will actually use.
  */
-export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) {
+export function NewRunWizard({
+  maxOutputTokens,
+  judgeEnabled = false,
+  endpointAvailability = [],
+}: {
+  maxOutputTokens?: number;
+  judgeEnabled?: boolean;
+  endpointAvailability?: EndpointAvailability[];
+}) {
   const router = useRouter();
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState<string | null>(null);
@@ -178,6 +183,9 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
   /* Selection, in canonical fixture order regardless of click order. */
   const selectedEndpoints = fixtures.endpoints.filter((ep) => state.selected.includes(ep.id));
   const n = selectedEndpoints.length;
+  const mockedSelected = selectedEndpoints.filter((endpoint) =>
+    endpointAvailability.some((entry) => entry.id === endpoint.id && entry.mocked),
+  );
   /* Verified MVP: 1 sample per task — the runner iterates the pack's tasks. */
   const samples = isVerified ? 1 : state.samplesPerModel;
   const callsPerModel = isVerified ? taskCount : samples;
@@ -229,7 +237,6 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
     return hay.includes(q);
   };
   const providerGroups = fixtures.providers
-    .filter((p) => p.status === "connected")
     .map((provider) => ({
       provider,
       endpoints: fixtures.endpoints.filter(
@@ -239,15 +246,16 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
     .filter((g) => g.endpoints.length > 0);
 
   /* Scorers. */
-  const enabledScorers = cfg.scorers.filter((s) => s.enabled);
-  const sandbox = fixtures.artifacts[0]?.sandbox;
+  const scorerSettings = cfg.scorers.map((scorer) => ({
+    ...scorer,
+    enabled: scorer.type === "browser" || (scorer.type === "llm-judge" && judgeEnabled),
+  }));
+  const enabledScorers = scorerSettings.filter((s) => s.enabled);
   const safeguardDesc =
     [
       `Hard budget stop at ${usd(cfg.maxBudgetUsd)}`,
       `network ${cfg.artifactNetworkPolicy} for artifacts`,
-      ...(sandbox
-        ? [`${sandbox.execLimitSec}s execution limit`, `output size cap ${sandbox.sizeLimitMb}MB`]
-        : []),
+      "bounded browser diagnostics and provider responses",
     ].join(" · ") + ".";
   const scorersSummary = isVerified
     ? `OBJECTIVE(${taskCount} tasks)`
@@ -287,7 +295,14 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
       v: `${usd(cost.low)} – ${usd(cost.high)} (ceiling ${usd(cfg.maxBudgetUsd)})`,
     },
     { k: "Scorers", v: scorersSummary },
-    { k: "Prompt hash", v: fixtures.runLive.promptHash },
+    { k: "Prompt provenance", v: "Recorded at launch from the selected pack" },
+    {
+      k: "Provider execution",
+      v:
+        mockedSelected.length > 0
+          ? `${mockedSelected.length}/${n} endpoints use synthetic mock outputs`
+          : "Real provider calls",
+    },
   ];
 
   /* Stepper subtitles — derived live. */
@@ -296,7 +311,7 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
     pack ? `${pack.name} ${pack.version}` : "none selected",
     `${n} selected`,
     isVerified ? "1 per task" : `n=${samples}`,
-    `${(isVerified ? 1 : enabledScorers.length) + 1} scorers`, // +1 always-on safeguard row
+    `${isVerified ? 1 : enabledScorers.length} automatic scorers`,
     costLabel,
   ];
 
@@ -353,7 +368,7 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
   const continueBlocked = state.step === 5 && !modelCountOk;
 
   /* Start Run: POST the wizard's actual selection, then route to the created
-     run's live stream. Phase 1: the stream replays a simulated event script. */
+     run's live event stream from the configured runner. */
   async function startRun() {
     if (!canStart || launching) return;
     setLaunching(true);
@@ -811,7 +826,7 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                       fontWeight: 600,
                     }}
                   >
-                    <StatusDot color="var(--color-teal)" size={7} />
+                    <StatusDot color="var(--color-faint)" size={7} />
                     {providerDisplayName(provider)}
                     <span
                       style={{
@@ -821,7 +836,7 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                         fontWeight: 400,
                       }}
                     >
-                      {providerNote(provider)}
+                      {providerNote(provider, endpointAvailability)}
                     </span>
                   </div>
                   {endpoints.map((ep) => {
@@ -1059,7 +1074,7 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                         stateColor: "var(--color-teal)",
                       },
                     ]
-                  : cfg.scorers.map((s) => ({
+                  : scorerSettings.map((s) => ({
                       key: s.type,
                       badge: SCORER_BADGES[s.type] ?? {
                         label: s.type.toUpperCase(),
@@ -1067,7 +1082,8 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                       },
                       name: s.name,
                       desc: SCORER_DESCS[s.type] ?? "",
-                      stateLabel: s.enabled ? "enabled" : "off",
+                      stateLabel:
+                        s.type === "human" ? "manual after run" : s.enabled ? "enabled" : "off",
                       stateColor: s.enabled ? "var(--color-teal)" : "var(--color-faint)",
                     }))),
                 {
@@ -1254,8 +1270,8 @@ export function NewRunWizard({ maxOutputTokens }: { maxOutputTokens?: number }) 
                 </button>
               )}
               <span style={{ fontSize: 11.5, color: "var(--color-faint)" }}>
-                Launching registers this configuration and opens its live stream — Phase 1 replays a
-                simulated event script; the native runner lands in Phase 2.
+                Launching records this configuration and opens its event stream. Mock endpoints
+                produce synthetic results and do not call providers.
               </span>
             </div>
           </>

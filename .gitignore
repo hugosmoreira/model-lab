@@ -12,3 +12,5 @@ out/
 Thumbs.db
 artifacts-data/
 .claude/
+# Chromium WebRTC diagnostics from local runner regression tests.
+/runners/build-arena/debug.log

@@ -1,0 +1,156 @@
+name: Publish reviewed container release
+
+# Publication is always an explicit maintainer operation on main. A version tag
+# alone, a pull request, or an ordinary push never grants publishing permissions.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing reviewed version tag on main (for example v0.2.0-rc.1)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: container-release
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      revision: ${{ steps.candidate.outputs.revision }}
+      tag: ${{ steps.candidate.outputs.tag }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Resolve reviewed tag and require main ancestry
+        id: candidate
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] || { echo "Use a version or release-candidate tag"; exit 1; }
+          revision=$(git rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}")
+          git merge-base --is-ancestor "$revision" origin/main
+          printf 'revision=%s\ntag=%s\n' "$revision" "$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+
+  verify:
+    needs: candidate
+    uses: ./.github/workflows/ci.yml
+    with:
+      revision: ${{ needs.candidate.outputs.revision }}
+    permissions:
+      contents: read
+
+  publish:
+    needs: [candidate, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # Configure this environment with required reviewers and main-only branch
+    # access before first publication. It is not configured by this file.
+    environment: github-release
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      RELEASE_TAG: ${{ needs.candidate.outputs.tag }}
+      RELEASE_REVISION: ${{ needs.candidate.outputs.revision }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.candidate.outputs.revision }}
+          persist-credentials: false
+      - name: Require aligned versions and a clean candidate
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const expected = process.env.RELEASE_TAG.slice(1);
+          for (const file of ['package.json', 'apps/web/package.json', 'packages/schemas/package.json', 'packages/store/package.json', 'runners/build-arena/package.json']) {
+            if (JSON.parse(readFileSync(file)).version !== expected) throw new Error(`Align ${file} with ${expected} before publishing`);
+          }
+          const citation = readFileSync('CITATION.cff', 'utf8').match(/^version:\s*["']?([^"'#\s]+)["']?\s*$/m)?.[1];
+          if (citation !== expected) throw new Error(`Align CITATION.cff with ${expected} before publishing`);
+          NODE
+          test -z "$(git status --porcelain)"
+      - name: Build and test the exact image that will be pushed
+        run: python3 scripts/docker_release_check.py --image model-lab:release
+      - name: Scan the exact tested image before registry login
+        run: python3 scripts/image_vulnerability_scan.py --image model-lab:release
+      - name: Select registry references
+        id: image
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          image="ghcr.io/${REPOSITORY,,}"
+          printf 'name=%s\ncommit=%s:sha-%s\nversion=%s:%s\n' "$image" "$image" "$RELEASE_REVISION" "$image" "$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$ACTOR" --password-stdin
+      - name: Push tested image under its commit reference
+        id: push
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+          COMMIT_IMAGE: ${{ steps.image.outputs.commit }}
+        run: |
+          set -euo pipefail
+          tested=$(python3 -c "import json; print(json.load(open('artifacts-data/release-check.json'))['imageId'])")
+          test "$(docker image inspect model-lab:release --format '{{.Id}}')" = "$tested"
+          docker tag "$tested" "$COMMIT_IMAGE"
+          docker push "$COMMIT_IMAGE"
+          digest=$(docker image inspect "$COMMIT_IMAGE" --format '{{range .RepoDigests}}{{println .}}{{end}}' | awk -v prefix="$IMAGE_NAME@" 'index($0,prefix)==1 { sub(/^.*@/, ""); print; exit }')
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+      - name: Attest the tested image (public repositories)
+        if: github.event.repository.private == false
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-name: ${{ steps.image.outputs.name }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+      - name: Pull and verify the published digest before adding its version tag
+        env:
+          PUBLISHED_IMAGE: ${{ steps.image.outputs.name }}@${{ steps.push.outputs.digest }}
+        run: |
+          docker pull "$PUBLISHED_IMAGE"
+          python3 scripts/docker_release_check.py --skip-build --image "$PUBLISHED_IMAGE" --report artifacts-data/published-image-check.json
+      - name: Promote the verified digest to the requested version
+        env:
+          PUBLISHED_IMAGE: ${{ steps.image.outputs.name }}@${{ steps.push.outputs.digest }}
+          VERSION_IMAGE: ${{ steps.image.outputs.version }}
+        run: |
+          set -euo pipefail
+          docker tag "$PUBLISHED_IMAGE" "$VERSION_IMAGE"
+          docker push "$VERSION_IMAGE"
+          printf '%s\n' "$PUBLISHED_IMAGE" > artifacts-data/image-digest.txt
+          sha256sum artifacts-data/release-check.json artifacts-data/published-image-check.json artifacts-data/image-digest.txt artifacts-data/image-vulnerabilities.json artifacts-data/image-vulnerabilities-summary.json > artifacts-data/SHA256SUMS
+          printf 'Verified release: `%s`\n\nDigest: `%s`\n' "$VERSION_IMAGE" "$PUBLISHED_IMAGE" >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain release evidence and checksums
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: container-release-evidence
+          path: |
+            artifacts-data/release-check.json
+            artifacts-data/published-image-check.json
+            artifacts-data/image-digest.txt
+            artifacts-data/image-vulnerabilities.json
+            artifacts-data/image-vulnerabilities-summary.json
+            artifacts-data/SHA256SUMS
+            artifacts-data/*-logs/
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Remove local registry credentials
+        if: always()
+        run: docker logout ghcr.io

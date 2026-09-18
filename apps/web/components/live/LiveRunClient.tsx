@@ -4,7 +4,7 @@
  * Streaming shell around the pure-render LiveRunScreen.
  *
  * Subscribes to the run's SSE feed via useRunStream and renders the LIVE
- * reduced state. The server-provided fixture snapshot is used ONLY when the
+ * reduced state. The server-provided recorded snapshot is used ONLY when the
  * stream errors before delivering a single event (e.g. endpoint unreachable);
  * once any event has arrived the reduced state is authoritative.
  */
@@ -18,7 +18,7 @@ import {
 import { useRunStream, type StreamConnection } from "@/lib/live/useRunStream";
 import type { LiveModelState } from "@/lib/live/reducer";
 
-/** Full static prop set for the fixture snapshot fallback. */
+/** Full static prop set for the recorded snapshot fallback. */
 export type LiveRunSnapshot = {
   run: Run;
   models: RunModel[];
@@ -94,14 +94,18 @@ export function LiveRunClient({
 }: LiveRunClientProps) {
   const { state, connection } = useRunStream(runId, endpointIds, samplesPerModel);
 
-  /* Fixture snapshot ONLY when the stream errored before any event landed. */
-  if (connection === "error" && state.events.length === 0) {
+  /* Never substitute another run when the stream cannot connect. */
+  if ((connection === "error" || connection === "connecting") && state.events.length === 0) {
     return (
       <LiveRunScreen
         runId={runId}
         {...fallback}
         modelMeta={modelMeta}
-        streamChip="stream error · fixture snapshot"
+        streamChip={
+          connection === "error"
+            ? "stream unavailable · recorded snapshot"
+            : "connecting · recorded snapshot"
+        }
       />
     );
   }

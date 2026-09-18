@@ -9,20 +9,21 @@
  * It goes through the same run service the web app uses (mock policy, judge,
  * persistence, provenance), so a CLI run shows up in the UI afterwards and a
  * UI run could have been started here. Keys and MODEL_LAB_* settings come
- * from the environment and the root .env, exactly as for the server.
+ * from the environment, apps/web dotenv files, then root .env fallbacks,
+ * exactly as for the server. NODE_ENV selects development (default),
+ * production or test dotenv files.
  *
  * Exit codes: 0 completed · 1 --fail-under not met · 2 usage or configuration
  * error · 3 the run ended partial, cancelled or failed.
  */
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
+import { loadWorkspaceEnvironment } from "./load-env.cjs";
 
 const USAGE = `Model Lab — run a benchmark from the terminal
 
 usage
   pnpm cli run --pack <slug> --models <endpoint,endpoint,…> [options]
-  pnpm cli models [--check]   # --check probes every provider (free, read-only)
+  pnpm cli models [--check]   # free, read-only health probes; skipped in mock mode
   pnpm cli packs
 
 run options
@@ -39,27 +40,6 @@ run options
   --no-bundle            do not export the run bundle at the end
   --quiet                only the summary, not the event stream
 `;
-
-/** Same rule as apps/web/next.config.ts: the root .env fills in what the environment lacks. */
-function loadRootEnv(): void {
-  let dir = process.cwd();
-  for (let i = 0; i < 8; i += 1) {
-    const candidate = join(dir, ".env");
-    if (existsSync(join(dir, "pnpm-workspace.yaml"))) {
-      if (!existsSync(candidate)) return;
-      for (const line of readFileSync(candidate, "utf8").split(/\r?\n/)) {
-        const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/.exec(line);
-        if (!m || m[1] === undefined) continue;
-        if (process.env[m[1]] !== undefined) continue;
-        process.env[m[1]] = (m[2] ?? "").replace(/^["']|["']$/g, "");
-      }
-      return;
-    }
-    const parent = dirname(dir);
-    if (parent === dir) return;
-    dir = parent;
-  }
-}
 
 function fail(message: string, code: number): never {
   console.error(message);
@@ -102,7 +82,7 @@ async function main(): Promise<void> {
   }
 
   // Environment first: everything below reads it lazily.
-  loadRootEnv();
+  loadWorkspaceEnvironment();
   if (values.store !== undefined) process.env["MODEL_LAB_STORE"] = values.store;
   if (values.mock) process.env["MODEL_LAB_MOCK_PROVIDERS"] = "1";
   if (values["no-judge"]) process.env["MODEL_LAB_JUDGE"] = "0";
@@ -123,7 +103,9 @@ async function main(): Promise<void> {
         r.providerId === "baseline"
           ? "control (deterministic blank page, free)"
           : r.mocked
-            ? "mock (no key in this environment)"
+            ? (process.env["MODEL_LAB_MOCK_PROVIDERS"] ?? "").trim() === "1"
+              ? "mock (forced; no network)"
+              : "mock (no key in this environment)"
             : r.providerId === "ollama"
               ? "real (local server, keyless)"
               : "real (key present)";
@@ -131,7 +113,7 @@ async function main(): Promise<void> {
     }
     if (values.check) {
       // One read-only model-list request per provider — proves the key works
-      // and the endpoint answers; spends nothing.
+      // and the endpoint answers; spends nothing. Forced mock skips all probes.
       const ids = [...new Set(rows.map((r) => r.providerId))];
       const health = await checkProvidersHealth(ids, { timeoutMs: 6000 });
       console.log("");

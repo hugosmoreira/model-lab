@@ -3,6 +3,7 @@
  * no node imports — every function maps card data → string, so the exports
  * are exactly as faithful as the rendered card.
  */
+import { SCORE_LABELS } from "../score-presentation";
 import type { RunManifest } from "@model-lab/schemas";
 import type { ShareCardContent, ShareCardRow } from "@/components/share/ShareCard";
 
@@ -10,16 +11,21 @@ function csvField(value: string): string {
   return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
-/** CSV columns fixed by the spec: model,visual,tests,cost,latency. */
+/** Scoring method and measured n travel with every exported row. */
 export function buildCsv(rows: ShareCardRow[]): string {
-  const header = "model,visual,tests,cost,latency";
+  const header =
+    "model,score,score_source,score_n,tests,cost_usd,latency_seconds,samples_recorded,mocked";
   const lines = rows.map((r) =>
     [
       r.id,
       r.visualValue !== null ? r.visualValue.toFixed(1) : "",
+      r.scoreSource,
+      r.visualValue != null && r.visualN != null ? String(r.visualN) : "",
       r.tests,
       r.costUsd.toFixed(2),
       r.latencyMs !== null ? (r.latencyMs / 1000).toFixed(1) : "",
+      String(r.sampleCount),
+      r.mocked === true ? "true" : "",
     ]
       .map(csvField)
       .join(","),
@@ -43,12 +49,15 @@ export function buildAltText(
   content: ShareCardContent,
 ): string {
   const modelLines = rows.map((r) => {
-    const visual = r.visual === "—" ? "visual not scored" : `visual ${r.visual} of 10`;
+    const visual =
+      r.visualValue == null
+        ? `${SCORE_LABELS[r.scoreSource]} not scored`
+        : `${SCORE_LABELS[r.scoreSource]} ${r.visualValue.toFixed(1)} of 10, n=${r.visualN ?? "unknown"}`;
     const fails =
       r.failedSamples > 0
-        ? `, ${r.failedSamples} render ${r.failedSamples === 1 ? "failure" : "failures"}`
+        ? `, ${r.failedSamples} sample ${r.failedSamples === 1 ? "failure" : "failures"}`
         : "";
-    return `${r.id}: ${visual}, tests ${r.tests}, cost ${r.cost}${fails}.`;
+    return `${r.id}${r.mocked ? " (synthetic mock output; simulated cost)" : ""}: ${visual}, tests ${r.tests}, cost ${r.cost}${fails}.`;
   });
   const parts = [
     `${templateLabel} card — ${content.title}.`,
@@ -64,7 +73,10 @@ export function buildAltText(
 export function buildPostDraft(rows: ShareCardRow[], content: ShareCardContent): string {
   const metricLines = rows
     .slice(0, 4)
-    .map((r) => `${r.id} — visual ${r.visual}/10 · tests ${r.tests} · ${r.cost}`);
+    .map(
+      (r) =>
+        `${r.id}${r.mocked ? " [mock; simulated cost]" : ""} — ${SCORE_LABELS[r.scoreSource]} ${r.visualValue == null ? "not scored" : `${r.visualValue.toFixed(1)}/10 · n=${r.visualN ?? "unknown"}`} · tests ${r.tests} · ${r.cost}`,
+    );
   return [
     content.title,
     "",
@@ -72,6 +84,7 @@ export function buildPostDraft(rows: ShareCardRow[], content: ShareCardContent):
     "",
     ...metricLines,
     "",
+    `Methodology: ${content.methodology}${content.footnote ? ` · ${content.footnote}` : ""}`,
     `run ${content.runLink}`,
   ].join("\n");
 }

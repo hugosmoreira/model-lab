@@ -1,17 +1,65 @@
 # Roadmap and known issues
 
-Model Lab is complete enough to run judged benchmarks end to end, and honest
-about what it does not do yet. This page is the single place for both. Items
-are unordered inside each section; open an issue or a discussion to argue for
-moving one up.
+Model Lab runs judged benchmarks end to end. The
+[2026-09-17 audit](AUDIT-2026-09-17.md) found release blockers in execution
+safety, spending controls, evidence integrity and product accuracy despite
+passing tests and a successful production build. The `0.2.0-rc.1` candidate now
+implements the repairs, with focused regressions and an independent patch review.
+Integrated verification and publication status are tracked in the release plan.
+
+Follow [RELEASE_PLAN.md](RELEASE_PLAN.md) for the implementation sequence,
+acceptance tests, GitHub publication steps and progress record. The first
+delivery target is a versioned GitHub release with a tested Docker install;
+a read-only hosted demo follows when ready. Finish the exact-candidate checks
+and publication packet before expanding the feature set.
+
+## Release readiness — next
+
+1. **Execution and request safety.** Enforce a trusted artifact policy and
+   context-wide network controls, guard all write requests against cross-origin
+   submissions, exclude nested secrets from Docker builds, and bound browser
+   diagnostics and provider streams. Acceptance: hostile fixtures cannot send
+   external requests; foreign-origin writes have no effects; sentinel secrets
+   stay out of images; oversized or stalled streams terminate predictably.
+2. **Spending and evidence integrity.** Reserve budget before generation and
+   judge calls, use full identities for immutable artifact storage, isolate
+   concurrent frame analysis, and validate annotations and final votes
+   atomically. Acceptance: first, final, concurrent and retry calls respect
+   admission limits; colliding prefixes cannot overwrite evidence; concurrent
+   samples stay independent; invalid references and vote overwrites fail.
+3. **Honest product and replay.** Separate demo, missing and failed data states;
+   preserve blind pair identities and per-score sources; export a complete,
+   versioned replay contract; correct persistence and startup documentation.
+   Acceptance: unknown runs return 404; partial human ratings cannot relabel
+   browser scores; missing values remain missing; bundles reconstruct their
+   recorded configuration and fingerprint without secrets.
+4. **Public release candidate.** Verify a clean install and container, browser
+   interactions and accessibility, usable private reporting channels, and an
+   n=3 example produced after the evidence fixes. Keep paid benchmarks deliberate
+   and CI integration runs mocked.
+5. **Feature expansion.** Resume the planned features below on the corrected
+   contracts, retaining sample counts, score sources and uncertainty labels.
+
+Implemented controls include shared mutation guards, recursive Docker exclusions,
+captured-only UI previews, bounded provider streams and budget reservations,
+full-identity evidence storage, atomic evaluation writes and versioned replay.
+The plan records verification separately from publication; the audit remains a
+historical record of the original defects.
 
 ## Known issues
 
-These are real defects in the current scoring story. None of them changes a
-recorded result, but each one is a reason to read a headline with care.
+Historical runs were produced before the evidence and measurement fixes. Their
+stored files and methodology have not been rewritten. Do not reinterpret them
+as new candidate-version measurements. Current limitations follow.
+
+- **Single-host release scope.** Memory and SQLite are tested. Supabase remains
+  experimental until its migrations and behavior pass isolated live tests.
+- **Isolation and spending have explicit limits.** Browser network regressions
+  exercise the bundled Chromium; this is not OS sandbox certification. Request
+  budgets are conservative admission estimates, not guaranteed invoice ceilings.
 
 - **Every published run so far is n=1.** The wizard now offers 1, 2, 3 or 5
-  samples per model; publishing an n=3 run is the next benchmarking milestone.
+  samples per model; publish an n=3 run after the evidence-integrity fixes.
 - **Local hardware is self-reported.** The manifest carries the quantization
   of every local model from the registry, and the hardware only if the
   operator sets `MODEL_LAB_LOCAL_HARDWARE`; nothing detects the GPU. A `seed`
@@ -20,11 +68,10 @@ recorded result, but each one is a reason to read a headline with care.
 - **Gemini token accounting under-reports.** Google's OpenAI-compatible surface
   omits reasoning tokens from usage, so cost derived from it is a lower bound;
   `finishReason` remains reliable.
-- **The demo workspace is illustrative.** The seeded demo run (`run_8f3ac21e`)
-  and the Mission Control fixtures use placeholder model IDs and made-up
-  history so every screen has content with zero keys. Real endpoints and real
-  runs replace them as soon as a key is present; treat the demo as a tour, not
-  as data.
+- **The memory workspace is illustrative.** The seeded run (`run_8f3ac21e`)
+  uses placeholder identities and sample evidence. It is explicitly labeled;
+  persistent stores start empty and unknown runs return 404. Treat fixtures as
+  a product tour, not model-comparison evidence.
 
 ## Planned
 
@@ -60,8 +107,8 @@ recorded result, but each one is a reason to read a headline with care.
   summary with the served model ids, exports the bundle, and exits non-zero
   on a partial run or a failed gate. `pnpm cli models` and `pnpm cli packs`
   show what this environment can run.
-- **A 2 GB container image** on the Node base with only the headless Chromium
-  shell, instead of 4 GB with three browsers.
+- **An unprivileged container image** on the Node base with the headless Chromium
+  shell, with layer checks and a synthetic restart/restore rehearsal.
 - **Runs record their environment.** Node version, platform, runner version,
   the exact Chromium build the checks ran in, and the model id each provider
   reported serving are captured at run time, shipped in `manifest.json` and
@@ -71,8 +118,8 @@ recorded result, but each one is a reason to read a headline with care.
   arena grid, results cards, artifact viewer and share cards show a "visual"
   or "human" score only when a person rated the build; the share card's score
   column is labelled `VISUAL·HUMAN`, `JUDGE·RUBRIC` or `BROWSER·CAPABILITY`
-  according to what it holds. A browser ratio is never presented as a visual
-  judgement again.
+  according to what it holds. Candidate fixes extend source and sample-count
+  labels to Results charts, CSV, alt text and social drafts.
 - **Samples per model is a choice** in the New Run wizard (1, 2, 3 or 5),
   defaulting to 1 with the anecdote warning next to it.
 - Read-only mode (`MODEL_LAB_READ_ONLY=1`) for public demo instances.
@@ -80,8 +127,8 @@ recorded result, but each one is a reason to read a headline with care.
   private profile.
 - The Build Arena grid shows the real captured frame of every build instead of
   a placeholder scene.
-- The top bar labels the demo workspace as demo data and, on a live instance,
-  shows only facts about that environment.
+- The top bar labels the in-memory workspace as demo data. Persistent dashboards
+  use recorded data, remove fabricated metrics and show useful empty states.
 
 ## Not planned
 

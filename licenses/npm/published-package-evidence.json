@@ -1,0 +1,331 @@
+[
+  {
+    "package": "@humanfs/types",
+    "version": "0.15.0",
+    "metadataUrl": "https://registry.npmjs.org/%40humanfs%2Ftypes/0.15.0",
+    "tarballUrl": "https://registry.npmjs.org/@humanfs/types/-/types-0.15.0.tgz",
+    "integrity": "sha512-ZZ1w0aoQkwuUuC7Yf+7sdeaNfqQiiLcSRbfI08oAxqLtpXQr9AIVX7Ay7HLDuiLYAaFPu8oBYNq/QIi9URHJ3Q==",
+    "tarballSha256": "3c2942da7ba321f6ba27255a5faceee76eae502403129d8aa50d2dc8400a94d5",
+    "gitHead": "85069f193cbacc371c3beb649ce746f8c5a493be",
+    "repository": {
+      "url": "git+https://github.com/humanwhocodes/humanfs.git",
+      "type": "git"
+    },
+    "license": "Apache-2.0",
+    "author": {
+      "name": "Nicholas C. Zakas"
+    },
+    "contributors": null,
+    "members": [
+      "package/package.json",
+      "package/tsconfig.json",
+      "package/CHANGELOG.md",
+      "package/README.md",
+      "package/src/hfs-types.ts"
+    ],
+    "retained": [
+      {
+        "member": "package/package.json",
+        "file": "published/humanfs-types-0.15.0/package.json.txt",
+        "sha256": "1b849aa49814883fc0e70ca461c9faccb675ed1c801e784f1858e75e3b36eec5",
+        "bytes": 878
+      },
+      {
+        "member": "package/README.md",
+        "file": "published/humanfs-types-0.15.0/README.md.txt",
+        "sha256": "e1076e47ea96eef79e05496912ad03a9fa8031e1bf4847aab1a9554aef5cc5c0",
+        "bytes": 497
+      },
+      {
+        "member": "package/src/hfs-types.ts",
+        "file": "published/humanfs-types-0.15.0/SOURCE-ATTRIBUTION.txt",
+        "sha256": "0bf6d27effcbcb6e07194c0bdbcc95fe85010057df7df810716b038c24ca2a7e",
+        "bytes": 90,
+        "scope": "initial author comment"
+      }
+    ]
+  },
+  {
+    "package": "@types/json5",
+    "version": "0.0.29",
+    "metadataUrl": "https://registry.npmjs.org/%40types%2Fjson5/0.0.29",
+    "tarballUrl": "https://registry.npmjs.org/@types/json5/-/json5-0.0.29.tgz",
+    "integrity": "sha512-dRLjCWHYg4oaA77cxO64oO+7JwCwnIzkZPdrrC71jQmQtlhM556pwKo5bUzqvZndkVbeFLIIi+9TC40JNF5hNQ==",
+    "tarballSha256": "439d14e46f574bc1a62a72ad4598e7f22ebd8021410ab7d869723801c436e95d",
+    "gitHead": null,
+    "repository": {
+      "url": "https://www.github.com/DefinitelyTyped/DefinitelyTyped.git",
+      "type": "git"
+    },
+    "license": "MIT",
+    "author": "Jason Swearingen <https://jasonswearingen.github.io>",
+    "contributors": null,
+    "members": [
+      "json5/README.md",
+      "json5/index.d.ts",
+      "json5/package.json",
+      "json5/types-metadata.json"
+    ],
+    "retained": [
+      {
+        "member": "json5/README.md",
+        "file": "published/types-json5-0.0.29/README.md.txt",
+        "sha256": "2b4b31ea4b1868237e1e99887e2bd5ebf995bb08fe923c8b759aad968e7e4e18",
+        "bytes": 543
+      },
+      {
+        "member": "json5/index.d.ts",
+        "file": "published/types-json5-0.0.29/SOURCE-ATTRIBUTION.txt",
+        "sha256": "c5a14bdeb170e0e67fb4200c54e0e02fd0ec94aca894c212c9d43c2916891542",
+        "bytes": 1210,
+        "scope": "complete published declaration"
+      },
+      {
+        "member": "json5/package.json",
+        "file": "published/types-json5-0.0.29/package.json.txt",
+        "sha256": "3713801b9752f96a2722287af03053a6f0b0ed0b0f1898f38baa7127058cf96d",
+        "bytes": 517
+      }
+    ]
+  },
+  {
+    "package": "client-only",
+    "version": "0.0.1",
+    "metadataUrl": "https://registry.npmjs.org/client-only/0.0.1",
+    "tarballUrl": "https://registry.npmjs.org/client-only/-/client-only-0.0.1.tgz",
+    "integrity": "sha512-IV3Ou0jSMzZrd3pZ48nLkT9DA7Ag1pnPzaiQhpW7c3RbcqqzvzzVu+L8gfqMp/8IM2MQtSiqaCxrrcfu8I8rMA==",
+    "tarballSha256": "dcd7bc3868e2d3518d08944559952e4a68f581d89a84b6892de9fd8f40860b19",
+    "gitHead": null,
+    "repository": null,
+    "license": "MIT",
+    "author": null,
+    "contributors": null,
+    "members": [
+      "package/error.js",
+      "package/index.js",
+      "package/package.json"
+    ],
+    "retained": [
+      {
+        "member": "package/package.json",
+        "file": "published/client-only-0.0.1/package.json.txt",
+        "sha256": "4d6342705767832f299b9a59c28e4275bcf02db19472732f93f67d979441df8f",
+        "bytes": 467
+      }
+    ]
+  },
+  {
+    "package": "keyv",
+    "version": "4.5.4",
+    "metadataUrl": "https://registry.npmjs.org/keyv/4.5.4",
+    "tarballUrl": "https://registry.npmjs.org/keyv/-/keyv-4.5.4.tgz",
+    "integrity": "sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==",
+    "tarballSha256": "eb26f1c561e57af4a4365e6b54f5f3e745e3963747a93845af1f000a747b6098",
+    "gitHead": null,
+    "repository": {
+      "url": "git+https://github.com/jaredwray/keyv.git",
+      "type": "git"
+    },
+    "license": "MIT",
+    "author": {
+      "url": "http://jaredwray.com",
+      "name": "Jared Wray",
+      "email": "me@jaredwray.com"
+    },
+    "contributors": null,
+    "members": [
+      "package/README.md",
+      "package/package.json",
+      "package/src/index.d.ts",
+      "package/src/index.js"
+    ],
+    "retained": [
+      {
+        "member": "package/README.md",
+        "file": "published/keyv-4.5.4/README.md.txt",
+        "sha256": "c39e1b3f735bb9302eb3cbd84aeb48c4311db64381f9e0a1aa4a61ddf59ce890",
+        "bytes": 15631
+      },
+      {
+        "member": "package/package.json",
+        "file": "published/keyv-4.5.4/package.json.txt",
+        "sha256": "e8afd30f2f2a40ef5023928b50fdaed3a3338aa7e1c4e86205413afb05e8a099",
+        "bytes": 1297
+      }
+    ]
+  },
+  {
+    "package": "language-subtag-registry",
+    "version": "0.3.23",
+    "metadataUrl": "https://registry.npmjs.org/language-subtag-registry/0.3.23",
+    "tarballUrl": "https://registry.npmjs.org/language-subtag-registry/-/language-subtag-registry-0.3.23.tgz",
+    "integrity": "sha512-0K65Lea881pHotoGEa5gDlMxt3pctLi2RplBb7Ezh4rRdLEOtgi7n4EwK9lamnUCkKBqaeKRVebTq6BAxSkpXQ==",
+    "tarballSha256": "a9d037f6bec7c1e98979edf8dc4a3dc455826bdc759ffb4ee542148d46cafee6",
+    "gitHead": "1e7d67e7f9646f47f0766a04b08522f7df59e932",
+    "repository": {
+      "url": "git+https://github.com/mattcg/language-subtag-registry.git",
+      "type": "git"
+    },
+    "license": "CC0-1.0",
+    "author": null,
+    "contributors": [
+      {
+        "name": "Matthew Caruana Galizia",
+        "email": "mattcg@gmail.com"
+      },
+      {
+        "name": "Guillaume G\u00e9rard",
+        "email": "guillaume.gerard88@gmail.com"
+      }
+    ],
+    "members": [
+      "package/data/json/collection.json",
+      "package/data/json/extlang.json",
+      "package/data/json/grandfathered.json",
+      "package/data/json/index.json",
+      "package/data/json/language.json",
+      "package/data/json/macrolanguage.json",
+      "package/data/json/meta.json",
+      "package/package.json",
+      "package/data/json/private-use.json",
+      "package/data/json/redundant.json",
+      "package/data/json/region.json",
+      "package/data/json/registry.json",
+      "package/data/json/script.json",
+      "package/data/json/special.json",
+      "package/data/json/variant.json",
+      "package/README.md"
+    ],
+    "retained": [
+      {
+        "member": "package/package.json",
+        "file": "published/language-subtag-registry-0.3.23/package.json.txt",
+        "sha256": "407de8da40e645a2f281a8f558ba2488424ac00f524b75832133367a126beda6",
+        "bytes": 811
+      },
+      {
+        "member": "package/README.md",
+        "file": "published/language-subtag-registry-0.3.23/README.md.txt",
+        "sha256": "98daea92387ea6066cff42edf7a3bd4c1a2d2b148082eaca91c85afdc1c3392f",
+        "bytes": 1629
+      }
+    ]
+  },
+  {
+    "package": "language-tags",
+    "version": "1.0.9",
+    "metadataUrl": "https://registry.npmjs.org/language-tags/1.0.9",
+    "tarballUrl": "https://registry.npmjs.org/language-tags/-/language-tags-1.0.9.tgz",
+    "integrity": "sha512-MbjN408fEndfiQXbFQ1vnd+1NoLDsnQW41410oQBXiyXDMYH5z505juWa4KUE1LqxRC7DgOgZDbKLxHIwm27hA==",
+    "tarballSha256": "3352fb1423dbbd178d8e4af5d94396115d78fa5994aa4c234f5689f54b0ecdd8",
+    "gitHead": "ea5aa61e53ced2a18e35783ff00bb2a533f6c77d",
+    "repository": {
+      "url": "git://github.com/mattcg/language-tags.git",
+      "type": "git"
+    },
+    "license": "MIT",
+    "author": {
+      "name": "Matthew Caruana Galizia",
+      "email": "mattcg@gmail.com"
+    },
+    "contributors": null,
+    "members": [
+      "package/lib/index.js",
+      "package/lib/Subtag.js",
+      "package/lib/Tag.js",
+      "package/package.json",
+      "package/README.md"
+    ],
+    "retained": [
+      {
+        "member": "package/package.json",
+        "file": "published/language-tags-1.0.9/package.json.txt",
+        "sha256": "24c81125ee2c65b548fe4642fa14aae3e1b8fc548bc64c88d2ae6b94be738e36",
+        "bytes": 1475
+      },
+      {
+        "member": "package/README.md",
+        "file": "published/language-tags-1.0.9/README.md.txt",
+        "sha256": "53598f8f8440708d14c85396cb53213682b8018fc19151323e5a621102527adb",
+        "bytes": 8444
+      }
+    ]
+  },
+  {
+    "package": "natural-compare",
+    "version": "1.4.0",
+    "metadataUrl": "https://registry.npmjs.org/natural-compare/1.4.0",
+    "tarballUrl": "https://registry.npmjs.org/natural-compare/-/natural-compare-1.4.0.tgz",
+    "integrity": "sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw==",
+    "tarballSha256": "5e5569ecd12064f73632a8c18a45b1d1de4a27b699a671864801f1c35ee779ee",
+    "gitHead": "eec83eee67cfac84d6db30cdd65363f155673770",
+    "repository": {
+      "url": "git://github.com/litejs/natural-compare-lite.git",
+      "type": "git"
+    },
+    "license": "MIT",
+    "author": {
+      "url": "https://github.com/litejs/natural-compare-lite",
+      "name": "Lauri Rooden"
+    },
+    "contributors": null,
+    "members": [
+      "package/package.json",
+      "package/README.md",
+      "package/index.js"
+    ],
+    "retained": [
+      {
+        "member": "package/package.json",
+        "file": "published/natural-compare-1.4.0/package.json.txt",
+        "sha256": "3d99911ccfa0ca34ae0c68bfd32c038b952542e55db7c649c37b11dd1573f6af",
+        "bytes": 992
+      },
+      {
+        "member": "package/README.md",
+        "file": "published/natural-compare-1.4.0/README.md.txt",
+        "sha256": "ced6cb1fe6ee15a32c63ea8c7e0425454e80456a890c6df3909429530566d40a",
+        "bytes": 3352
+      }
+    ]
+  },
+  {
+    "package": "stable-hash",
+    "version": "0.0.5",
+    "metadataUrl": "https://registry.npmjs.org/stable-hash/0.0.5",
+    "tarballUrl": "https://registry.npmjs.org/stable-hash/-/stable-hash-0.0.5.tgz",
+    "integrity": "sha512-+L3ccpzibovGXFK+Ap/f8LOS0ahMrHTf3xu7mMLSpEGU0EO9ucaysSylKo9eRDFNhWve/y275iPmIZ4z39a9iA==",
+    "tarballSha256": "4aa15e229c6c7d70805789e5480ab4762e028e7ee5cf2368aa723eb666fd04e9",
+    "gitHead": "1b314f2cc3e9449bc8d49e417670175cf9afd42a",
+    "repository": {
+      "url": "git+https://github.com/shuding/stable-hash.git",
+      "type": "git"
+    },
+    "license": "MIT",
+    "author": {
+      "name": "Shu Ding"
+    },
+    "contributors": null,
+    "members": [
+      "package/dist/index.js",
+      "package/package.json",
+      "package/README.md",
+      "package/dist/index.mjs",
+      "package/dist/index.d.ts"
+    ],
+    "retained": [
+      {
+        "member": "package/package.json",
+        "file": "published/stable-hash-0.0.5/package.json.txt",
+        "sha256": "8c0b1ce6729fd4ac946735e8410236cbe838be0f3475c40e4c7fb2cad14deae5",
+        "bytes": 1238
+      },
+      {
+        "member": "package/README.md",
+        "file": "published/stable-hash-0.0.5/README.md.txt",
+        "sha256": "391a9af6f5d0caf5f9437c339ce7927d2fb9a83142563e8f6abb6a4da5563345",
+        "bytes": 3100
+      }
+    ]
+  }
+]

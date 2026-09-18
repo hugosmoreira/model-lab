@@ -17,14 +17,21 @@ const TTL_MS = 60_000;
 const CACHE_KEY = Symbol.for("model-lab.provider-health");
 interface Cache {
   at: number;
+  mockFlag: string;
   providers: ProviderHealth[];
 }
 
 export async function GET(req: NextRequest) {
   const g = globalThis as { [CACHE_KEY]?: Cache };
   const refresh = req.nextUrl.searchParams.get("refresh") === "1";
+  const mockFlag = (process.env["MODEL_LAB_MOCK_PROVIDERS"] ?? "").trim();
   const cached = g[CACHE_KEY];
-  if (!refresh && cached !== undefined && Date.now() - cached.at < TTL_MS) {
+  if (
+    !refresh &&
+    cached !== undefined &&
+    cached.mockFlag === mockFlag &&
+    Date.now() - cached.at < TTL_MS
+  ) {
     return NextResponse.json({
       cached: true,
       checkedAt: new Date(cached.at).toISOString(),
@@ -35,7 +42,7 @@ export async function GET(req: NextRequest) {
     providers.map((p) => p.id),
     { timeoutMs: 4000 },
   );
-  g[CACHE_KEY] = { at: Date.now(), providers: result };
+  g[CACHE_KEY] = { at: Date.now(), mockFlag, providers: result };
   return NextResponse.json({
     cached: false,
     checkedAt: new Date().toISOString(),

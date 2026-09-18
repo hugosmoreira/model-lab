@@ -1,0 +1,31 @@
+{
+  "version": "153.0.8010.52",
+  "platform": "linux64",
+  "archiveUrl": "https://storage.googleapis.com/chrome-for-testing-public/153.0.8010.52/linux64/chrome-headless-shell-linux64.zip",
+  "archiveSha256": "944dc1eae654637fed4d57650198774f9c43b45f34e48febb84f43c541b5de76",
+  "archiveMember": "chrome-headless-shell-linux64/LICENSE.headless_shell",
+  "licenseSha256": "b92247f7a44c14627ef5cbbe0aa6dcca4e4422b7c05e6f2c660054061a5e3da7",
+  "licenseBytes": 2257005,
+  "sourceCommit": "78e5e45d4bb41035e17ea4da2cc257f496416ac9",
+  "sourceUrl": "https://chromium.googlesource.com/chromium/src/+/78e5e45d4bb41035e17ea4da2cc257f496416ac9/",
+  "retainedSources": [
+    {
+      "file": "SOURCE-LICENSE.txt",
+      "url": "https://chromium.googlesource.com/chromium/src/+/78e5e45d4bb41035e17ea4da2cc257f496416ac9/LICENSE?format=TEXT",
+      "sha256": "368cca1106be99d39ecd32a38d8305585d802a475effb66380b91ffc9bcf709b",
+      "bytes": 1536
+    },
+    {
+      "file": "SOURCE-DEPS.txt",
+      "url": "https://chromium.googlesource.com/chromium/src/+/78e5e45d4bb41035e17ea4da2cc257f496416ac9/DEPS?format=TEXT",
+      "sha256": "c7fce0bedafabba14461759e2ee004dbc4ec9ec84d95e1ee328c17732c4f9ab1",
+      "bytes": 196718
+    },
+    {
+      "file": "SOURCE-headless-BUILD.gn.txt",
+      "url": "https://chromium.googlesource.com/chromium/src/+/78e5e45d4bb41035e17ea4da2cc257f496416ac9/headless/BUILD.gn?format=TEXT",
+      "sha256": "685806a751137c8319a487aae64132810714a2a3c5bd1e4d4051872c0cbe6908",
+      "bytes": 27417
+    }
+  ]
+}

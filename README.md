@@ -1,6 +1,6 @@
 # Model Lab
 
-> Run reproducible LLM comparisons, inspect live artifacts, and export publication-ready results.
+> Run LLM comparisons, inspect captured artifacts, and export results with their evidence.
 
 [![CI](https://github.com/hugosmoreira/model-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/hugosmoreira/model-lab/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -13,11 +13,18 @@ real browser tests against every generated artifact, judge the builds with an
 order-swapped LLM judge, add your own ratings, and export results that trace back to a
 reproducible run bundle.
 
+**Release preparation:** the [2026-09-17 audit](docs/AUDIT-2026-09-17.md)
+led to changes in artifact isolation, spending controls, evidence storage and
+result labeling. The [release plan](docs/RELEASE_PLAN.md) records verification
+and remaining publication gates. No new release is implied by this branch.
+
 ![Results of a judged three-way benchmark](docs/screenshots/results-judged.png)
 
-## A real run, not a mockup
+## Historical example run
 
-The screenshot above is `run_f0520023` — one identical raycaster prompt sent to
+The screenshot above is `run_f0520023`, measured before the current candidate's
+evidence and browser-check fixes. It is preserved as historical **n=1** evidence,
+not a new model-ranking claim: one identical raycaster prompt was sent to
 Claude (cloud), GPT (cloud), and a 17GB Qwen running locally on an RTX 4090:
 
 | Model | Where | Capability checks | Judge rubric | Pairwise (both orders) | Cost |
@@ -45,13 +52,17 @@ which records the run as it was measured at the time, under the check set then i
 **Run it.** Pick a challenge pack and 2–8 models across providers (Anthropic, OpenAI,
 DeepSeek, Gemini, OpenRouter, or local via Ollama/vLLM). Every model gets the identical
 prompt, temperature, token budget, and retry policy — differences are flagged, never
-silently ignored. A hard budget ceiling stops runaway spend.
+silently ignored. Generation and judging reserve estimated cost before each
+call and retry. Admission uses configured prices, prompt size and output caps;
+provider invoices can differ, so this is not an exact billing guarantee.
 
-**Inspect it.** Each generated single-file HTML artifact runs inside a locked-down
-sandbox (`allow-scripts` only, CSP `default-src 'none'`, network blocked) while 12
+**Inspect it.** The UI displays captured PNG evidence; generated scripts run only
+in the browser-check runner. A response-header policy, context-wide HTTP and
+WebSocket controls, and native Chromium WebRTC restrictions limit execution while 12
 Playwright checks across three categories probe it for real: does the canvas render, does WASD move the player,
 does it survive a resize, is the HUD readable. Failures are preserved as evidence —
-one failed model never halts a run.
+one failed model never halts a run. These are browser controls, not a general
+OS sandbox; see [the security boundary](SECURITY.md).
 
 **Know the floor.** Add `baseline/blank-html` to any run: a deterministic document that
 renders nothing, free and keyless, so every scorer's floor sits next to the contenders
@@ -63,35 +74,51 @@ orders (verdicts that flip on order-swap are flagged ⟲ and excluded from the t
 and your own 0–10 ratings through an append-only audit trail. No score type
 masquerades as another.
 
-**Reproduce it.** Every run records its fingerprint, prompt hash, exact model IDs,
-provider, configuration, runner version, and git commit — downloadable as a zip bundle
-with raw outputs and screenshots.
+**Reproduce it.** New runs capture their configuration at creation, including
+objective tasks and scorers, and export a versioned `replay.json` with exact
+evidence references and SHA-256 hashes. Bundles include raw output and captured
+screenshots. Source revision and dirty state are recorded when available;
+legacy or incomplete provenance is explicit. A repeat configuration does not
+guarantee identical output from a nondeterministic model.
 
 **Publish it.** The Share Studio renders verified run data into X-ready cards
 (PNG/SVG/CSV/JSON + alt text) with a methodology footer that cannot be removed.
 
 <p>
-  <img src="docs/screenshots/arena.png" width="49%" alt="Build Arena grid with sandboxed artifact previews">
-  <img src="docs/screenshots/share-studio.png" width="49%" alt="Share Studio export card">
+  <img src="docs/screenshots/arena.png" width="49%" alt="Historical Build Arena grid with captured artifact previews">
+  <img src="docs/screenshots/share-studio-0.2.0-rc.1-mock.png" width="49%" alt="Current Share Studio with synthetic mock outputs and per-model score sources">
 </p>
+
+Left: historical Build Arena. Right: the verified `0.2.0-rc.1` Share Studio using
+**synthetic mock outputs**, including human and browser scores labeled separately.
+The [390 px phone view](docs/screenshots/share-phone-0.2.0-rc.1-mock.png) shows the
+same tested export workflow. These screenshots make no model-ranking claim.
 
 ## Quickstart
 
-Requirements: Node 22.13 or newer, pnpm 10 (`corepack enable` picks up the pinned
-version), and a Chromium that Playwright installs for you (on Linux add `--with-deps`).
+Requirements: a current security-patched Node 22 release (the API minimum is
+22.13), pnpm 10 (`corepack enable` picks up the pinned patch), and the managed
+Chrome Headless Shell. Verified archives are supplied for Linux amd64 and Windows
+x64; other platforms need separate validation.
 
 ```bash
 git clone https://github.com/hugosmoreira/model-lab
 cd model-lab
-pnpm install
-pnpm --filter @model-lab/build-arena-runner exec playwright install chromium
+pnpm install --frozen-lockfile
+pnpm browser:install  # checksum-pinned, patched browser; no artifact-time download
 pnpm dev        # http://localhost:3000
 ```
 
-With no configuration you get a fully working demo on deterministic mock providers.
-The demo workspace is a tour, not data: its model list and run history are
-illustrative fixtures (see [known issues](docs/ROADMAP.md#known-issues)), and real
-endpoints take over the moment a key is present. To benchmark real models, copy
+On Linux, install browser system libraries before starting:
+`pnpm --filter @model-lab/build-arena-runner exec playwright install-deps chromium`.
+Artifact execution refuses browser versions older than the security minimum;
+installing Playwright's default browser alone does not satisfy that gate.
+
+The default memory store contains a clearly labelled illustrative run. Real runs
+are listed alongside that seed; persistent stores begin empty. To force every
+generation and provider-health path offline, set `MODEL_LAB_MOCK_PROVIDERS=1`.
+In automatic mode, cloud endpoints missing a key are mocked and local Ollama
+endpoints run against the configured local server. To configure the workspace, copy
 [`.env.example`](.env.example) to `.env` at the repo root:
 
 ```bash
@@ -113,12 +140,14 @@ The same run, without the browser — for scripts and CI:
 pnpm cli models                                   # what this environment can run, and what would be mocked
 pnpm cli run --pack raycaster-oneshot \
   --models anthropic/claude-sonnet-4-6,openai/gpt-5-mini,ollama/qwen3.5-abliterated \
-  --samples 3 --budget 2 --fail-under 0.8         # exit 1 if any model scores below 4/5
+  --store sqlite --samples 3 --budget 2 --fail-under 0.8  # exit 1 below 4/5
 ```
 
 It streams the run's events, prints capability, cost, latency and the model id each
 provider actually served, exports the bundle, and exits non-zero on a partial run.
-`--mock` guarantees zero spend; the run shows up in the UI like any other.
+`--mock` uses deterministic providers. To see a CLI run in the UI, configure the
+web process for SQLite too and use the same database and evidence paths. Memory
+stores are process-local and disappear when that process exits.
 
 ## Architecture
 
@@ -127,8 +156,9 @@ pnpm workspace: `apps/web` (Next.js 15, App Router — UI + local API + SSE),
 (memory / SQLite / Supabase persistence behind one interface),
 `runners/build-arena` (provider adapters, parallel executor, Playwright checks,
 judge phase, reproducible bundle writer), `benchmark-packs/` (versioned challenge
-definitions). Provider keys never reach the browser; generated code never escapes
-the sandbox. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full architecture and [`SECURITY.md`](SECURITY.md) for the threat model.
+definitions). Provider credentials stay server-side; generated scripts do not
+execute in the operator's UI. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+for the architecture and [`SECURITY.md`](SECURITY.md) for the supported boundaries.
 
 ## Development
 
@@ -139,10 +169,10 @@ pnpm test                       # store conformance · runner unit tests · chec
 pnpm build                      # production build (stop the dev server first)
 ```
 
-CI runs the same gates on every push and pull request, all zero-spend.
+CI runs the same gates on pushes to main and pull requests, using mocked providers.
 [`CONTRIBUTING.md`](CONTRIBUTING.md) lists the extension points,
 [`docs/ROADMAP.md`](docs/ROADMAP.md) what is planned and what is known to be wrong, and
-[`CHANGELOG.md`](CHANGELOG.md) what shipped when.
+[`CHANGELOG.md`](CHANGELOG.md) the candidate changes and historical checkpoints.
 
 ## Deploying
 
@@ -150,7 +180,9 @@ Model Lab runs as one container with a volume — it needs a real Chromium, loca
 and a long-lived process, so serverless hosts are out. A public demo runs read-only on
 mock providers (`MODEL_LAB_READ_ONLY=1`, `MODEL_LAB_MOCK_PROVIDERS=1`, no keys); a
 private instance with real keys belongs behind authentication, because the API has none.
-See [`docs/DEPLOY.md`](docs/DEPLOY.md).
+See [`docs/DEPLOY.md`](docs/DEPLOY.md) for runtime configuration and
+[`docs/RELEASE_PLAN.md`](docs/RELEASE_PLAN.md) for the GitHub release sequence
+and publication checks.
 
 ## Honest limitations
 
@@ -163,5 +195,7 @@ See [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE). If Model Lab ends up in a paper or a published
-comparison, [`CITATION.cff`](CITATION.cff) has the reference.
+Model Lab's own code is MIT — see [`LICENSE`](LICENSE). Dependencies retain their
+own licenses; [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) records retained
+notices and the binary distribution review. If Model Lab appears in research or
+a published comparison, [`CITATION.cff`](CITATION.cff) has the reference.

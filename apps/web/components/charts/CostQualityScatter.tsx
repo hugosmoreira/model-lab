@@ -3,6 +3,8 @@ export interface ScatterPoint {
   color: string;
   costUsd: number;
   score: number; // 0–10
+  source?: string;
+  n?: number;
   failed?: boolean;
   /** optional min–max whisker on the score axis */
   scoreMin?: number;
@@ -31,7 +33,7 @@ export function CostQualityScatter({
   const X1 = 290;
   const Y0 = 150; // baseline
   const Y1 = 10;
-  const xMax = Math.max(0.5, ...points.map((p) => p.costUsd)) * 1.15;
+  const xMax = Math.max(0.001, ...points.map((p) => p.costUsd)) * 1.15;
 
   const x = (c: number) => X0 + ((X1 - X0) * c) / xMax;
   const y = (s: number) => Y0 - ((Y0 - Y1) * s) / 10;
@@ -42,7 +44,15 @@ export function CostQualityScatter({
         .filter((p) => !p.failed)
         .sort((a, b) => a.costUsd - b.costUsd)
         .filter((p, _, arr) =>
-          arr.every((q) => q === p || !(q.costUsd <= p.costUsd && q.score > p.score)),
+          arr.every(
+            (q) =>
+              q === p ||
+              !(
+                q.costUsd <= p.costUsd &&
+                q.score >= p.score &&
+                (q.costUsd < p.costUsd || q.score > p.score)
+              ),
+          ),
         )
     : [];
 
@@ -53,7 +63,10 @@ export function CostQualityScatter({
         style={{ width: "100%", height: "auto", display: "block" }}
         role="img"
         aria-label={`Cost versus ${yLabel} scatter plot: ${points
-          .map((p) => `${p.label} at $${p.costUsd.toFixed(2)}, score ${p.score}`)
+          .map(
+            (p) =>
+              `${p.label} at $${p.costUsd.toFixed(2)}, ${p.source ?? "score"} ${p.score}, n=${p.n ?? "unknown"}`,
+          )
           .join("; ")}`}
       >
         <line x1={X0} y1={Y1} x2={X0} y2={Y0} stroke="var(--color-border)" strokeWidth={1} />
@@ -95,7 +108,7 @@ export function CostQualityScatter({
           fill="var(--color-faint)"
           fontFamily="var(--font-mono)"
         >
-          ${xMax.toFixed(2)}
+          ${xMax.toFixed(xMax < 0.1 ? 3 : 2)}
         </text>
         <text
           x={X0 - 22}
@@ -131,8 +144,9 @@ export function CostQualityScatter({
           </>
         )}
 
-        {points.map((p) => (
+        {points.map((p, index) => (
           <g key={p.label}>
+            <title>{`${p.label}: ${p.source ?? "score"}, n=${p.n ?? "unknown"}`}</title>
             {p.scoreMin != null && p.scoreMax != null && (
               <line
                 x1={x(p.costUsd)}
@@ -160,11 +174,34 @@ export function CostQualityScatter({
               fill="var(--color-muted)"
               fontFamily="var(--font-mono)"
             >
-              {p.label}
+              {index + 1}
             </text>
           </g>
         ))}
       </svg>
+      {points.some((point) => point.source != null) && (
+        <ul
+          style={{
+            listStyle: "none",
+            padding: 0,
+            margin: "8px 0",
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+            fontSize: 11,
+            color: "var(--color-muted)",
+          }}
+        >
+          {points.map((point, index) => (
+            <li key={point.label}>
+              <span style={{ color: point.color }}>
+                {index + 1}. {point.label}
+              </span>{" "}
+              · {point.source ?? "Unspecified source"} · n={point.n ?? "unknown"}
+            </li>
+          ))}
+        </ul>
+      )}
       {footnote && (
         <figcaption style={{ fontSize: 11, color: "var(--color-faint)", marginTop: 6 }}>
           {footnote}

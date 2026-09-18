@@ -4,9 +4,25 @@ All notable changes to Model Lab are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## Unreleased — 0.2.0-rc.1 candidate
+
+Prepared locally; no GitHub release or container publication has occurred.
 
 ### Added
+
+- Shared mutation-origin checks, captured-only artifact previews, bounded browser
+  diagnostics and provider streams, and budget reservations before every paid
+  request. Regression fixtures cover hostile HTML, HTTP/WebSocket/WebRTC egress,
+  incomplete provider streams, concurrent requests, retries and cancellation.
+- Immutable full-identity evidence paths, creation-time configuration, and a
+  versioned replay contract with exact raw/artifact/screenshot references and hashes.
+- Cross-backend evaluation validation, atomic final votes, a SQLite concurrency
+  regression, and the experimental Supabase `0002_evaluation_integrity.sql` migration.
+- Single-host interrupted-run reconciliation, common web/CLI environment loading,
+  and provider-free health checks in forced mock mode.
+- An unprivileged Linux image, image-layer sentinel tests, restart/restore checks,
+  offline redacted tree/history secret scanning and a manually gated GHCR workflow.
+  Publication and repository settings remain separate maintainer operations.
 
 - CI on GitHub Actions: typecheck, lint, format check, store conformance,
   runner unit tests, the check-taxonomy regression, the mock selftest, and a
@@ -23,13 +39,13 @@ All notable changes to Model Lab are recorded here. The format follows
 - `MODEL_LAB_READ_ONLY=1`: an instance that serves results but answers 403 to
   new runs, votes, and annotations, for public demos. `/api/health/store`
   reports it.
-- A Dockerfile (Node base plus the headless Chromium shell, about 2 GB) and
+- A Dockerfile (Node base plus the headless Chromium shell) and
   `docs/DEPLOY.md` with a read-only demo profile and a private profile.
 - The Build Arena grid shows each build's real captured frame when the run has
   one, falling back to the identity-coloured placeholder only for fixtures.
-- Tests for the two remaining README claims: the order-swapped pairwise
-  decision (`decidePair`, pure) and the hard budget ceiling (a mock run that
-  must stop as `partial` after its first sample).
+- Tests for order-swapped pairwise decisions and conservative budget admission,
+  including uncertain usage retained after incomplete streams. Admission limits
+  are estimates, not a guarantee of the provider's invoice.
 - `RunModel.visualSource` (`human` · `browser` · `objective`): every score
   says where it came from. Rows stored before the field existed are inferred
   from the run mode when read.
@@ -55,6 +71,18 @@ All notable changes to Model Lab are recorded here. The format follows
 
 ### Fixed
 
+- Artifact policy placement and popup/network bypasses; WebRTC requires native
+  Chromium UDP restrictions and a deny-only TCP proxy in addition to request routes.
+- Nested dotenv files and local state leaking into container build layers.
+- Full-identity storage collisions, shared frame-analyzer races and sample aliasing
+  in blank-canvas detection. Legacy evidence remains readable without rewriting it.
+- Missing runs falling back to demo data, fabricated live dashboard statistics,
+  mixed score-source labels, missing values presented as zero, and blind pair
+  identities appearing in unfinished vote history.
+- Incomplete provider usage incorrectly releasing reserved output spend, and
+  repeated HTTP bundle downloads permanently duplicating evidence and export logs.
+- Localhost spelling differences in Next.js rejecting legitimate loopback writes.
+
 - A browser-derived number was shown under "VISUAL" and "VISUAL (HUMAN)"
   labels on the arena grid, the results cards, the artifact viewer and the
   share card, next to "no human rating yet". Those places now show a human
@@ -64,6 +92,13 @@ All notable changes to Model Lab are recorded here. The format follows
 
 ### Changed
 
+- Playwright is pinned to 1.63.0. `pnpm browser:install` verifies a separately
+  pinned Chrome Headless Shell 153.0.8010.52 archive; artifact execution rejects
+  older browsers. Managed downloads support Windows x64 and Linux x64.
+- pnpm is pinned to 10.34.5. The image uses the updated Debian 13 Node 22 base,
+  runs Node directly, and excludes unused Sharp decoders, Xvfb and package-manager
+  installers from its active runtime. Native-library advisory and binary-license
+  review remain publication gates.
 - Next.js 15.5.25 (patches two critical advisories in 15.5.22); postcss,
   nanoid, and sharp pinned past their advisories; adm-zip replaced by fflate.
 - Node 22.13 or newer is now declared and enforced (`node:sqlite` unflagged).
@@ -79,9 +114,10 @@ All notable changes to Model Lab are recorded here. The format follows
   a key, a "read-only" chip when applicable, and a disabled New Run button in
   read-only mode.
 
-## [0.1.0] — 2026-08-03
+## 0.1.0 — 2026-08-03 (historical development checkpoint)
 
-First complete version.
+Original feature set; this heading does not establish a published GitHub release.
+Its security and evidence limitations are documented in the project audit.
 
 - Build Arena runs: identical prompt, temperature, token budget, and retry
   policy across 2–8 endpoints; cloud (Anthropic, OpenAI, DeepSeek, Gemini,
@@ -99,6 +135,3 @@ First complete version.
   sandbox, Share Studio exports (PNG/SVG/CSV/JSON + alt text), reproducible
   run bundles with fingerprints.
 - Example judged three-way run committed at `docs/example-run/run_f0520023`.
-
-[Unreleased]: https://github.com/hugosmoreira/model-lab/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/hugosmoreira/model-lab/releases/tag/v0.1.0

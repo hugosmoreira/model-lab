@@ -27,6 +27,7 @@ import {
   type SeedFixtures,
   type StoredRunEvent,
 } from "./types";
+import { validateAnnotation, validateVote } from "./evaluations";
 
 const sampleKey = (endpointId: string, sampleIndex: number): string =>
   `${endpointId}#${sampleIndex}`;
@@ -169,10 +170,18 @@ export class MemoryStore implements RunStore {
   // -- append-only human audit trail ----------------------------------------
 
   async insertAnnotation(a: HumanAnnotation): Promise<void> {
-    // annotations may reference runs the store no longer tracks; keep them
-    // only when the run exists (SQL table has no FK either, but memory keys
-    // records per run).
-    this.mustGet(a.runId).annotations.push(structuredClone(a));
+    validateAnnotation(a);
+    const rec = this.mustGet(a.runId);
+    if (
+      !rec.runModels.has(a.endpointId) ||
+      !rec.samples.has(sampleKey(a.endpointId, a.sampleIndex))
+    ) {
+      throw new StoreError(
+        "NOT_FOUND",
+        `Sample ${a.runId}/${a.endpointId}#${a.sampleIndex} not found in this run.`,
+      );
+    }
+    rec.annotations.push(structuredClone(a));
   }
 
   async listAnnotations(runId: string): Promise<HumanAnnotation[]> {
@@ -183,7 +192,16 @@ export class MemoryStore implements RunStore {
   // -- head-to-head votes ---------------------------------------------------
 
   async upsertVote(v: PairwiseVote): Promise<void> {
-    this.mustGet(v.runId).votes.set(v.pairIndex, structuredClone(v));
+    validateVote(v);
+    const rec = this.mustGet(v.runId);
+    if (!v.pairing.every((endpointId) => rec.runModels.has(endpointId))) {
+      throw new StoreError("NOT_FOUND", `Vote participants not found in run ${v.runId}.`);
+    }
+    if (rec.votes.get(v.pairIndex)?.final) {
+      throw new StoreError("IMMUTABLE", `Pair ${v.pairIndex} already has a final vote.`);
+    }
+    // No await between the guard and write: this is atomic in this process.
+    rec.votes.set(v.pairIndex, structuredClone(v));
   }
 
   async listVotes(runId: string): Promise<PairwiseVote[]> {

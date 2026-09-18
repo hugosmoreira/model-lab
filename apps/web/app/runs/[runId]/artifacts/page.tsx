@@ -1,3 +1,4 @@
+import { DemoNotice } from "@/components/ui/DemoNotice";
 import { TopBar } from "@/components/shell/TopBar";
 import { ReproStrip } from "@/components/shell/ReproStrip";
 import { ArenaGrid } from "@/components/artifact/ArenaGrid";
@@ -8,9 +9,8 @@ import { getRunView } from "@/lib/server/loaders";
 export const dynamic = "force-dynamic";
 
 export default async function RunArtifactsPage({ params }: { params: Promise<{ runId: string }> }) {
-  // Store-known runs render their own artifacts; the demo run (and unknown
-  // deep-link ids) keeps the fixture grid — card links use view.run.id so
-  // they always resolve.
+  // Recorded runs render their own artifacts; unknown run ids return 404.
+
   const { runId } = await params;
   const view = await getRunView(runId);
   const data = getArenaData(view);
@@ -29,6 +29,7 @@ export default async function RunArtifactsPage({ params }: { params: Promise<{ r
           width: "100%",
         }}
       >
+        <DemoNotice demo={view.source === "fixtures"} />
         <ArenaGrid data={data} />
         <ReproStrip manifest={view.manifest} />
       </main>

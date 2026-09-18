@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { fixtures } from "@/lib/data";
+import packageInfo from "../../package.json";
 
 interface NavItem {
   id: string;
@@ -23,7 +23,6 @@ const SECTIONS: NavSection[] = [
     items: [
       { id: "mission", name: "Mission Control", href: "/" },
       { id: "newrun", name: "New Run", href: "/runs/new" },
-      { id: "live", name: "Live Run", href: "/runs/run_8f3ac21e/live", live: true },
       { id: "runs", name: "Runs", href: "/runs" },
     ],
   },
@@ -31,9 +30,7 @@ const SECTIONS: NavSection[] = [
     label: "Compare",
     items: [
       { id: "arena", name: "Build Arena", href: "/arena" },
-      { id: "leaderboard", name: "Leaderboard", href: "#", soon: true },
       { id: "h2h", name: "Head-to-Head", href: "/compare" },
-      { id: "artifacts", name: "Artifacts", href: "/runs/run_8f3ac21e/artifacts" },
     ],
   },
   {
@@ -41,12 +38,11 @@ const SECTIONS: NavSection[] = [
     items: [
       { id: "packs", name: "Benchmark Packs", href: "/benchmarks" },
       { id: "models", name: "Models", href: "/models" },
-      { id: "judge", name: "Judge Lab", href: "#", soon: true },
     ],
   },
   {
     label: "Publish",
-    items: [{ id: "share", name: "Share Studio", href: "/share/run_8f3ac21e" }],
+    items: [{ id: "share", name: "Choose a run to share", href: "/runs" }],
   },
   {
     label: "System",
@@ -76,10 +72,10 @@ function activeIdFromPath(path: string): string {
 export function Nav() {
   const pathname = usePathname();
   const active = activeIdFromPath(pathname);
-  const { workspaceSettings } = fixtures;
 
   return (
     <aside
+      className="app-nav"
       style={{
         flex: "0 0 224px",
         width: 224,
@@ -129,7 +125,7 @@ export function Nav() {
           <span
             style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-faint)" }}
           >
-            v0.1.0 · local
+            v{packageInfo.version}
           </span>
         </span>
       </Link>
@@ -227,12 +223,9 @@ export function Nav() {
           color: "var(--color-faint)",
         }}
       >
-        <span>{workspaceSettings.workspacePath}</span>
+        <span>Local-first benchmarking</span>
         <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span
-            style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-teal)" }}
-          />
-          runner online
+          Inspect evidence before comparing scores
         </span>
       </div>
     </aside>

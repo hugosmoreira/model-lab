@@ -5,6 +5,7 @@
  * RunHandle returned by startRun.
  */
 import { exportBundle } from "./bundle";
+import { endpointPrices } from "./budget";
 import { startRun, type StartRunOptions } from "./run";
 import { FsRunStore, sanitizeSegment } from "./store-fs";
 import type {
@@ -144,10 +145,14 @@ export class BuildArenaAdapter implements RunnerAdapter {
         error(field, `unknown baseKind "${ep.baseKind as string}"`);
       }
       if (ep.model.trim() === "") error(field, "model must not be empty");
-      if (ep.priceInPerMtokUsd !== null && ep.priceInPerMtokUsd < 0)
-        error(field, "negative input price");
-      if (ep.priceOutPerMtokUsd !== null && ep.priceOutPerMtokUsd < 0)
-        error(field, "negative output price");
+      try {
+        endpointPrices(ep);
+      } catch {
+        error(
+          field,
+          "finite non-negative input and output prices required; null is free only for mock/Ollama endpoints",
+        );
+      }
       if (ep.baseKind === "anthropic" && (process.env["ANTHROPIC_API_KEY"] ?? "") === "") {
         warn(field, "ANTHROPIC_API_KEY is not set — generation will fail at run time");
       }
@@ -158,12 +163,23 @@ export class BuildArenaAdapter implements RunnerAdapter {
     if (cfg.samplesPerModel < 1) error("samplesPerModel", "must be ≥ 1");
     if (cfg.samplesPerModel > 10) warn("samplesPerModel", "more than 10 samples per model");
     if (cfg.temperature < 0 || cfg.temperature > 2) error("temperature", "must be within [0, 2]");
-    if (cfg.maxOutputTokens <= 0) error("maxOutputTokens", "must be > 0");
+    if (!Number.isSafeInteger(cfg.maxOutputTokens) || cfg.maxOutputTokens <= 0)
+      error("maxOutputTokens", "must be a positive integer");
     else if (!verified && cfg.maxOutputTokens < 4_000) {
       warn("maxOutputTokens", "under 4k tokens the raycaster artifact may truncate");
     }
     if (cfg.concurrency < 1) error("concurrency", "must be ≥ 1");
-    if (cfg.maxBudgetUsd <= 0) error("maxBudgetUsd", "must be > 0");
+    if (!Number.isFinite(cfg.maxBudgetUsd) || cfg.maxBudgetUsd <= 0)
+      error("maxBudgetUsd", "must be finite and > 0");
+    if (
+      cfg.judge !== undefined &&
+      (!Number.isFinite(cfg.judge.priceInPerMtokUsd) ||
+        cfg.judge.priceInPerMtokUsd < 0 ||
+        !Number.isFinite(cfg.judge.priceOutPerMtokUsd) ||
+        cfg.judge.priceOutPerMtokUsd < 0)
+    ) {
+      error("judge", "finite non-negative input and output prices required");
+    }
     if (cfg.transportRetries < 0) error("transportRetries", "must be ≥ 0");
     if (cfg.failSample !== undefined) {
       const known = cfg.endpoints.some((ep) => ep.id === cfg.failSample?.endpointId);

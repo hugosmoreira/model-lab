@@ -14,22 +14,27 @@ import { register } from "node:module";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { checkSqliteEvaluationIntegrity } from "./evaluation-integrity.mjs";
 
 register("./ts-resolve.mjs", import.meta.url);
 
-const { MemoryStore, SqliteStore, runStoreConformance } = await import("../src/index.ts");
+const { MemoryStore, SqliteStore, demoFixtures, runStoreConformance } =
+  await import("../src/index.ts");
 
 const lines = [];
 let failed = false;
 
 async function run(label, make) {
+  let store;
   try {
-    const store = await make();
+    store = await make();
     const passed = await runStoreConformance(store);
     lines.push(`  PASS  ${label} — ${passed} assertions`);
   } catch (err) {
     failed = true;
     lines.push(`  FAIL  ${label} — ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    store?.close?.();
   }
 }
 
@@ -39,6 +44,19 @@ try {
   const file = path.join(tmp, "conformance.db");
   await run("sqlite (fresh file)", async () => new SqliteStore(file));
   await run("sqlite (reopened, persisted state)", async () => new SqliteStore(file));
+  try {
+    await checkSqliteEvaluationIntegrity(
+      path.join(tmp, "evaluation.db"),
+      SqliteStore,
+      demoFixtures,
+    );
+    lines.push("  PASS  sqlite simultaneous connections and legacy annotation history");
+  } catch (err) {
+    failed = true;
+    lines.push(
+      `  FAIL  sqlite evaluation integrity — ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
 } finally {
   try {
     rmSync(tmp, { recursive: true, force: true });

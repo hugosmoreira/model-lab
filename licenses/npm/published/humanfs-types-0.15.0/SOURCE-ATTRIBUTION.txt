@@ -1,0 +1,4 @@
+/**
+ * @fileoverview The types file for the hfs package.
+ * @author Nicholas C. Zakas
+ */

@@ -17,6 +17,7 @@ import { WTLMatrix } from "@/components/charts/WTLMatrix";
 import { capabilityForModel, type CapabilityTally } from "@/lib/checks";
 import { endpointProviderLabel, modelColor, modelIdOf, shortNameOf } from "@/lib/data";
 import { getRunView } from "@/lib/server/loaders";
+import { modelScoreSource, scoreAxisLabel, SCORE_LABELS } from "@/lib/score-presentation";
 import { mmss, seconds, usd } from "@/lib/format";
 
 /** Reads the persistence store — must render per request. */
@@ -93,6 +94,7 @@ interface SampleStats {
 function buildSampleStats(samples: SampleResult[]): Map<string, SampleStats> {
   const map = new Map<string, SampleStats>();
   for (const s of samples) {
+    if (s.status !== "scored" && s.status !== "failed") continue;
     const cur = map.get(s.endpointId) ?? { failed: 0, total: 0, min: null, max: null };
     cur.total += 1;
     if (s.status === "failed" || (s.score != null && "failed" in s.score)) {
@@ -121,7 +123,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ runId:
   const n = run.samplesPerModel;
   const stats = buildSampleStats(samples);
   const statsFor = (endpointId: string): SampleStats =>
-    stats.get(endpointId) ?? { failed: 0, total: n, min: null, max: null };
+    stats.get(endpointId) ?? { failed: 0, total: 0, min: null, max: null };
 
   /* Verified runs have no artifacts/browser checks — objective scores only. */
   const isVerified = run.mode === "verified";
@@ -203,19 +205,25 @@ export default async function ResultsPage({ params }: { params: Promise<{ runId:
 
   // Scored annotations make a run human-scored even without a configured
   // human scorer — visual ratings arrive post-run via the audit trail.
-  const hasHumanRatings = view.annotations.some((a) => a.scoreOverride != null);
+  const hasHumanRatings = runModels.some(
+    (rm) => rm.visualSource === "human" && rm.visualScore != null,
+  );
   if (hasHumanRatings && humanScorer == null) {
     scorerBadges.push({ name: "HUMAN (visual ratings)", color: "var(--color-amber)" });
   }
-  const humanScored = humanScorer != null || (hasHumanRatings && !isVerified);
+  const scoreLabel = scoreAxisLabel(
+    runModels.filter((rm) => rm.visualScore != null).map(modelScoreSource),
+  );
 
   /* ---------- category bars (all values computed from the run's own data) ---------- */
   // Efficiency = 1 − (0.5·costNorm + 0.5·latencyNorm), each normalized 0–1
   // against the most expensive / slowest model in the run. Higher = cheaper + faster.
   const maxCost = Math.max(...runModels.map((rm) => rm.costUsd), 0.0001);
   const maxLat = Math.max(...runModels.map((rm) => rm.totalLatencyMs ?? 0), 1);
-  const efficiency = (rm: RunModel): number =>
-    1 - (0.5 * (rm.costUsd / maxCost) + 0.5 * ((rm.totalLatencyMs ?? maxLat) / maxLat));
+  const efficiency = (rm: RunModel): number | null =>
+    rm.totalLatencyMs == null
+      ? null
+      : 1 - (0.5 * (rm.costUsd / maxCost) + 0.5 * (rm.totalLatencyMs / maxLat));
 
   const hasVisual = runModels.some((rm) => rm.visualScore != null);
   const hasBrowserScorer = runConfiguration.scorers.some((s) => s.type === "browser" && s.enabled);
@@ -232,7 +240,9 @@ export default async function ResultsPage({ params }: { params: Promise<{ runId:
           color: modelColor(rm.endpointId),
           pct: st.total > 0 ? (ok / st.total) * 100 : 0,
           label:
-            st.failed > 0 ? (
+            st.total === 0 ? (
+              "— · no terminal samples"
+            ) : st.failed > 0 ? (
               <>
                 {ok}/{st.total} ·{" "}
                 <span style={{ color: "var(--color-red)" }}>{st.failed} failed</span>
@@ -280,27 +290,15 @@ export default async function ResultsPage({ params }: { params: Promise<{ runId:
     ...(hasVisual
       ? [
           {
-            // Honest naming: "Visual quality" only when a human actually rated;
-            // browser-derived sample means are labeled as such.
-            name: isVerified
-              ? "Task accuracy"
-              : humanScorer != null || hasHumanRatings
-                ? "Visual quality"
-                : "Sample score",
-            scorer: isVerified
-              ? "objective · mean score"
-              : humanScorer
-                ? `human rubric ${humanScorer.rubricVersion ?? ""}`.trim()
-                : hasHumanRatings
-                  ? "human visual ratings"
-                  : "browser-derived · check ratio",
+            name: "Recorded score",
+            scorer: "source and n shown per model",
             bars: runModels.map((rm) => ({
               key: rm.endpointId,
               color: modelColor(rm.endpointId),
               pct: (rm.visualScore?.value ?? 0) * 10,
               label:
                 rm.visualScore != null ? (
-                  `${rm.visualScore.value.toFixed(1)}${rm.visualScore.n < n ? ` (n=${rm.visualScore.n})` : ""}`
+                  `${rm.visualScore.value.toFixed(1)} · ${SCORE_LABELS[modelScoreSource(rm)]} · n=${rm.visualScore.n}`
                 ) : (
                   <span style={{ color: "var(--color-faint)" }}>—</span>
                 ),
@@ -334,37 +332,54 @@ export default async function ResultsPage({ params }: { params: Promise<{ runId:
       bars: runModels.map((rm) => ({
         key: rm.endpointId,
         color: modelColor(rm.endpointId),
-        pct: efficiency(rm) * 100,
-        label: `${usd(rm.costUsd)} · ${Math.round((rm.totalLatencyMs ?? 0) / 1000)}s`,
+        pct: (efficiency(rm) ?? 0) * 100,
+        label: `${usd(rm.costUsd)} · ${rm.totalLatencyMs == null ? "— latency not recorded" : `${Math.round(rm.totalLatencyMs / 1000)}s`}`,
       })),
     },
   ];
 
   /* ---------- cost vs quality scatter ---------- */
-  const scatterPoints: ScatterPoint[] = runModels.map((rm) => {
-    const st = statsFor(rm.endpointId);
+  const scatterPoints: ScatterPoint[] = runModels.flatMap((rm) => {
     const score = rm.visualScore;
-    return {
-      label: `${shortNameOf(rm.endpointId)} ${score?.value.toFixed(1) ?? "—"}${
-        score != null && score.n < n ? ` (n=${score.n})` : ""
-      }`,
-      color: modelColor(rm.endpointId),
-      costUsd: rm.costUsd,
-      score: score?.value ?? 0,
-      failed: rm.failedSampleCount > 0,
-      scoreMin: st.min ?? undefined,
-      scoreMax: st.max ?? undefined,
-    };
+    if (score == null) return [];
+    const source = modelScoreSource(rm);
+    const matching =
+      source !== "browser" && source !== "objective"
+        ? [] // Sample.score is the recorded automatic score, not a later human annotation.
+        : samples
+            .filter(
+              (s) =>
+                s.endpointId === rm.endpointId &&
+                s.primaryScorer === source &&
+                s.score != null &&
+                "value" in s.score,
+            )
+            .flatMap((s) => (s.score != null && "value" in s.score ? [s.score.value] : []));
+    return [
+      {
+        label: `${shortNameOf(rm.endpointId)} ${score.value.toFixed(1)}`,
+        source: SCORE_LABELS[source],
+        n: score.n,
+        color: modelColor(rm.endpointId),
+        costUsd: rm.costUsd,
+        score: score.value,
+        failed: rm.failedSampleCount > 0,
+        scoreMin: matching.length > 0 ? Math.min(...matching) : undefined,
+        scoreMax: matching.length > 0 ? Math.max(...matching) : undefined,
+      },
+    ];
   });
-  const failedModel = runModels.find((rm) => rm.failedSampleCount > 0);
-  const scatterFootnote = failedModel
-    ? `Whiskers = min–max across samples. ${shortNameOf(failedModel.endpointId)} mean excludes ${failedModel.failedSampleCount} failed render (marked, not zero-scored).`
-    : "Whiskers = min–max across samples.";
-
+  const comparableScores =
+    new Set(runModels.filter((rm) => rm.visualScore != null).map(modelScoreSource)).size === 1 &&
+    runModels
+      .filter((rm) => rm.visualScore != null)
+      .every((rm) => modelScoreSource(rm) !== "unknown");
+  const scatterFootnote =
+    "Each point names its source and measured sample count. Missing scores are omitted. Whiskers show the range of recorded automatic samples; human ratings have no automatic-score whiskers. Different sources are not directly comparable.";
   /* ---------- latency bands + reliability ---------- */
   const latencyRows: LatencyBandRow[] = Object.entries(latencyRanges)
     .map(([endpointId, r]) => ({
-      label: modelIdOf(endpointId),
+      label: `${modelIdOf(endpointId)} · n=${r.n}`,
       color: modelColor(endpointId),
       minMs: r.min,
       medianMs: r.median,
@@ -387,7 +402,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ runId:
     return {
       endpointId: rm.endpointId,
       label: modelIdOf(rm.endpointId),
-      value: `${pct}% · ${detail}`,
+      value: st.total === 0 ? "— · no terminal samples" : `${pct}% · ${detail} · n=${st.total}`,
       color: st.failed > 0 ? "var(--color-red)" : "var(--color-teal)",
     };
   });
@@ -469,6 +484,18 @@ export default async function ResultsPage({ params }: { params: Promise<{ runId:
         </div>
 
         <ReproStrip manifest={runManifest} />
+        {view.mockedEndpointIds.length > 0 && (
+          <Callout variant="warning">
+            Synthetic mock outputs: {view.mockedEndpointIds.map(modelIdOf).join(", ")}. These
+            endpoints did not call providers; their recorded costs are simulated.
+          </Callout>
+        )}
+        {view.source === "fixtures" && (
+          <Callout variant="insight">
+            Illustrative demo data — these measurements are a seeded example, not a benchmark
+            performed on this instance.
+          </Callout>
+        )}
 
         {/* Verdict banner — neutral completion note when no verdict was recorded */}
         {run.verdict ? (
@@ -527,7 +554,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ runId:
             <button
               type="button"
               disabled
-              title="Weight editing arrives in Phase 3"
+              title="Weights are recorded with the run and cannot be edited afterward"
               style={{
                 background: "none",
                 border: "none",
@@ -560,7 +587,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ runId:
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
                 <span style={{ fontSize: 14, fontWeight: 600 }}>Category scores</span>
                 <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>
-                  n={n} per model · higher is better
+                  planned n={n} per model · source and measured n below
                 </span>
               </div>
               <CategoryBars categories={categories} />
@@ -576,22 +603,24 @@ export default async function ResultsPage({ params }: { params: Promise<{ runId:
             >
               <Panel style={{ padding: "14px 18px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={{ fontSize: 14, fontWeight: 600 }}>Cost vs quality</span>
+                  <span style={{ fontSize: 14, fontWeight: 600 }}>Cost vs score</span>
                   <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>
-                    {humanScored
-                      ? "visual, human-scored"
-                      : isVerified
-                        ? "objective · mean score"
-                        : "mean sample score"}{" "}
-                    · n={n}/model
+                    {scoreLabel}
                   </span>
                 </div>
-                <CostQualityScatter
-                  points={scatterPoints}
-                  showPareto
-                  footnote={scatterFootnote}
-                  yLabel={humanScored ? "visual (human)" : isVerified ? "score" : "browser score"}
-                />
+                {scatterPoints.length === 0 ? (
+                  <EmptyState
+                    title="No scores recorded"
+                    hint="Unscored models are omitted rather than plotted as zero."
+                  />
+                ) : (
+                  <CostQualityScatter
+                    points={scatterPoints}
+                    showPareto={comparableScores}
+                    footnote={scatterFootnote}
+                    yLabel={scoreLabel}
+                  />
+                )}
               </Panel>
 
               <Panel
@@ -600,10 +629,17 @@ export default async function ResultsPage({ params }: { params: Promise<{ runId:
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>Latency · total per sample</span>
                   <span style={{ ...mono, fontSize: 11, color: "var(--color-faint)" }}>
-                    lower is better · n={n}/model
+                    lower is better · measured n per row
                   </span>
                 </div>
-                <LatencyBands rows={latencyRows} />
+                {latencyRows.length === 0 ? (
+                  <EmptyState
+                    title="No latency recorded"
+                    hint="Measured latency will appear when sample data is available."
+                  />
+                ) : (
+                  <LatencyBands rows={latencyRows} />
+                )}
                 <div
                   style={{
                     borderTop: "1px solid var(--color-border-subtle)",
@@ -821,7 +857,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ runId:
               <button
                 type="button"
                 disabled
-                title="Export arrives in Phase 4"
+                title="Open Share Studio for CSV and JSON exports"
                 style={secondaryButtonDisabled}
               >
                 Export Data (CSV/JSON)
@@ -829,7 +865,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ runId:
               <button
                 type="button"
                 disabled
-                title="Re-run arrives in Phase 1"
+                title="Create a New Run to repeat this benchmark"
                 style={secondaryButtonDisabled}
               >
                 Re-run
@@ -837,7 +873,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ runId:
               <button
                 type="button"
                 disabled
-                title="Fork Configuration arrives in Phase 1"
+                title="Configuration cloning is not available"
                 style={secondaryButtonDisabled}
               >
                 Fork Configuration

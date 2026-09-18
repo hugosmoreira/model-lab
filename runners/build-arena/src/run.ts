@@ -6,8 +6,8 @@
  *    sequential; generation retries: none (first-shot), transport retries per
  *    config, then sample.failed(reason "transport")
  *  - a failed SAMPLE emits sample.failed — it NEVER fails the model or run
- *  - HARD budget stop: when projected spend ≥ maxBudgetUsd, emit budget.status
- *    (warn) then run.partial and cancel all remaining sample generation
+ *  - reserve conservative cost before every provider request; deny work that
+ *    cannot fit, retain admitted results, and end partial after budget refusal
  *  - artifact contract: strip ``` fences, require <html or <!DOCTYPE, single
  *    file, ≤2MB — violation → sample.failed(reason "contract")
  *  - TRUNCATION (finish_reason "length") is a harness limit, not a model
@@ -35,7 +35,15 @@ import type {
   RunStatus,
   SampleResult,
 } from "@model-lab/schemas";
-import { computeFingerprint, promptHash } from "./bundle";
+import { promptHash } from "./bundle";
+import {
+  BudgetAdmissionError,
+  BudgetLedger,
+  endpointPrices,
+  reserveCost,
+  tokenCost,
+  type BudgetReservation,
+} from "./budget";
 import {
   capabilityChecks,
   closeBrowserChecks,
@@ -50,6 +58,7 @@ import { EventBus } from "./event-bus";
 import { runJudgePhase } from "./judge";
 import { createProvider } from "./providers";
 import { errorMessage } from "./providers/util";
+import { boundedGenerate, MAX_GENERATION_BYTES, ProviderSafetyError } from "./providers/limits";
 import { FsRunStore } from "./store-fs";
 import {
   RUNNER_VERSION,
@@ -108,7 +117,7 @@ export interface StartRunOptions {
   /** injectable for tests; defaults to the Playwright implementation */
   checksRunner?: (
     html: string,
-    opts: { screenshotPath: string; watchdogMs?: number },
+    opts: { screenshotPath: string; watchdogMs?: number; signal?: AbortSignal },
   ) => Promise<BrowserChecksOutcome>;
   providerFactory?: (endpoint: EndpointConfig) => Provider;
   browserWatchdogMs?: number;
@@ -126,6 +135,8 @@ interface GenResult {
   reasoningTokens: number;
   /** the model the provider reported serving, when it reports one */
   servedModel: string | null;
+  usageSource: "reported" | "estimated";
+  usageComplete: boolean;
 }
 
 /** "16.0k" / "950" — token counts read the same everywhere they surface. */
@@ -169,7 +180,10 @@ function kindLabel(ep: EndpointConfig): string {
 }
 
 export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunHandle {
+  cfg = structuredClone(cfg);
+  for (const endpoint of cfg.endpoints) endpointPrices(endpoint);
   const store = options.store ?? new FsRunStore();
+  const creation = store.createRun(cfg);
   const checksRunner = options.checksRunner ?? runBrowserChecks;
   const providerFactory = options.providerFactory ?? createProvider;
   const usingDefaultChecks = options.checksRunner === undefined;
@@ -178,7 +192,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
   const abort = new AbortController();
   const startedAtMs = Date.now();
   const startedAtIso = new Date(startedAtMs).toISOString();
-  const fingerprint = computeFingerprint(cfg);
+  const fingerprint = creation.fingerprint;
   /** Verified runs iterate the task list; sampleIndex = 1-based task index. */
   const verified = cfg.mode === "verified";
   const tasks: Task[] = verified ? (cfg.pack.tasks ?? []) : [];
@@ -212,6 +226,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
   let cancelled = false;
   let budgetStopped = false;
   let spentUsd = 0;
+  const budget = new BudgetLedger(cfg.maxBudgetUsd);
   let samplesDone = 0;
   let samplesScored = 0;
   let samplesFailed = 0;
@@ -334,7 +349,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       completedAt: terminal ? new Date().toISOString() : null,
       elapsedSec: Math.round((Date.now() - startedAtMs) / 1000),
       runnerVersion: RUNNER_VERSION,
-      gitCommit: null,
+      gitCommit: creation.sourceRevision.commit,
       compositeWeighting: { browser: 50, visual: 35, efficiency: 15 },
       verdict: null,
       judgeReversalCount,
@@ -354,10 +369,24 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     }
   };
 
-  const tokenCost = (ep: EndpointConfig, tokensIn: number, tokensOut: number): number => {
-    const priceIn = ep.priceInPerMtokUsd ?? 0; // null = free/local → $0
-    const priceOut = ep.priceOutPerMtokUsd ?? 0;
-    return (tokensIn * priceIn + tokensOut * priceOut) / 1_000_000;
+  const budgetPayload = (): Record<string, unknown> => ({
+    spentUsd: round4(spentUsd),
+    reservedUsd: round4(budget.reservedUsd),
+    uncertainUsd: round4(budget.uncertainUsd),
+    projectedUsd: round4(budget.committedUsd),
+    ceilingUsd: cfg.maxBudgetUsd,
+    accounting:
+      "configured prices and provider usage; admission reserves are estimates, invoices may differ",
+  });
+
+  const stopForBudget = (reason: string): void => {
+    if (budgetStopped) return;
+    budgetStopped = true;
+    emit("budget.status", {
+      level: "warn",
+      message: `${reason} — budget admission stop; admitted calls finish and retain their usage`,
+      payload: budgetPayload(),
+    });
   };
 
   const streamOnce = async (
@@ -376,6 +405,8 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     let finishReason: FinishReason | null = null;
     let reasoningTokens = 0;
     let servedModel: string | null = null;
+    let usageSource: "reported" | "estimated" = "estimated";
+    let usageComplete = false;
     const req: GenerateRequest = {
       prompt: task !== undefined ? task.prompt : cfg.pack.prompt,
       model: ep.model,
@@ -388,19 +419,67 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     if (task !== undefined) req.task = task;
     if (answerWrong === true) req.answerWrong = true;
     if (cfg.seed !== null && ep.supportsSeed) req.seed = cfg.seed;
-    for await (const chunk of provider.generate(req)) {
-      if (chunk.type === "delta") {
-        if (ttftMs === null) ttftMs = Date.now() - started;
-        text += chunk.text;
-      } else {
-        tokensIn = chunk.tokensIn;
-        tokensOut = chunk.tokensOut;
-        finishReason = chunk.finishReason ?? null;
-        reasoningTokens = chunk.reasoningTokens ?? 0;
-        servedModel = chunk.servedModel ?? null;
+    const reservations: BudgetReservation[] = [];
+    let complete = false;
+    const prices = endpointPrices(ep);
+    const admit = (): void => {
+      try {
+        reservations.push(budget.reserve(reserveCost(req, prices)));
+      } catch (err) {
+        stopForBudget(errorMessage(err));
+        throw err;
+      }
+    };
+    req.beforeRetry = admit;
+    admit();
+    try {
+      for await (const chunk of boundedGenerate(provider, req, MAX_GENERATION_BYTES)) {
+        if (chunk.type === "delta") {
+          if (ttftMs === null) ttftMs = Date.now() - started;
+          text += chunk.text;
+        } else {
+          tokensIn = chunk.tokensIn;
+          tokensOut = chunk.tokensOut;
+          finishReason = chunk.finishReason ?? null;
+          reasoningTokens = chunk.reasoningTokens ?? 0;
+          servedModel = chunk.servedModel ?? null;
+          usageSource = chunk.usageSource ?? "reported";
+          usageComplete = chunk.usageComplete ?? true;
+        }
+      }
+      complete = true;
+      if (usageSource === "estimated") {
+        if (tokensIn === 0) tokensIn = Math.ceil(req.prompt.length / 4);
+        if (tokensOut === 0 && text.length > 0) tokensOut = Math.ceil(text.length / 4);
+      }
+    } finally {
+      // Each HTTP adaptation and transport retry owns an admission reservation.
+      // Only the final completed response can release an allowance with known usage.
+      const final = reservations.pop();
+      for (const reservation of reservations) budget.settle(reservation, 0, false);
+      if (final !== undefined) {
+        const cost = tokenCost(prices, tokensIn, tokensOut);
+        budget.settle(final, cost, complete && usageSource === "reported" && usageComplete);
+        spentUsd = budget.spentUsd;
+        stateFor(ep).costUsd += cost;
+        if (!complete)
+          emit("token.usage", {
+            endpointId: ep.id,
+            sampleIndex,
+            level: "warn",
+            message: "usage retained from an incomplete provider response",
+            payload: { tokensIn, tokensOut, usageSource, usageComplete, complete: false },
+          });
+        if (!complete)
+          emit("budget.status", {
+            level: "warn",
+            message: "provider attempt did not complete; billing allowance retained",
+            payload: budgetPayload(),
+          });
+        if (spentUsd > cfg.maxBudgetUsd)
+          stopForBudget("provider-reported usage exceeded the admission estimate");
       }
     }
-    if (tokensOut === 0 && text.length > 0) tokensOut = Math.ceil(text.length / 4);
     // First answer wins: the served model is a property of the endpoint, and a
     // provider that changes it mid-run would be a finding, not a data point.
     if (servedModel !== null && environment.servedModels[ep.id] === undefined) {
@@ -415,6 +494,8 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       finishReason,
       reasoningTokens,
       servedModel,
+      usageSource,
+      usageComplete,
     };
   };
 
@@ -460,47 +541,15 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     });
   };
 
-  /** budget.status after every sample; HARD stop on projected overrun. */
+  /** Report settlement; admission is checked before every provider request. */
   const finishSample = (): void => {
     samplesDone += 1;
-    const remaining = totalPlanned - samplesDone;
-    const avg = samplesDone > 0 ? spentUsd / samplesDone : 0;
-    const projected = spentUsd + avg * remaining;
     const pct =
       cfg.maxBudgetUsd > 0 ? Math.min(999, Math.round((spentUsd / cfg.maxBudgetUsd) * 100)) : 0;
-    if (
-      !budgetStopped &&
-      !cancelled &&
-      cfg.maxBudgetUsd > 0 &&
-      remaining > 0 &&
-      (spentUsd >= cfg.maxBudgetUsd || projected >= cfg.maxBudgetUsd)
-    ) {
-      budgetStopped = true;
-      emit("budget.status", {
-        level: "warn",
-        message: `projected $${projected.toFixed(2)} ≥ budget $${cfg.maxBudgetUsd.toFixed(2)} — hard stop`,
-        payload: {
-          spentUsd: round4(spentUsd),
-          projectedUsd: round4(projected),
-          ceilingUsd: cfg.maxBudgetUsd,
-        },
-      });
-      emit("run.partial", {
-        level: "warn",
-        message: `${samplesDone}/${totalPlanned} samples · $${spentUsd.toFixed(2)} — budget ceiling reached`,
-        payload: { samplesDone, totalPlanned },
-      });
-      abort.abort(); // cancel remaining/in-flight sample generation
-    } else {
-      emit("budget.status", {
-        message: `$${spentUsd.toFixed(2)} spent · ${pct}% of ceiling`,
-        payload: {
-          spentUsd: round4(spentUsd),
-          projectedUsd: round4(projected),
-          ceilingUsd: cfg.maxBudgetUsd,
-        },
-      });
-    }
+    emit("budget.status", {
+      message: `$${spentUsd.toFixed(2)} spent · ${pct}% of ceiling`,
+      payload: budgetPayload(),
+    });
     saveSnapshot("running");
   };
 
@@ -524,6 +573,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     let gen: GenResult | null = null;
     let transportError = "";
     const maxAttempts = 1 + Math.max(0, cfg.transportRetries);
+    const costBefore = st.costUsd;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         gen = await streamOnce(provider, ep, s, injectFailure);
@@ -531,6 +581,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       } catch (err) {
         if (stopRequested()) return; // aborted by cancel/budget — not a sample failure
         transportError = errorMessage(err);
+        if (err instanceof ProviderSafetyError || err instanceof BudgetAdmissionError) break;
         if (attempt < maxAttempts) st.retries += 1;
       }
     }
@@ -543,7 +594,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
         `sample ${s}: transport failure — ${transportError}`,
         null,
         [],
-        0,
+        st.costUsd - costBefore,
         false,
       );
       st.samplesFinished += 1;
@@ -552,9 +603,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     }
 
     // -- cost + usage ---------------------------------------------------
-    const cost = tokenCost(ep, gen.tokensIn, gen.tokensOut);
-    spentUsd += cost;
-    st.costUsd += cost;
+    const cost = st.costUsd - costBefore;
     st.tokensOut += gen.tokensOut;
     if (st.ttftMs === null) st.ttftMs = gen.ttftMs;
     st.latencies.push(gen.latencyMs);
@@ -567,7 +616,14 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       sampleIndex: s,
       message: `${(gen.tokensOut / 1000).toFixed(1)}k out · ${toksPerSec} tok/s${reasoningNote}`,
       // ttftMs: request start → first streamed delta (measured in streamOnce)
-      payload: { tokensIn: gen.tokensIn, tokensOut: gen.tokensOut, toksPerSec, ttftMs: gen.ttftMs },
+      payload: {
+        tokensIn: gen.tokensIn,
+        tokensOut: gen.tokensOut,
+        toksPerSec,
+        ttftMs: gen.ttftMs,
+        usageSource: gen.usageSource,
+        usageComplete: gen.usageComplete,
+      },
     });
     /**
      * Truncation is a harness limit, not a model result. Surface it loudly and
@@ -621,6 +677,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     try {
       outcome = await checksRunner(extracted.html, {
         screenshotPath,
+        signal: abort.signal,
         ...(options.browserWatchdogMs !== undefined
           ? { watchdogMs: options.browserWatchdogMs }
           : {}),
@@ -837,6 +894,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     let gen: GenResult | null = null;
     let transportError = "";
     const maxAttempts = 1 + Math.max(0, cfg.transportRetries);
+    const costBefore = st.costUsd;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         gen = await streamOnce(provider, ep, s, false, task, answerWrong);
@@ -844,6 +902,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       } catch (err) {
         if (stopRequested()) return; // aborted by cancel/budget — not a sample failure
         transportError = errorMessage(err);
+        if (err instanceof ProviderSafetyError || err instanceof BudgetAdmissionError) break;
         if (attempt < maxAttempts) st.retries += 1;
       }
     }
@@ -856,7 +915,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
         `sample ${s}: transport failure — ${transportError}`,
         null,
         [],
-        0,
+        st.costUsd - costBefore,
         false,
       );
       st.samplesFinished += 1;
@@ -865,9 +924,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
     }
 
     // -- cost + usage ---------------------------------------------------
-    const cost = tokenCost(ep, gen.tokensIn, gen.tokensOut);
-    spentUsd += cost;
-    st.costUsd += cost;
+    const cost = st.costUsd - costBefore;
     st.tokensOut += gen.tokensOut;
     if (st.ttftMs === null) st.ttftMs = gen.ttftMs;
     st.latencies.push(gen.latencyMs);
@@ -879,7 +936,14 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
       message: `${(gen.tokensOut / 1000).toFixed(1)}k out · ${toksPerSec} tok/s${
         gen.reasoningTokens > 0 ? ` · ${fmtTokens(gen.reasoningTokens)} reasoning` : ""
       }`,
-      payload: { tokensIn: gen.tokensIn, tokensOut: gen.tokensOut, toksPerSec, ttftMs: gen.ttftMs },
+      payload: {
+        tokensIn: gen.tokensIn,
+        tokensOut: gen.tokensOut,
+        toksPerSec,
+        ttftMs: gen.ttftMs,
+        usageSource: gen.usageSource,
+        usageComplete: gen.usageComplete,
+      },
     });
     const truncated = gen.finishReason === "length";
     if (truncated) {
@@ -1061,6 +1125,7 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
           addSpendUsd: (usd) => {
             spentUsd += usd;
           },
+          budget,
           shouldStop: stopRequested,
           signal: abort.signal,
         });
@@ -1091,7 +1156,12 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
         message: `${samplesDone} samples · $${spentUsd.toFixed(2)}${samplesFailed > 0 ? ` · ${samplesFailed} sample fail preserved` : ""}${judgeRan ? ` · ${judgePairs.length} judge pairs · ${judgeReversalCount} reversal(s)` : ""}`,
       });
     }
-    // run.partial was already emitted at the moment of the budget stop
+    if (status === "partial")
+      emit("run.partial", {
+        level: "warn",
+        message: `${samplesDone}/${totalPlanned} samples · $${spentUsd.toFixed(2)} — budget admission stopped new calls`,
+        payload: { samplesDone, totalPlanned, ...budgetPayload() },
+      });
     saveSnapshot(
       status === "completed" ? "completed" : status === "partial" ? "partial" : "cancelled",
     );

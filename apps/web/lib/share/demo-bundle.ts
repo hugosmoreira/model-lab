@@ -89,9 +89,8 @@ export function buildDemoBundleZip(): Buffer {
       "   (same pack version, prompt, temperature, seed, samplesPerModel).",
       "2. `startRun(config)` with @model-lab/build-arena-runner — an identical",
       "   config yields the same fingerprint, so results are comparable.",
-      "3. Artifacts are untrusted model output: open only inside a sandboxed",
-      "   iframe/viewer (network blocked). Never open them directly in a browser",
-      "   with network access.",
+      "3. Artifacts are untrusted model output. Use Model Lab's captured previews.",
+      "   Execute source only in a trusted, isolated runner environment; see SECURITY.md.",
     ].join("\n"),
   );
 

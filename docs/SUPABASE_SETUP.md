@@ -2,7 +2,10 @@
 
 Model Lab is local-first: the default `memory` store needs no setup, and
 `MODEL_LAB_STORE=sqlite` persists runs to a local file. Use Supabase when you
-want hosted persistence that several machines share. Prepare it like this:
+want hosted metadata. This backend remains experimental until its migrations
+and runtime behavior have been validated on your isolated project. Artifact
+files remain local, so sharing metadata does not make multiple independent
+servers share complete run evidence.
 
 ## 1. Create the project
 
@@ -13,14 +16,19 @@ Next.js server code and the runner.
 
 ## 2. Apply the schema
 
-Open the SQL editor and run [`supabase/migrations/0001_init.sql`](../supabase/migrations/0001_init.sql)
-(or use `supabase db push` with the CLI). It creates all tables with
-deny-by-default RLS (single-user MVP: only the service role reads/writes).
+Apply [0001_init.sql](../supabase/migrations/0001_init.sql), then
+[0002_evaluation_integrity.sql](../supabase/migrations/0002_evaluation_integrity.sql)
+(or use `supabase db push` with the CLI). The first migration enables
+deny-by-default RLS; only the server's service role reads/writes. The second
+validates new evaluation references and prevents changing a final vote.
+Existing orphaned historical annotations are retained for audit purposes.
 
-## 3. Create the storage bucket
+## 3. Preserve local evidence
 
-Storage → New bucket → name **`artifacts`**, **private**. It holds artifact
-HTML files, immutable raw model outputs, screenshots, and run bundles.
+There is no Supabase Storage bucket integration. Keep `MODEL_LAB_DATA_DIR` on
+persistent local storage and include it in backups: it contains raw outputs,
+screenshots, runner snapshots and bundles. Artifact source is also recorded in
+the metadata store; that does not replace the local evidence directory.
 
 ## 4. Environment variables
 

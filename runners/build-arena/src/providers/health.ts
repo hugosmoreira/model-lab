@@ -7,10 +7,10 @@
  * the process; error text is scrubbed before it is returned.
  */
 import { DEFAULT_OLLAMA_BASE_URL } from "./ollama";
-import { scrubSecrets } from "./util";
+import { readBoundedText, scrubSecrets } from "./util";
 
 export type ProviderHealthStatus =
-  "connected" | "disconnected" | "rate-limited" | "no-key" | "unsupported";
+  "connected" | "disconnected" | "rate-limited" | "no-key" | "unsupported" | "mocked";
 
 export interface ProviderHealth {
   providerId: string;
@@ -161,6 +161,20 @@ export async function checkProviderHealth(
       detail: "no health probe for this provider yet",
     };
   }
+  // A forced mock must not contact either cloud providers or local Ollama,
+  // even when keys are present and the caller explicitly requests a refresh.
+  if ((process.env["MODEL_LAB_MOCK_PROVIDERS"] ?? "").trim() === "1") {
+    return {
+      providerId,
+      status: "mocked",
+      latencyMs: null,
+      modelsAvailable: null,
+      credentialEnv: probe.env,
+      endpoint: hostOf(probe.url),
+      checkedAt,
+      detail: "forced mock mode: provider network probes are disabled",
+    };
+  }
   const key = probe.env === null ? null : (process.env[probe.env] ?? "");
   if (probe.env !== null && (key === null || key === "")) {
     return {
@@ -186,12 +200,25 @@ export async function checkProviderHealth(
     let detail: string | null = null;
     if (status === "connected") {
       try {
-        modelsAvailable = probe.count(await res.json());
+        modelsAvailable = probe.count(
+          JSON.parse(
+            await readBoundedText(res.body, {
+              signal: controller.signal,
+              maxBytes: 2 * 1024 * 1024,
+              idleMs: timeoutMs,
+              totalMs: timeoutMs,
+            }),
+          ),
+        );
       } catch {
         modelsAvailable = null;
       }
     } else {
-      const text = await res.text().catch(() => "");
+      const text = await readBoundedText(res.body, {
+        signal: controller.signal,
+        idleMs: timeoutMs,
+        totalMs: timeoutMs,
+      }).catch(() => "");
       detail = scrubSecrets(`HTTP ${res.status}${text !== "" ? `: ${text.slice(0, 120)}` : ""}`);
     }
     return {

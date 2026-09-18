@@ -1,85 +1,105 @@
 # Deploying Model Lab
 
-Model Lab is a long-lived process, not a set of functions: runs execute inside
-the server, the live page replays from an in-memory ring buffer, the browser
-checks need a real Chromium, and artifacts and screenshots go to local disk.
-Serverless hosts break all four. Deploy it as **one container with a volume**.
+Model Lab needs one long-lived Node process, Chromium and persistent local disk.
+The supported release profile is a single Linux amd64 container with SQLite and
+a volume. Memory storage is an ephemeral fixture workspace; Supabase remains
+experimental. Serverless and horizontally scaled deployment are unsupported.
+The [release plan](RELEASE_PLAN.md) records candidate verification and publication
+gates; a local Docker build is not a published or certified release.
 
-The API has **no authentication and no rate limiting** (see
-[SECURITY.md](../SECURITY.md)). That decides which of the two profiles below
-you run.
+The API has no authentication or rate limiting. Read the [security policy](../SECURITY.md)
+before providing keys or remote access.
 
-## Profile A — public demo (read-only, zero spend)
-
-Serves the UI and any results in its data directory; refuses new runs, votes
-and annotations; can never spend money because no key is present and every
-provider is the deterministic mock.
+## Public demo: keyless and read-only
 
 ```bash
-docker build -t model-lab .
-docker run --rm -p 3000:3000 -v model-lab-data:/data \
+docker build -t model-lab:local .
+docker run --rm --init -p 127.0.0.1:3000:3000 -v model-lab-data:/data \
   -e MODEL_LAB_MOCK_PROVIDERS=1 \
   -e MODEL_LAB_READ_ONLY=1 \
-  model-lab
+  model-lab:local
 ```
 
-`MODEL_LAB_READ_ONLY=1` makes `POST /api/runs`, `/votes` and `/annotations`
-answer `403` with an explanation; every page and `GET` keeps working.
-`/api/health/store` reports `readOnly: true`.
+Put an HTTPS reverse proxy in front of this loopback binding for a hosted demo.
+No provider or service-role keys belong in this profile. The SQLite volume starts
+empty. Publish only deliberately selected, reviewed results; never copy an entire
+private operator data directory into a public demo. Historical example evidence
+is labeled with its original methodology.
 
-To show real results on a demo instance, copy a run's data directory into the
-volume before starting, or start once without `MODEL_LAB_READ_ONLY` on a
-trusted network, run the benchmark, then restart read-only.
+All run, vote and annotation mutations return 403. Read pages and exports remain
+available, and `/api/health/store` reports `readOnly: true`. Artifact previews show
+captured PNGs. A keyless empty instance is a valid demo, not a fabricated benchmark.
 
-## Profile B — private instance (real keys)
+## Private instance: authenticated access
 
-The same image with provider keys and the judge enabled. Put authentication in
-front of it — Cloudflare Access, Tailscale, or basic auth at the reverse proxy —
-and never expose it to the public internet as is.
+Provide authentication at the reverse proxy for the entire application, including
+API and event routes. Configure the one external origin explicitly; the app does
+not trust arbitrary forwarded-host headers. For a local writable mock rehearsal:
 
 ```bash
-docker run --rm -p 3000:3000 -v model-lab-data:/data \
-  -e ANTHROPIC_API_KEY=... -e OPENAI_API_KEY=... \
-  -e MODEL_LAB_STORE=sqlite \
-  model-lab
+docker run --rm --init -p 127.0.0.1:3000:3000 -v model-lab-data:/data \
+  -e MODEL_LAB_APP_ORIGIN=http://localhost:3000 \
+  -e MODEL_LAB_MOCK_PROVIDERS=1 \
+  model-lab:local
 ```
 
-Local models: point `OLLAMA_BASE_URL` at an Ollama server the container can
-reach (on Docker Desktop, `http://host.docker.internal:11434/v1`). In practice
-the GPU box is your own machine, so this profile usually runs there with
-`pnpm build && pnpm --filter @model-lab/web start` rather than in a container.
+Open exactly `http://localhost:3000`. In an authenticated HTTPS installation,
+set `MODEL_LAB_APP_ORIGIN=https://your-host.example` instead. Same-origin JSON
+requests are required on write APIs. This origin check is not authentication.
 
-## What the image contains
+To enable real providers, remove forced mock mode and inject only the required
+keys through your host's secret configuration. Do not put credentials in the
+Dockerfile, image, repository or published command history. Budget limits govern
+estimated admission; they do not guarantee the provider's invoice total.
 
-- Base: `node:22-bookworm-slim`, plus exactly the browser the checks launch —
-  Playwright's headless Chromium shell for the `playwright` version in
-  `pnpm-lock.yaml`, installed with its system libraries at image build time.
-  About 2 GB in total; the full Playwright base image with three browsers was
-  over 4 GB.
-- The production build of `apps/web` plus the runner and store packages.
-- Defaults: `MODEL_LAB_STORE=sqlite`, `MODEL_LAB_DATA_DIR=/data`,
-  `MODEL_LAB_SQLITE_PATH=/data/model-lab.db`, port `3000`, a health check on
-  `/api/health/store`.
+An Ollama endpoint runs locally without a cloud key when forced mock mode is off.
+Set `OLLAMA_BASE_URL` to an address reachable by the container. On Docker Desktop
+this is commonly `http://host.docker.internal:11434/v1`. Restrict access to that
+service according to your deployment network.
 
-Mount `/data` on a volume: it holds the SQLite database, artifacts, raw model
-outputs, screenshots, and exported bundles.
+## Runtime and storage
 
-## Hosts that fit
+The Dockerfile pins its Node base and Chrome Headless Shell archive, installs
+browser system libraries, builds the app, and runs as UID/GID 1000. Browser version
+gates reject older executables before artifact execution. A named
+volume inherits writable `/data` permissions on first creation. A bind mount must
+already permit UID 1000 to read and write it. Use `--init` to reap browser children.
+The image health check calls `/api/health/store`.
 
-Any host that runs a container with a persistent volume: Fly.io (`fly launch`
-picks up the Dockerfile; add a volume for `/data`), Railway, Render, or a
-Hetzner box with Coolify. Give it at least 1 GB of memory — Chromium runs the
-browser checks for every sample.
+| Setting | Container default | Purpose |
+| --- | --- | --- |
+| `MODEL_LAB_STORE` | `sqlite` | Metadata persistence |
+| `MODEL_LAB_DATA_DIR` | `/data` | Artifacts, raw output, screenshots, local run snapshots and bundles |
+| `MODEL_LAB_SQLITE_PATH` | `/data/model-lab.db` | SQLite metadata and associated journal files |
+| `MODEL_LAB_APP_ORIGIN` | unset | Required exact public origin for non-loopback writes |
+| `MODEL_LAB_MOCK_PROVIDERS` | unset | Set `1` for a provider-free rehearsal |
+| `MODEL_LAB_READ_ONLY` | unset | Set `1` to deny mutations |
 
-## Environment reference
+SQLite and artifact paths are independent outside the container; changing the data
+directory does not relocate an explicitly configured SQLite database. Back up both.
+See [the environment example](../.env.example) for all settings and startup precedence.
+Supabase stores metadata, not artifact files; see [its setup guide](SUPABASE_SETUP.md).
 
-See [`.env.example`](../.env.example) for every variable. The ones that matter
-for deployment:
+One web process may share the local SQLite store with the checkout CLI. Owner
+records and heartbeats distinguish an active run from a stopped process. On a
+subsequent reconciliation, stale owned runs become `partial` with an interruption
+event. Ambiguous live process IDs and legacy runs without owner records cannot be
+safely classified automatically. Recovery preserves local evidence but does not
+rehydrate every partial snapshot into database samples or retry provider requests.
+This is a single-host design, not a distributed job queue.
 
-| Variable                   | Demo                | Private              |
-| -------------------------- | ------------------- | -------------------- |
-| `MODEL_LAB_MOCK_PROVIDERS` | `1`                 | unset                |
-| `MODEL_LAB_READ_ONLY`      | `1`                 | unset                |
-| provider keys              | none                | as needed            |
-| `MODEL_LAB_STORE`          | `sqlite` (default)  | `sqlite` / `supabase`|
-| `MODEL_LAB_DATA_DIR`       | `/data` (default)   | `/data` (default)    |
+Chromium can use substantial memory and CPU. The synthetic release smoke records
+observed image/runtime measurements in its report; these are not production sizing
+guarantees. Choose container limits and concurrency using representative workloads.
+
+## Backup, restore and promotion
+
+Stop writes and the application before copying the volume, including SQLite and
+its sidecars plus all evidence. Restore to a separate volume first, start read-only,
+and check health, recorded results and an exported bundle. Retain the original
+backup when changing versions. Roll back the application together with a compatible
+data snapshot; never assume an older build can safely open newer storage.
+
+[Release operations](RELEASE_OPERATIONS.md) contains the executable image, restart,
+backup/restore and publication checks. Publishing a GitHub repository or GHCR image
+does not host the application. A public hosted demo is a separate deployment step.

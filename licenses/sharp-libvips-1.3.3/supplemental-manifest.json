@@ -1,0 +1,38 @@
+[
+  {
+    "file": "GPL-3.0.txt",
+    "url": "https://www.gnu.org/licenses/gpl-3.0.txt",
+    "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+    "bytes": 35149
+  },
+  {
+    "file": "LGPL-3.0.txt",
+    "url": "https://www.gnu.org/licenses/lgpl-3.0.txt",
+    "sha256": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118",
+    "bytes": 7652
+  },
+  {
+    "file": "glib-without-gregex.patch.txt",
+    "url": "https://gist.github.com/kleisauke/284d685efa00908da99ea6afbaaf39ae/raw/bdad5489a61c217850631571caf57f5db6ea8b2c/glib-without-gregex.patch",
+    "sha256": "b1f2930a11292e529de137c7eb723850e0cc0969b1a2b0358196389312acd272",
+    "bytes": 7759
+  },
+  {
+    "file": "mozjpeg-overflow.patch.txt",
+    "url": "https://github.com/mozilla/mozjpeg/commit/f90668e0e4fb79c81e1f24a0ccc0e2090af761bf.patch",
+    "sha256": "a65f87cadf3a6052e44d6314c906f6e2891352f82646b8a6f0b8fcf2c1891e7c",
+    "bytes": 8103
+  },
+  {
+    "file": "libultrahdr-platform.patch.txt",
+    "url": "https://patch-diff.githubusercontent.com/raw/google/libultrahdr/pull/383.patch",
+    "sha256": "57658db2a11ae964755e513b01db21bcfa408c350b11b3a6ef9bc8576fb749ba",
+    "bytes": 7567
+  },
+  {
+    "file": "libvips-soname.patch.txt",
+    "url": "https://gist.githubusercontent.com/lovell/313a6901e9db1bf285f2a1f1180499e4/raw/3988223c7dfa4d22745d9392034b0117abef1446/libvips-cpp-soversion.patch",
+    "sha256": "256b7d6f8c973bb53b20cff5171c7117d6b35d3aa4e72d22cb906f4fe1e2c890",
+    "bytes": 514
+  }
+]

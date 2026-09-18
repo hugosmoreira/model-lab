@@ -17,7 +17,7 @@ import type {
   SampleResult,
 } from "@model-lab/schemas";
 
-export const RUNNER_VERSION = "build-arena-runner v0.1.0";
+export const RUNNER_VERSION = "build-arena-runner v0.2.0-rc.1";
 
 export type BaseKind = "anthropic" | "openai-compatible" | "ollama" | "mock";
 
@@ -29,7 +29,7 @@ export interface EndpointConfig {
   baseKind: BaseKind;
   /** provider-facing model name (may differ from modelId, e.g. openrouter) */
   model: string;
-  priceInPerMtokUsd: number | null; // null => free/local, accounted as $0
+  priceInPerMtokUsd: number | null; // null is free only for mock/local endpoints
   priceOutPerMtokUsd: number | null;
   supportsSeed: boolean;
   /** explicit base URL override (openai-compatible / ollama) */
@@ -83,7 +83,7 @@ export interface RunnerConfig {
   maxOutputTokens: number;
   seed: number | null; // null = unseeded run-wide
   concurrency: number; // endpoints in parallel; samples per endpoint are sequential
-  maxBudgetUsd: number; // HARD ceiling — projected overrun stops the run
+  maxBudgetUsd: number; // conservative pre-call admission ceiling; provider invoices remain authoritative
   transportRetries: number; // per-sample transport retries (generation retries: none)
   /** mock provider only: force one (endpoint, sample) to emit a broken artifact */
   failSample?: { endpointId: string; sampleIndex: number };
@@ -105,6 +105,10 @@ export type ProviderChunk =
       type: "usage";
       tokensIn: number;
       tokensOut: number;
+      /** Missing usage is estimated, never silently represented as provider-reported. */
+      usageSource?: "reported" | "estimated";
+      /** False for intermediate/partial records; only final usage releases a reservation. */
+      usageComplete?: boolean;
       /** null when the provider reported none */
       finishReason?: FinishReason | null;
       /** hidden reasoning tokens billed inside tokensOut (0 when none/unknown) */
@@ -140,6 +144,8 @@ export interface GenerateRequest {
   images?: RequestImage[];
   seed?: number;
   signal?: AbortSignal;
+  /** Internal admission hook before a provider adapter repeats its HTTP request. */
+  beforeRetry?: () => void;
   /** mock determinism: output varies per (model, sampleIndex) */
   sampleIndex?: number;
   /** mock failure path: emit the null-canvas-bug artifact */
