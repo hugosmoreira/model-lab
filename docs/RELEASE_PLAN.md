@@ -294,9 +294,20 @@ in the original image. Debian 13 updates, runtime installer removal, patched Chr
 and removal of unused native decoders/Xvfb reduce that surface. These package
 matches require individual review; they are not independent validated attack paths.
 [Native advisory review](CONTAINER_ADVISORY_REVIEW.md) records the distinctions.
-A generated JPEG's metadata can reach the installed Expat parser, so its upstream
-security update is being prototyped rather than dismissed as an unused dependency.
-The final image scan must still pass the strict publication gate.
+A generated JPEG's metadata can reach Expat. The image now builds the unmodified,
+SHA-verified upstream 2.8.4 release as a same-ABI Debian package; upstream tests,
+normal/adversarial XML controls, all 72 ABI exports, actual browser loading and
+retained source/license/build provenance were verified independently. All-layer
+checks exclude older Expat binaries and the removed Sharp bundle.
+
+The final development image is
+`sha256:d5e17b681522e2ce14ef322958e416458c132f24fef25800ffece3190e2af67b`.
+Its full runtime gate passes. The 2026-09-18 advisory database reports 54 HIGH and
+one CRITICAL native-package occurrences (20 unique advisory IDs), with zero matches
+across 353 identified Node packages. The Debian feed still matches the local Expat
+build despite its independently verified fixes; those records remain visible.
+Unresolved libxml2/native findings and binary distribution questions keep the strict
+publication gate blocked. No blanket suppression or vulnerability waiver was added.
 
 Retained notices and source provenance are recorded in
 [third-party notices](../THIRD_PARTY_NOTICES.md). Binary distribution questions,
@@ -331,7 +342,14 @@ mitigation decision. New security findings are triaged before promotion.
 
 ### R11. Prepare the GitHub publication
 
-Status: preparation in progress; publication remains open and depends on R10.
+Status: [private draft PR #3](https://github.com/hugosmoreira/model-lab/pull/3)
+created from `codex/release-hardening`. Implementation commit
+`62fbed43b5f4bed1108d58855a9002b9d0a07896` passed the complete application CI job.
+The first Linux secret job exposed report-directory ownership after capabilities
+were dropped; the host-UID/GID correction is reproduced and regression-tested.
+CI verification of that correction and the image job continues on the draft.
+Publication remains open and depends on R10. Earlier preparation PRs were not
+merged or closed.
 
 Create a release packet containing the exact commit, proposed tag, changelog,
 migration notes, supported platform/storage matrix, known limitations, image
@@ -393,14 +411,15 @@ it; demonstrate its remediation or a verified mitigation that removes the path.
 | R1–R3: application safety | Verified; native image review tracked under R10 | Guard, browser-boundary, stream and diagnostic regressions; every-layer secret/state exclusions |
 | R4–R6: spending and evidence | Verified for supported local stores | Budget/provider regressions, evidence compatibility, memory/SQLite conformance and concurrent final votes |
 | R7–R9: product and replay | Verified | Full production flow, keyboard navigation, 390/412/1024 px layouts, three PNG export sizes, real error/404 states, replay and frontend tests |
-| R10: distributable | Functional checks pass; native advisory/distribution gates open | Unprivileged offline CLI/HTTP runs, origin checks, immutable evidence, every-layer exclusions, restart/crash/restore and read-only checks; zero npm advisory matches |
-| R11: GitHub release | Prepared locally; unpublished | Aligned candidate versions and manual release workflow; exact commit/CI/digest pending |
+| R10: distributable | Functional checks pass; native advisory/distribution gates blocked | Final development image `d5e17b6`; all-layer exclusions, upstream Expat fix/ABI/provenance, CLI/HTTP/restart/crash/restore checks; raw scan retains 54 HIGH / 1 CRITICAL native matches |
+| R11: GitHub release | Private draft PR #3; unpublished | Implementation commit `62fbed4`, aligned candidate versions and manual release workflow; exact-revision CI and publication gates pending |
 | R12: demo / new benchmark claims | Optional / open | Add selected target and relevant runtime/evidence checks |
 
-Next: finish the bounded native-library remediation and package review, and
-prepare a private review candidate with an exact
-commit and evidence. Full workspace tests, typecheck, lint, formatting and the
-production build have passed on the repaired application. The final offline
+Next: complete exact-revision CI on private draft PR #3, then resolve the documented
+native advisory and binary distribution gates before image promotion. A source-only
+release can be reviewed separately; it must not imply container certification.
+Full workspace tests, typecheck, lint, formatting and the production build have
+passed on the repaired application. The final offline
 tree/history secret scan passes with zero unresolved findings; one exact public
 Chromium revision pin is retained as a reviewed match with its full blob hash.
 Public repository/package visibility, release publication and hosted deployment

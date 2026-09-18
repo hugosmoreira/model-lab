@@ -99,6 +99,11 @@ Prepared locally; no GitHub release or container publication has occurred.
   runs Node directly, and excludes unused Sharp decoders, Xvfb and package-manager
   installers from its active runtime. Native-library advisory and binary-license
   review remain publication gates.
+- The Linux image replaces Debian's older Expat with unmodified upstream 2.8.4,
+  built from a verified archive in a separate stage. Upstream tests, binary ABI,
+  actual browser loading, every-layer exclusion of old libraries, and retained
+  license/source/build provenance are checked. Raw distro advisory matches remain
+  visible for review; other native findings are unresolved.
 - Next.js 15.5.25 (patches two critical advisories in 15.5.22); postcss,
   nanoid, and sharp pinned past their advisories; adm-zip replaced by fflate.
 - Node 22.13 or newer is now declared and enforced (`node:sqlite` unflagged).

@@ -6,11 +6,13 @@ image's `MIT` label describes Model Lab; it does not relicense the image's conte
 
 This document records the active filesystem of the Linux/amd64 candidate inspected
 on 2026-09-18, image
-`sha256:8e468e965d0e5b45c1029980ed10e2d92e09d36606bb07ecb61193f7e7c930c9`.
+`sha256:d5e17b681522e2ce14ef322958e416458c132f24fef25800ffece3190e2af67b`.
 It uses Node 22.23.2, Playwright 1.63.0 and the official CfT headless-shell
 153.0.8010.52 asset. The final release report must bind these records to the
-publication digest, verify supplemental notices in the rebuilt image and check
-removed binaries are absent from every image layer.
+publication digest. This image's supplemental notices and all four Expat license,
+source and build-provenance files were verified. All-layer inspection confirms
+the unused Sharp bundle and older Expat libraries are absent. The image records
+a development snapshot, not an exact-commit release certification.
 
 ## Where the retained notices are
 
@@ -24,8 +26,8 @@ headers or README text and is not, by itself, a finding that a license is absent
 | JavaScript packages and platform bindings | `/app/node_modules/.pnpm/<package-resolution>/node_modules/<package>/`; retain their `LICENSE*`, `COPYING*`, `NOTICE*`, copyright files and embedded source notices |
 | Node and its bundled components | `/usr/local/LICENSE` |
 | Chromium headless shell and its component notices | `/ms-playwright/153.0.8010.52/linux-x64/chrome-headless-shell-linux64/LICENSE.headless_shell` (2,257,005 bytes; SHA-256 `b92247f7a44c14627ef5cbbe0aa6dcca4e4422b7c05e6f2c660054061a5e3da7`) |
-| Debian libraries, utilities and fonts | `/usr/share/doc/<package>/copyright`; 190 such files were recorded, with referenced texts also under `/usr/share/common-licenses/` |
-| Supplemental notices added after this inspection | `/app/licenses/` and `/app/THIRD_PARTY_NOTICES.md` in the rebuilt candidate; [collection provenance](licenses/README.md) |
+| Debian libraries, utilities and fonts | `/usr/share/doc/<package>/copyright`; 172 such files were recorded, with referenced texts also under `/usr/share/common-licenses/` |
+| Supplemental notices verified in this image | `/app/licenses/` and `/app/THIRD_PARTY_NOTICES.md`; 151 indexed files; [collection provenance](licenses/README.md) |
 
 The image's JSON inventory records exact package versions, paths and notice
 SHA-256 hashes. Generate it from the candidate, with networking disabled:
@@ -39,14 +41,16 @@ The inventory does not enumerate every nested Rust/C/C++ component. Global npm,
 Corepack and `/pnpm` are absent from this candidate's active filesystem. Its
 retained workspace development dependencies remain distributed components.
 Sharp and its `@img/sharp-*` bindings, Xvfb and the separate Playwright FFmpeg
-program have been removed from the runtime; the final layer inventory must
-confirm their complete exclusion. The browser still has its own FFmpeg component.
+program have been removed from the runtime. The saved-layer inventory confirms
+Sharp and older Expat binaries are absent from all 14 image layers. The browser
+still has its own FFmpeg component.
 
 ## Components requiring particular attention
 
 | Component in this candidate | Recorded license and source reference | Distribution action |
 | --- | --- | --- |
 | CfT `chrome-headless-shell@153.0.8010.52` | Shipped Chromium BSD-style license plus collected component terms; [exact artifact/source evidence](licenses/chrome-headless-shell-153.0.8010.52/README.md) | Retain the complete notice. Establish the applicable headless-shell product terms and covered-source delivery route before binary publication. |
+| `libexpat1@2.8.4-0modellab1` | MIT; unmodified [upstream 2.8.4](https://github.com/libexpat/libexpat/releases/tag/R_2_8_4), SHA-256 `656ae1cc8da3b4ea513bb4e254f33e6243938084c0ec6239da873376b09985a7` | The local same-ABI package replaces Debian's older parser. `/usr/share/doc/libexpat1/` retains `copyright`, `changelog`, `build-recipe.sh` and `source-provenance.txt`; final-image checks verify their hashes. |
 | `axe-core@4.13.0` | MPL-2.0; [versioned source](https://github.com/dequelabs/axe-core/tree/v4.13.0). Package includes `LICENSE` and `LICENSE-3RD-PARTY.txt`. | Retain both notices and provide a working source route for the covered version. |
 | `lightningcss@1.32.0` and `lightningcss-linux-x64-gnu@1.32.0` | MPL-2.0; [versioned source](https://github.com/parcel-bundler/lightningcss/tree/v1.32.0). Both include `LICENSE`. | Retain notices and account for the native binding's covered source and bundled components. |
 | `caniuse-lite@1.0.30001806` | CC-BY-4.0; package author Ben Briggs; [Browserslist source](https://github.com/browserslist/caniuse-lite) and [Can I Use data](https://caniuse.com/) | Retain attribution and license notice. Record any changes to distributed data. Model Lab has not intentionally modified this installed package. |

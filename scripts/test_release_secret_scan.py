@@ -10,10 +10,27 @@ from pathlib import Path
 import os
 import subprocess
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 from release_secret_scan import PUBLIC_REFERENCE, ROOT, review_scan
+import image_vulnerability_scan
+import release_secret_scan
+
+
+class ScannerUserTest(unittest.TestCase):
+    def test_posix_scanners_use_host_uid_and_gid(self):
+        for module in (release_secret_scan, image_vulnerability_scan):
+            with self.subTest(scanner=module.__name__):
+                with patch.object(module, "os", SimpleNamespace(name="posix", getuid=lambda: 1001, getgid=lambda: 1002)):
+                    self.assertEqual(module.scanner_user_args(), ["--user", "1001:1002"])
+
+    def test_windows_scanners_preserve_default_user_without_posix_apis(self):
+        for module in (release_secret_scan, image_vulnerability_scan):
+            with self.subTest(scanner=module.__name__):
+                with patch.object(module, "os", SimpleNamespace(name="nt")):
+                    self.assertEqual(module.scanner_user_args(), [])
 
 
 class PublicReferenceReviewTest(unittest.TestCase):

@@ -50,7 +50,9 @@ only after matching its rule, path, line and whole-file SHA-256 to the reviewed
 public blob. History classification reads the scanned commit's blob, not today's
 working file. Raw finding metadata and scanner exit codes remain in the report;
 zero unresolved findings is the gate. Changed bytes, unrelated matches, absent
-reports and scanner errors still fail. The accompanying eight regression tests
+reports and scanner errors still fail. Linux scans run as the host UID/GID so
+restricted scanner containers can write their isolated reports without restored
+capabilities. The accompanying ten regression tests
 exercise these distinctions.
 
 The image vulnerability check downloads a public advisory database with no

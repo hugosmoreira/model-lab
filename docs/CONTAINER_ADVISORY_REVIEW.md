@@ -6,13 +6,12 @@ the supplied remediation scan. Repeated occurrences across Debian binary
 packages are retained in the scanner report; this review explains each unique
 advisory. It does not certify the container or replace the release gates.
 
-**Publication is not cleared by this review.** The Expat attribute-processing
-parser is reachable from generated artifacts, while its impact beyond the
-documented hostile-program CPU model still needs evidence. Several other
-installed-library findings have unresolved reachability questions. Work to
-replace Expat with upstream version 2.8.4 is underway; no final image containing
-that remediation has been verified here, and this document does not claim it is
-fixed.
+**Publication is not cleared by this review.** The three reviewed Expat
+advisories are fixed by the verified upstream 2.8.4 library in image `d5e17b6`
+identified below. This is a scoped source, binary and runtime verification;
+several other native-library findings still have unresolved reachability
+questions. Raw scanner findings remain unsuppressed and are distinct from
+these advisory-specific conclusions.
 
 ## Evidence identity and limits
 
@@ -39,10 +38,21 @@ Sharp layers were being corrected:
 sha256:5ac2934cd773f37da913f287e5e1116fe04a892f954a047e0aff97abb40f8b7c
 ```
 
-The last image was **not independently reverified by this review**. Neither a
-tag nor a statement that binaries are unchanged transfers evidence to a new
-immutable image automatically. The eventual Expat-remediated image will also
-need its own identity and verification.
+Image `5ac2934` subsequently supplied the old Expat 2.8.3 ELF export baseline;
+its entire runtime inventory was not independently reverified here. The final
+Expat verification described below targets `model-lab:release-expat-notices-check`:
+
+```
+sha256:d5e17b681522e2ce14ef322958e416458c132f24fef25800ffece3190e2af67b
+```
+
+An earlier Expat candidate, `273b1e13c8fc2c951c22df7876d27b45a3e97522e5d1f138d7f33a95c20716a3`,
+contained the patched library but omitted three promised provenance files due
+to Debian slim's documentation filters. It is superseded by `d5e17b6`, whose
+four notice files were independently verified. A changed image requires its
+own verification; neither a tag nor a statement that binaries are unchanged
+automatically transfers these conclusions. The historical non-Expat
+observations below retain their original image scope.
 
 The local source checkout was based on commit
 `ac8479891660ec9bdc89690c7283d82dafb0fcc6` with ongoing uncommitted release work.
@@ -51,10 +61,12 @@ That commit alone does not identify the reviewed source snapshot or image.
 Inspection used temporary, read-only containers, no host mounts and
 `--network none`. It read selected package metadata, executable presence,
 permissions, and ELF dynamic imports/dependencies. Public Debian and upstream
-advisory/source material was consulted separately. No application or exploit
-probe was run for this review; no real environment file, credential, private
-database or private artifact was read. A scan of system shared-library import
-tables is not proof that arbitrary runtime `dlopen`/`dlsym` behavior is absent.
+advisory/source material was consulted separately. The initial triage used no
+application or exploit probe. The subsequent Expat verification inspected
+synthetic build/test evidence and independently ran a bounded offline browser
+blank-page check. No real environment file, credential, private database or
+private artifact was read. A scan of system shared-library import tables is
+not proof that arbitrary runtime `dlopen`/`dlsym` behavior is absent.
 
 ## Supported boundary
 
@@ -110,9 +122,9 @@ does not prove a native parser thread terminates promptly.
   with this particular system-libxml2 dependency.
 
 The candidate Dockerfile purges Xvfb and strips SUID/SGID bits under `/usr`.
-The old image demonstrably retained SUID/SGID programs. Final permission
-verification is still required; source instructions alone do not prove that
-the published filesystem has those permissions.
+The old image demonstrably retained SUID/SGID programs. The final `d5e17b6`
+release smoke report now records no such programs under `/usr`; this is a
+deployment mitigation, not a patch for every privileged-call advisory.
 
 ## Expat source-to-parser trace
 
@@ -158,19 +170,119 @@ This bypasses the particular Expat `getentropy` bug. It must not be described
 as a cryptographically secure salt. No custom unknown-encoding handler is
 registered by this source.
 
+## Verified Expat 2.8.4 replacement in d5e17b6
+
+The tracked [Dockerfile](../Dockerfile),
+[package recipe](../scripts/container/build-package.sh) and
+[focused verifier](../scripts/container/verify-expat.c) use the complete,
+unmodified upstream release. They do not cherry-pick individual library fixes
+or relabel the old binary. The official
+[release asset listing](https://github.com/libexpat/libexpat/releases/expanded_assets/R_2_8_4)
+and the independently hashed 519,688-byte `expat-2.8.4.tar.xz` agree on:
+
+```
+656ae1cc8da3b4ea513bb4e254f33e6243938084c0ec6239da873376b09985a7
+```
+
+Docker's `ADD --checksum` and the build recipe both enforce that digest.
+Selected extracted source/test files were compared byte-for-byte with the
+archive. The [2.8.4 release](https://github.com/libexpat/libexpat/releases/tag/R_2_8_4)
+and [Changes](https://github.com/libexpat/libexpat/blob/R_2_8_4/expat/Changes)
+are corroborated by the following source-level fixes:
+
+| Advisory | Fix included in the verified release |
+| --- | --- |
+| CVE-2026-66046 | Attribute normalization uses a name-to-default-attribute index rather than repeatedly scanning the default-attribute array. First-declaration behavior is preserved. [Fix](https://github.com/libexpat/libexpat/commit/f8f7c4ffd883e3c2c58f0ebb49416a6c1d248738), [release source](https://github.com/libexpat/libexpat/blob/R_2_8_4/expat/lib/xmlparse.c#L3992). |
+| CVE-2026-76641, required follow-up | `dtdCopy` allocates the new `NAME_AND_DEFAULT_ATTRIBUTE` representation and copies its index correctly. The external-entity DTD-copy regression test checks subsequent attribute normalization. This fixes the intermediate-patch regression; it is not a fourth original Expat finding in the supplied scan. [Fix](https://github.com/libexpat/libexpat/commit/98599f6dcc2b460410881fe420f5f55d6bec63bf), [source](https://github.com/libexpat/libexpat/blob/R_2_8_4/expat/lib/xmlparse.c#L7837), [test](https://github.com/libexpat/libexpat/blob/R_2_8_4/expat/tests/basic_tests.c#L2813), [Debian](https://security-tracker.debian.org/tracker/CVE-2026-76641). |
+| CVE-2026-76956 | The `getentropy` result is tested against zero for success, repairing the inverted result check. This remedies the library independently of Skia's caller-specific salt mitigation. [Fix](https://github.com/libexpat/libexpat/commit/40daa9996d616e66a75dea41ed2b18f2c3901b9f), [source](https://github.com/libexpat/libexpat/blob/R_2_8_4/expat/lib/random_getentropy.c#L57). |
+| CVE-2026-76957 | Conversion/release callbacks are wrapped in handler-state tracking, and destructive or parser-mutating reentry is rejected. The regression tests exercise normal custom conversion/release and prohibited reentry. [Fix](https://github.com/libexpat/libexpat/commit/127b7d4beb8fe7e5ce5cb021c2e56379c95863d0), [source](https://github.com/libexpat/libexpat/blob/R_2_8_4/expat/lib/xmlparse.c#L1203), [tests](https://github.com/libexpat/libexpat/commit/acbd2e1179c04fe9a8c3f3837701904d05de71fc). |
+
+The isolated build stage uses upstream CMake with Debian hardening flags and
+runs the upstream C test harness. It creates a real local Debian package,
+`libexpat1:amd64 2.8.4-0modellab1`, with source `expat`, `Multi-Arch: same`,
+`libc6 (>= 2.36)` dependency metadata and an `ldconfig` trigger. This is a Model
+Lab local build, not an official Debian security package. Build dependencies
+come from the configured Debian repositories; identical future binary output
+is not claimed without preserving the toolchain as well as the source.
+
+The package replaces the distribution library after `apt-get upgrade` in the
+same runtime `RUN` layer. The final image does not ship the compiler, CMake or
+the temporary verifier at their checked paths. Its active Expat directory
+contains only the SONAME symlink and versioned `libexpat.so.1.12.4`. Independent
+read-only inspection of the exact `d5e17b6` image established:
+
+- `/lib/x86_64-linux-gnu/libexpat.so.1` resolves to
+  `/usr/lib/x86_64-linux-gnu/libexpat.so.1.12.4`, SHA-256
+  `2965e832f6b21d4f0039036b5cdc51ec64a134d740427a796e9e5e5de124ff13`.
+- The SONAME remains `libexpat.so.1`, and its only direct needed library is
+  `libc.so.6`. All 72 exported `XML_*` symbols match the old 2.8.3 baseline;
+  every observed direct Chrome XML import listed above resolves. Export
+  compatibility alone is not proof of arbitrary downstream semantic behavior.
+- The actual Chrome 153.0.8010.52 executable successfully rendered
+  `about:blank` with exit zero. `LD_DEBUG=libs` recorded the initialized
+  `/lib/x86_64-linux-gnu/libexpat.so.1`; its resolved path and hash matched the
+  measured replacement. The probe ran as UID 1000 with no network, no host
+  mounts, a read-only root, all capabilities dropped, no-new-privileges,
+  one CPU, 512 MiB memory, 128 PIDs, a 128 MiB temporary filesystem and a
+  20-second process deadline.
+- Explicit copying after package installation retains the four files below.
+  Their contents/hashes were checked independently against the release and
+  recipe, closing the earlier candidate's missing-documentation gap.
+
+| File under `/usr/share/doc/libexpat1/` | SHA-256 |
+| --- | --- |
+| `copyright` | `31b15de82aa19a845156169a17a5488bf597e561b2c318d159ed583139b25e87` |
+| `changelog` | `509f6f07b2999db24d4f0bc174fd83e2af6405156af1897cd4079b85d269739b` |
+| `build-recipe.sh` | `647a355ec7be2e5eaf8e15b366f1cfe8160d3b54725f1570edf5825c50769b4d` |
+| `source-provenance.txt` | `e31e76447fa3a47813a67b83e62f0d0ac41c4b0d59179f692100389c696694e5` |
+
+The upstream `runtests` CTest entry passed in 7.22 seconds in the recorded build
+used by this cached build stage. This one CTest entry runs the upstream C test
+harness; it is not a claim of one test per CVE or a separate entropy test.
+The final runtime-install verifier again reported `expat_2.8.4`, accepted normal
+namespaced XML, rejected mismatched tags and completed the bounded upstream
+PR1321 ATTLIST normalization fixture under a ten-second external timeout.
+Recorded CPU times illustrate the repaired scaling:
+
+| Attributes | Input bytes | Old 2.8.3 prototype baseline, seconds | Final d5e17b6 install check, seconds |
+| --- | --- | --- | --- |
+| 5,000 | 212,802 | 0.006964 | 0.002889 |
+| 10,000 | 427,802 | 0.022394 | 0.005424 |
+| 20,000 | 877,802 | 0.075189 | 0.011519 |
+| 40,000 | 1,777,802 | 0.261624 | 0.024547 |
+
+These are bounded corroborating measurements, not a timing pass threshold or
+an end-to-end malicious JPEG/watchdog experiment. The fix conclusion rests on
+the complete corrected upstream implementation, verified binary installation,
+runtime linkage and legitimate-behavior checks. It does not depend on declaring
+the old reachable parser harmless under the hostile-program CPU policy.
+
+Synthetic evidence is retained in `artifacts-data/expat-remediation/`,
+`artifacts-data/release-check-expat-build.log`,
+`artifacts-data/release-check-expat-notices-build.log` and
+`artifacts-data/release-check-expat-notices.json`. The latter identifies
+`d5e17b6` and reports the full release smoke passed, including browser/CLI/HTTP,
+restart/crash recovery and backup/restore. Its archive inspection covers 14
+layers and 36,167 file entries, with no Sharp package paths or fully versioned
+Expat library other than `1.12.4`. Its actual Playwright browser loader check
+also requires the measured replacement path and hash. These observations
+support this release artifact; they do not resolve the other advisory rows.
+
 ## Individual dispositions
 
 `Not affected` below is scoped to the stated image, component and deployment
 preconditions; it does not declare the Debian source package patched.
 `Needs more evidence` means neither a complete exploitable path nor a complete
 defeating proof was established. Parser reachability alone is not a confirmed
-security-boundary violation.
+security-boundary violation. `Fixed in d5e17b6` refers to the exact Expat binary
+and evidence above; the table preserves historical preconditions rather than
+silently recasting an exposed parser as unreachable.
 
 | CVE | Disposition | Preconditions, evidence and residual question |
 | --- | --- | --- |
-| **CVE-2026-66046** | **Reachable parser; impact needs more evidence** | The JPEG/XMP chain above reaches Expat's vulnerable attribute-processing code. ATTLIST declarations with matching nonnormalized attribute values cause quadratic work without entity declarations, so Skia's entity callback and hash salt do not defeat this condition. Whether it exceeds the accepted hostile-program CPU model depends on measured termination and independent-run recovery. [Upstream](https://github.com/libexpat/libexpat/pull/1321), [Debian](https://security-tracker.debian.org/tracker/CVE-2026-66046). |
-| **CVE-2026-76956** | **Not affected through reviewed Skia caller; other consumers need more evidence** | Skia supplies a nonzero salt instead of using Expat's faulty `getentropy` path. Fontconfig/Mesa do not import the salt-setting API. Their XML inputs appear to be local configuration, but a complete exclusion of less-trusted input was not established for all consumers. [Upstream](https://github.com/libexpat/libexpat/pull/1326), [Debian](https://security-tracker.debian.org/tracker/CVE-2026-76956). |
-| **CVE-2026-76957** | **Not affected in reviewed native consumers** | The flaw requires application-supplied custom encoding conversion/release callbacks reentering the same parser. Exact Skia source registers none; actual browser, Fontconfig and Mesa import tables lack `XML_SetUnknownEncodingHandler`. This conclusion covers the reviewed consumers, not arbitrary added native extensions. [Upstream](https://github.com/libexpat/libexpat/pull/1322), [Debian](https://security-tracker.debian.org/tracker/CVE-2026-76957). |
+| **CVE-2026-66046** | **Fixed in d5e17b6** | The historical JPEG/XMP chain reaches attribute processing. ATTLIST declarations with matching nonnormalized values caused quadratic work without entity declarations; Skia's entity callback and salt did not defeat it. Complete 2.8.4 repairs the algorithm and includes the required 76641 follow-up. The old defect's impact beyond the accepted hostile-program CPU model was not demonstrated. [Upstream](https://github.com/libexpat/libexpat/pull/1321), [Debian](https://security-tracker.debian.org/tracker/CVE-2026-66046). |
+| **CVE-2026-76956** | **Fixed in d5e17b6** | The replacement repairs the library's faulty `getentropy` success check. Historically, Skia's nonzero caller-supplied salt bypassed the bug; Fontconfig/Mesa lacked that API import and complete input exclusion was unproven. The fix does not rely on that exclusion. [Upstream](https://github.com/libexpat/libexpat/pull/1326), [Debian](https://security-tracker.debian.org/tracker/CVE-2026-76956). |
+| **CVE-2026-76957** | **Fixed in d5e17b6** | Complete 2.8.4 repairs custom encoding callback reentry. Historical reviewed Skia source and browser/Fontconfig/Mesa imports did not register the required `XML_SetUnknownEncodingHandler`, supporting caller-specific counterevidence. The patched library additionally closes that API defect. [Upstream](https://github.com/libexpat/libexpat/pull/1322), [Debian](https://security-tracker.debian.org/tracker/CVE-2026-76957). |
 | **CVE-2026-6653** | **Needs more evidence** | Installed libxml2 is vulnerable to the internal-subset parsing use-after-free. The observed system-library consumer is LLVM's Windows manifest parser, not a demonstrated generated-SVG route. No hostile-artifact-to-manifest path was found, but complete caller exclusion is unproven. Scanner CRITICAL does not itself establish code execution; the advisory describes denial of service. [Debian](https://security-tracker.debian.org/tracker/CVE-2026-6653). |
 | **CVE-2026-74860** | **Not affected in observed image** | Requires libxml2 Python SAX bindings and their attribute-declaration callback. The required Python runtime/bindings are absent; LLVM's native C use is a different surface. Recheck final component inventory. [Debian](https://security-tracker.debian.org/tracker/CVE-2026-74860). |
 | **CVE-2026-86138** | **Needs more evidence** | Requires overflowing lengths in `xmlDictAddQString`. The vulnerable package is present, but no hostile-input path to that operation through LLVM was established. The HTML-source size limit is not a sufficient defeating argument. [Debian](https://security-tracker.debian.org/tracker/CVE-2026-86138), [fix](https://github.com/GNOME/libxml2/commit/a4cba4b5b5a8c42e155ed42d2d2a44955465a2e4). |
@@ -202,25 +314,51 @@ proof about every native consumer.
 ## Remediation and final-image gates
 
 Debian's retrieved tracker records list trixie Expat 2.8.3 as vulnerable and
-forky/sid Expat 2.8.4 as fixed for the three reviewed Expat advisories. This is
-advisory evidence, not proof that a supported trixie update is available or that
-mixing distribution packages is safe. The Expat 2.8.4 replacement is a separate
-work item in progress. Its provenance, compatibility, installation and final
-scan results must be recorded before changing dispositions to fixed. The
-66046 tracker also identifies a required follow-up fix to avoid CVE-2026-76641;
-an incomplete cherry-pick is not equivalent to the complete 2.8.4 release.
+forky/sid Expat 2.8.4 as fixed for the three reviewed Expat advisories. The local
+2.8.4 package above uses the complete upstream release and includes the 76641
+follow-up; it does not mix a sid binary into trixie. Its scoped fix verification
+is separate from the raw scanner's distribution-advisory matching.
+
+The final, unsuppressed `d5e17b6` scan is retained as
+`artifacts-data/image-vulnerabilities-expat-notices.json` and its
+`-summary.json`. It used Trivy 0.74.0, scanner image
+`aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969`,
+with advisory database updated `2026-09-18T01:11:25.279659641Z`; inspection ran
+without network. It identifies Debian 13.7 and reports 172 OS packages with
+54 HIGH, one CRITICAL, 88 MEDIUM, 108 LOW and three UNKNOWN occurrences. Its
+HIGH/CRITICAL records cover 20 unique IDs. The
+353 identified Node packages have no reported findings. The strict scanner
+gate still fails; this is not a zero-vulnerability image.
+
+The raw report still marks CVEs 66046, 76956 and 76957 affected against the
+truthful local `2.8.4-0modellab1` package, with an empty fixed-version field in
+the Debian advisory mapping. The source and runtime verification above support
+the specific fix dispositions despite those retained matches. The report also
+contains Expat **CVE-2025-66382** with `fix_deferred` status; that advisory is
+outside this bounded three-advisory fix review and receives no disposition
+here. No source-backed conclusion erases or suppresses a raw scanner record.
+
+The final HIGH/CRITICAL set differs from the original 20-row triage table:
+CVE-2023-5574 is absent, while CVE-2026-9538 is now matched to `perl-base`
+`5.40.1-6+deb13u1` with `fix_deferred` status. The new Archive::Tar advisory
+needs a separate component/reachability assessment; a `perl-base` source-package
+match alone neither proves the module is installed nor proves its absence.
+It remains unassessed here and is not covered by the Expat fix conclusion.
 
 Before publication:
 
-1. Record the final immutable image ID/digest and scan that same artifact.
-   Preserve scanner/database versions and the full report, including findings
-   without a distro-provided fix. Do not copy the old occurrence count forward
-   as a final-image result.
-2. Reverify exact browser and XML-library versions, active native imports,
-   removed components, UID/capabilities, `fstab`, SUID/SGID permissions, Sharp
-   absence in every layer and image-optimizer configuration.
-3. Verify the Expat replacement's provenance and browser/native compatibility.
-   A version string alone is not an installation or remediation proof.
+1. Preserve the matching immutable image identity, scanner/database versions
+   and full report above, including findings without a distro-provided fix.
+   Scan any replacement publication artifact independently; do not copy these
+   counts forward to a different image.
+2. Preserve the verified browser/Expat identity, loader evidence, notices and
+   layer checks above. Final smoke records UID 1000, no SUID/SGID under `/usr`,
+   no Sharp in inspected layers and a disabled image optimizer. Reverify other
+   component/configuration preconditions before transferring the historical
+   not-affected dispositions to a publication image.
+3. Retain the local Expat package recipe and maintenance responsibility. A
+   version string alone is not an installation or remediation proof; any
+   changed source, build or runtime image needs the relevant checks again.
 4. For any remaining parser CPU concern, use a bounded, keyless synthetic
    harness with no external network or private mounts, explicit CPU/memory/PID
    limits and an external hard deadline. Compare a small crafted JPEG/XMP

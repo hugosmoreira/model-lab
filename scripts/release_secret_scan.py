@@ -35,6 +35,14 @@ PUBLIC_REFERENCE = {
 }
 
 
+def scanner_user_args():
+    # With all capabilities dropped, even container UID 0 cannot bypass a
+    # Linux report directory owned by another user with mode 0755.
+    if os.name == "posix":
+        return ["--user", f"{os.getuid()}:{os.getgid()}"]
+    return []  # Docker Desktop bind ownership differs; preserve Windows behavior.
+
+
 def classify_public_reference(label, finding, source, history):
     """Return review evidence only for the exact finding and whole public blob.
 
@@ -140,6 +148,7 @@ def main():
             common = [
                 "docker", "run", "--rm", "--network", "none", "--read-only",
                 "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+                *scanner_user_args(),
                 "--mount", f"type=bind,source={reports},target=/reports",
                 "--mount", f"type=bind,source={policy},target=/default.toml,readonly",
                 "--env", "GIT_CONFIG_COUNT=1", "--env", "GIT_CONFIG_KEY_0=safe.directory",

@@ -2,10 +2,12 @@
 
 Status: application and functional image checks pass; native dependency and
 binary-distribution gates remain open; **not published**.
-The candidate branch is `codex/release-hardening`. Package versions, runner
-metadata and citation metadata are aligned. The exact reviewed commit, CI result
-and immutable image digest must accompany publication; none is implied by this
-document while the tree is still under verification.
+The candidate branch is `codex/release-hardening`, reviewed in
+[private draft PR #3](https://github.com/hugosmoreira/model-lab/pull/3).
+Implementation commit `62fbed43b5f4bed1108d58855a9002b9d0a07896` is pushed.
+Package versions, runner metadata and citation metadata are aligned. Exact-revision
+CI and immutable-image evidence must accompany publication; a draft PR does not
+clear the remaining gates.
 
 ## Scope
 
@@ -80,27 +82,38 @@ be rerun after browser/platform changes. See [SECURITY.md](../SECURITY.md).
   boundary suite uses Chrome Headless Shell 153.0.8010.52, not Playwright's older
   default browser. Browser installation verifies the pinned archive SHA-256 and
   execution rejects an older version.
+- [Application CI on implementation commit `62fbed4`](https://github.com/hugosmoreira/model-lab/actions/runs/35304843250)
+  also passed all of those gates, dependency audit and the CLI run. Its separate
+  secret job exposed a Linux report-directory ownership issue; the corrected
+  scanners preserve dropped capabilities and run as the host UID/GID. Exact-head
+  CI, including that correction and the image job, remains required.
 - The production UI walkthrough completed new run, live progress, results,
   captured artifacts, rating and CSV/JSON/PNG exports with synthetic outputs.
   Keyboard focus, error/404 recovery, 390/412 px phone layouts and 1024 px layouts
   were checked. PNG exports at 1280×720, 1000×1000 and 840×1050 were inspected.
-- Linux image `sha256:5ac2934cd773f37da913f287e5e1116fe04a892f954a047e0aff97abb40f8b7c`
+- Linux image `sha256:d5e17b681522e2ce14ef322958e416458c132f24fef25800ffece3190e2af67b`
   passed unprivileged startup, an actual offline CLI mock run, HTTP benchmark,
   origin guards, ratings/final votes, missing pages, ZIP evidence, completed-run
   restart, crash-to-partial recovery, offline backup/restore and read-only writes.
-  All-layer checks proved synthetic secret/state markers and unused Sharp native
-  decoder packages absent. This is a dirty-tree development image, not a published
+  All-layer checks proved synthetic secret/state markers, unused Sharp native
+  decoder packages and older Expat libraries absent. The browser loads the verified
+  upstream Expat 2.8.4 library; all 72 exports are preserved, upstream tests pass,
+  and the complete license/source/build provenance is retained. This is a
+  dirty-tree development image, not a published
   digest or a substitute for exact-commit CI.
 - The final JavaScript dependency audit after the Playwright update reported zero
   matches. Native image findings are tracked in the
-  [container advisory review](CONTAINER_ADVISORY_REVIEW.md); the strict image gate
-  remains open while an Expat update is prototyped and other findings are triaged.
+  [container advisory review](CONTAINER_ADVISORY_REVIEW.md). On the same image,
+  Trivy records 54 HIGH and one CRITICAL native-package occurrences (20 unique
+  advisory IDs), and zero findings across 353 identified Node packages. Raw Expat
+  matches remain visible despite source-verified remediation; unresolved native
+  findings still block the strict image gate. The advisory DB is dated 2026-09-18.
 - The final offline redacted secret scan reports zero unresolved candidate-tree
-  and local-history findings. One tree match is the public Chromium `ukey2`
+  and local-history findings. The reviewed match in each is the public Chromium `ukey2`
   revision pin. It is classified only when the rule, path, line and complete
   upstream blob SHA-256 match; original findings and scanner exit codes remain
-  in the report. Eight focused tests cover tree/history evidence, changed content
-  and scanner failures. No private dotenv files, ignored run data, local Git
+  in the report. Ten focused tests cover tree/history evidence, changed content,
+  scanner failures and Linux mount ownership. No private dotenv files, ignored run data, local Git
   configuration or hooks were mounted in the scanner. Exact-commit CI repeats it.
 - License inventory includes development dependencies and retained OS/Node/browser
   notices. See the repository's third-party notices and the final image report for
