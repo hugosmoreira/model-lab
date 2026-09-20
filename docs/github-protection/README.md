@@ -6,8 +6,9 @@ and version-tag ruleset `23717531` have no bypass actors. Release environment
 `22316904136` requires the maintainer reviewer, disables administrator bypass,
 and permits only the `main` branch through policy `60461512`. GitHub private
 vulnerability reporting, secret scanning and push protection are enabled and
-their settings were verified. The reviewed source prerelease was published
-after these settings were verified; the existing tag and assets are unchanged.
+their settings were verified. Branch/tag rules, release environment protections
+and private reporting were verified before prerelease publication; secret scanning
+and push protection were enabled afterward. The existing tag and assets are unchanged.
 
 The following records the earlier private preparation. On 2026-09-18 the private repository's ruleset
 and branch-protection endpoints returned HTTP 403 with an upgrade-or-public
