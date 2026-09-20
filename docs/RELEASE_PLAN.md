@@ -1,10 +1,12 @@
 # Model Lab release plan
 
-Status: PR #3 is merged and `v0.2.0-rc.1` identifies the source candidate on main.
-The private source draft and its downloaded assets are verified. Application,
-build and secret checks pass on the tagged commit. Native-library advisory and
-binary-distribution review remain open. Repository visibility is still private;
-no release, container or hosted service has been published.
+Status: the repository is public and
+[v0.2.0-rc.1](https://github.com/hugosmoreira/model-lab/releases/tag/v0.2.0-rc.1)
+is published as a source prerelease. Application, build and secret checks pass
+on its unchanged tagged commit; downloaded assets match their checksums.
+Main/tag rules, release review and private vulnerability reporting are active
+and verified. Native-library advisory and binary-distribution review remain
+open; no container or hosted service has been published.
 
 Prepared 2026-09-17 from the [project audit](AUDIT-2026-09-17.md).
 This is the execution plan for the [roadmap](ROADMAP.md). Update this document
@@ -350,7 +352,7 @@ mitigation decision. New security findings are triaged before promotion.
 
 Status: [PR #3](https://github.com/hugosmoreira/model-lab/pull/3) merged on
 2026-09-18. The annotated source tag points to the verified merge commit; its
-[private draft release](https://github.com/hugosmoreira/model-lab/releases/tag/untagged-74b72c0e8b73af286455)
+[published source prerelease](https://github.com/hugosmoreira/model-lab/releases/tag/v0.2.0-rc.1)
 contains the source ZIP, `SOURCE_REVISION` and `SHA256SUMS`. The complete
 application/build and redacted secret jobs pass in
 [tagged-commit CI](https://github.com/hugosmoreira/model-lab/actions/runs/35353105305).
@@ -361,10 +363,13 @@ has a separate manual path: `source-release.yml` reuses the application and
 secret gates for an existing reviewed tag on main, then prepares a draft source
 archive with checksums and commit identity. It has no container publishing
 permissions and does not change visibility or publish the draft. Ordinary PR CI
-and the container release continue to run the full image gate. The current draft
+and the container release continue to run the full image gate. The original draft
 was prepared manually because GitHub rejected the required private-environment
 protections. The protected workflow was not dispatched. No separate action was
-taken on the earlier preparation PRs.
+taken on the earlier preparation PRs. On 2026-09-20 UTC, after maintainer
+authorization, the repository became public, the prepared protections were
+activated and read back, and the reviewed draft was published. The tag and
+source archive were unchanged.
 
 Create a release packet containing the exact commit, proposed tag, changelog,
 migration notes, supported platform/storage matrix, known limitations, image
@@ -415,7 +420,39 @@ works; no private results are exposed.
 
 ## Release decision and progress record
 
+### Public source prerelease completed (2026-09-20 UTC)
+
+- Published release ID `391519300`, `v0.2.0-rc.1`, at
+  `2026-09-20T03:29:52Z` (September 19 in America/Los_Angeles), after the
+  maintainer authorized the next publication step. The repository is public;
+  this is a prerelease, not the latest stable release.
+- Rechecked passing source jobs on the tagged commit and current main before
+  publication. The tag still resolves to `d60431a1f2fa8efb68be97f911e50758f092f510`;
+  all three asset digests match the previously downloaded and verified packet.
+  An unauthenticated download of every published asset also passed its recorded
+  size and SHA-256 checks; the public reporting entry is visible.
+- Activated and read back main ruleset `23717530`: PRs, up-to-date application
+  and secret checks, resolved review threads, no deletion or force pushes,
+  and no bypass actors. Zero external approvals remains the documented
+  single-maintainer policy.
+- Activated and read back version-tag ruleset `23717531`: no update/deletion
+  of `v*` tags and no bypass actors.
+- Configured release environment `22316904136` with required maintainer
+  reviewer, self-review allowed, administrator bypass disabled, and only the
+  `main` branch deployment policy (`60461512`). No environment approval or
+  workflow dispatch is claimed for the original manually prepared packet.
+- Enabled and verified GitHub private vulnerability reporting. The maintainer's
+  private contact remains `info@webstudiolabs.com`; no test message was sent.
+- Enabled GitHub secret scanning and push protection and verified both settings.
+  These supplement the existing redacted source/history CI scan; enabling them
+  is not a claim that their initial repository scan has completed.
+- The first ruleset write met GitHub's temporary visibility-change lock; a
+  subsequent read and retry succeeded. All protections were verified before
+  publishing the draft. Image publication remains blocked by R10.
+
 ### Private source draft completed (2026-09-18)
+
+This historical checkpoint precedes the public publication recorded above.
 
 - Merged only the approved PR #3 head after its application/build and secret
   jobs passed. Verified the merged Git tree equals the checked PR tree.
@@ -489,18 +526,18 @@ it; demonstrate its remediation or a verified mitigation that removes the path.
 | R4–R6: spending and evidence | Verified for supported local stores | Budget/provider regressions, evidence compatibility, memory/SQLite conformance and concurrent final votes |
 | R7–R9: product and replay | Verified | Full production flow, keyboard navigation, 390/412/1024 px layouts, three PNG export sizes, real error/404 states, replay and frontend tests |
 | R10: distributable | Functional checks pass; native advisory/distribution gates blocked | Production dependency image `c6c3b6e`; 37 installed pnpm packages, all-layer exclusions and full CLI/HTTP/restart/crash/restore checks; raw scan retains 54 HIGH / 1 CRITICAL native matches |
-| R11: GitHub release | PR #3 merged; source tag and private draft verified; unpublished | Exact tagged-commit source checks, downloaded ZIP/revision/checksum verification; public protection activation and draft publication pending |
+| R11: GitHub release | Public source prerelease complete; container publication remains under R10 | Exact tagged-commit source checks, verified assets, active/read-back branch/tag/environment protections and private reporting |
 | R12: demo / new benchmark claims | Optional / open | Add selected target and relevant runtime/evidence checks |
 
-Next: review the actual private draft and approve the public visibility change.
-Once that is approved, activate and read back the prepared GitHub protections
-as soon as the repository is public, then publish the reviewed source prerelease.
-Keep native advisory and binary distribution work open before any image
-promotion. The source-only release must not imply container certification.
+Next: collect source-prerelease feedback and resolve the R10 native advisory
+and binary redistribution blockers before any image promotion. Rerun the
+complete image gate on the final candidate and preserve its immutable digest.
+The source-only release does not imply container certification.
 Full workspace tests, typecheck, lint, formatting and the production build have
 passed on the repaired application. The final offline
 tree/history secret scan passes with zero unresolved findings; one exact public
 Chromium revision pin is retained as a reviewed match with its full blob hash.
-Public repository/package visibility, release publication and hosted deployment
-remain final maintainer decisions after that packet is reviewable. No paid benchmark
-has been run; existing n=1 evidence stays historical and new tests use synthetic outputs.
+Public source visibility and prerelease publication are complete. Container/package
+publication and hosted deployment remain separate maintainer decisions after their
+gates pass. No paid benchmark has been run; existing n=1 evidence stays historical
+and new tests use synthetic outputs.

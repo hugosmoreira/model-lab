@@ -4,10 +4,11 @@ All notable changes to Model Lab are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased — 0.2.0-rc.1 candidate
+## 0.2.0-rc.1 — 2026-09-20
 
-Source tag and private draft prepared; no public release or container publication
-has occurred.
+[Source prerelease published](https://github.com/hugosmoreira/model-lab/releases/tag/v0.2.0-rc.1)
+at `2026-09-20T03:29:52Z` (September 19 in America/Los_Angeles). Container
+publication remains blocked by native advisory and binary redistribution gates.
 
 ### Added
 
