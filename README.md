@@ -13,10 +13,12 @@ real browser tests against every generated artifact, judge the builds with an
 order-swapped LLM judge, add your own ratings, and export results that trace back to a
 reproducible run bundle.
 
-**Release preparation:** the [2026-09-17 audit](docs/AUDIT-2026-09-17.md)
-led to changes in artifact isolation, spending controls, evidence storage and
-result labeling. The [release plan](docs/RELEASE_PLAN.md) records verification
-and remaining publication gates. No new release is implied by this branch.
+**Source prerelease:** [v0.2.0-rc.1](https://github.com/hugosmoreira/model-lab/releases/tag/v0.2.0-rc.1)
+is available with a source archive and verified checksums. The
+[2026-09-17 audit](docs/AUDIT-2026-09-17.md) led to changes in artifact isolation,
+spending controls, evidence storage and result labeling. The
+[release plan](docs/RELEASE_PLAN.md) records verification and the unresolved
+native advisory and redistribution gates that still block container publication.
 
 ![Results of a judged three-way benchmark](docs/screenshots/results-judged.png)
 

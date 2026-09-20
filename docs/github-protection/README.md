@@ -1,7 +1,16 @@
 # GitHub protection settings
 
-These are prepared configurations for `hugosmoreira/model-lab`, **not evidence
-that GitHub has enabled them**. On 2026-09-18 the private repository's ruleset
+These configurations are **active and read back from GitHub** for the public
+`hugosmoreira/model-lab` repository as of 2026-09-20 UTC. Main ruleset `23717530`
+and version-tag ruleset `23717531` have no bypass actors. Release environment
+`22316904136` requires the maintainer reviewer, disables administrator bypass,
+and permits only the `main` branch through policy `60461512`. GitHub private
+vulnerability reporting, secret scanning and push protection are enabled and
+their settings were verified. Branch/tag rules, release environment protections
+and private reporting were verified before prerelease publication; secret scanning
+and push protection were enabled afterward. The existing tag and assets are unchanged.
+
+The following records the earlier private preparation. On 2026-09-18 the private repository's ruleset
 and branch-protection endpoints returned HTTP 403 with an upgrade-or-public
 requirement. Creating the release environment's required-reviewer rule returned
 HTTP 422 because the current plan does not support that rule here. GitHub
@@ -23,7 +32,7 @@ the private draft created through the GitHub CLI. Record the verification run
 and this manual preparation in its notes. This is not an enforced branch rule
 or an environment approval. Public publication remains a separate decision.
 
-Before public publication, activate and read back these settings:
+For future setup or changes, inspect existing settings and read back these rules:
 
 - `main-ruleset.json` requires a pull request, up-to-date application and secret
   checks from the verified GitHub Actions integration (`15368`), resolved review
@@ -39,7 +48,8 @@ Before public publication, activate and read back these settings:
   `38438788`) and selects custom deployment branch rules. After creating it,
   add a branch policy with `{"name":"main","type":"branch"}`; selected mode
   alone is incomplete. Self-review is allowed for this single-maintainer project.
-  If supported, disable administrator bypass and verify the returned setting.
+  `can_admins_bypass: false` disables administrator bypass; its returned value
+  was verified along with the reviewer and branch policy.
 
 Inspect existing settings before applying these payloads; update a matching
 configuration instead of creating duplicates. After activation, fetch the actual

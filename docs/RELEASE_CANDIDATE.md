@@ -1,16 +1,16 @@
 # 0.2.0-rc.1 release candidate
 
-Status: application and functional image checks pass; native dependency and
-binary-distribution gates remain open; **not published**.
+Status: **source prerelease published**. Application and functional image checks
+pass; native dependency and binary-distribution gates still block containers.
 [PR #3](https://github.com/hugosmoreira/model-lab/pull/3) is merged. Source tag
 `v0.2.0-rc.1` resolves to `d60431a1f2fa8efb68be97f911e50758f092f510` on main.
 Its application/build and secret checks pass in
 [run 35353105305](https://github.com/hugosmoreira/model-lab/actions/runs/35353105305).
-The [private source draft](https://github.com/hugosmoreira/model-lab/releases/tag/untagged-74b72c0e8b73af286455)
-is prepared and its downloaded assets match the recorded digests. The source
+The [source prerelease](https://github.com/hugosmoreira/model-lab/releases/tag/v0.2.0-rc.1)
+was published at `2026-09-20T03:29:52Z`; its assets retain the verified digests. The source
 ZIP's SHA-256 is `754c007a3ed659172f862ffb4f0f375886fa522225b0a3b7688991a7007fc84b`.
-Package versions, runner metadata and citation metadata are aligned. The private
-draft does not clear native-image or public-publication gates.
+Package versions, runner metadata and citation metadata are aligned. Public
+source publication does not clear the native-image or binary-distribution gates.
 
 The exact tagged commit's clean image is
 `sha256:d0bfc3dce9924a185c7b393947466e6398746d77e66c108bf5bac5320438faa5`.
@@ -141,17 +141,17 @@ rehearsals are development evidence, not proof for a later immutable image.
 
 ## Publication steps
 
-The private source merge, tag and draft steps are complete. The current
-private-repository plan does not support the intended branch rules
-or required environment reviewers. See the
-[protection preflight](github-protection/README.md). The maintainer has authorized
-the source-only merge/tag/private-draft preparation, with explicit check and
-source verification. Review the actual draft before approving public visibility;
-once public, activate and verify the prepared protections before publishing it.
-The sequence below describes the release procedure; its source candidate and
-private draft have already been prepared through the documented manual path.
+The source merge, immutable tag, draft review and public publication are complete.
+After maintainer authorization, the repository became public and the intended
+branch/tag rules, required release reviewer, main-only deployment policy and
+private vulnerability reporting were activated and read back before publication.
+Administrator bypass is disabled for the release environment. See the
+[protection record](github-protection/README.md). The packet was prepared manually
+while private plan limits applied; the protected workflow was not dispatched.
+The sequence below remains the procedure for future source candidates; do not
+recreate the existing tag or published release.
 
-1. Review the source candidate in private PR #3. Obtain passing application and
+1. Review the source candidate in a PR. Obtain passing application and
    secret checks on its exact revision. Container findings remain independently
    visible and block the container release, not the source-only workflow.
 2. Configure required checks, branch/tag protections and the `github-release`
@@ -171,7 +171,7 @@ private draft have already been prepared through the documented manual path.
    still requires all image checks, tests before pushing, pulls the published
    digest before version promotion and retains checksums/provenance evidence.
 
-No paid provider benchmark, public visibility change, public release, image
-publication or hosted deployment has been performed. A new n=3 model comparison requires
+Public source visibility and prerelease publication are complete. No paid provider
+benchmark, image publication or hosted deployment has been performed. A new n=3 model comparison requires
 deliberately selected models and an approved spend; synthetic tests make no new
 model-ranking claim. A hosted demo is an optional later deployment.

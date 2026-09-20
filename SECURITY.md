@@ -7,16 +7,17 @@ checks and remaining gates are recorded in [the release plan](docs/RELEASE_PLAN.
 ## Reporting a vulnerability
 
 Send suspected vulnerabilities privately to **info@webstudiolabs.com**. Do not
-include credentials or private benchmark outputs. GitHub's **Security → Report a
-vulnerability** is another option once private reporting is enabled for this
-repository; its availability has not yet been verified for the public release.
+include credentials or private benchmark outputs. GitHub's
+[Security → Report a vulnerability](https://github.com/hugosmoreira/model-lab/security/advisories/new)
+is also available; private vulnerability reporting is enabled and its setting
+was verified for the public source release.
 Please avoid public exploit reports until the maintainer has assessed them.
 
 ## Supported versions
 
-The release candidate on this branch contains security changes that are absent
-from the historical 0.1.0 implementation. No new public release is implied by
-this document. See the changelog and release plan before choosing a version.
+The published source prerelease `0.2.0-rc.1` contains security changes that are
+absent from the historical 0.1.0 implementation. Container publication remains
+blocked. See the changelog and release plan before choosing a version.
 
 ## Generated artifacts
 

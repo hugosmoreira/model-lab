@@ -6,12 +6,13 @@ actually passed. These procedures do not publish a release by themselves.
 
 ## Source release before container publication
 
-**Current private-repository limitation (2026-09-18):** GitHub rejects branch
-rules and required environment reviewers on the available plan. The
-[prepared configurations and private draft procedure](github-protection/README.md)
-record this explicitly. Do not describe them as configured. A maintainer may
-prepare the verified source packet and private draft manually; the protected
-workflow remains available for use after its actual prerequisites are enabled.
+**Public source prerelease (2026-09-20 UTC):** `v0.2.0-rc.1` is published.
+Branch/tag protections, the required release reviewer, main-only environment
+policy, disabled administrator bypass and private vulnerability reporting were
+activated and read back before publication. The
+[configuration and historical private-draft procedure](github-protection/README.md)
+record the settings and the earlier private-plan limitation. The protected
+workflow is now configured for future candidates; it has not been dispatched.
 
 The source release can proceed independently once the reviewed source commit's
 application and secret checks pass. Native image findings remain visible in PR
@@ -37,8 +38,9 @@ The maintainer instead merged PR #3, created `v0.2.0-rc.1`, and prepared a priva
 draft using its packaging commands after exact-commit source CI passed. All three
 uploaded assets were downloaded and checksum-verified; see the current release
 plan for identifiers. Do not recreate or move the existing tag, and do not run
-the create-draft workflow again for that same existing draft. Container publication still follows all gates
-below and the existing `release.yml` workflow.
+the create-draft workflow again for that same release, which is now publicly
+published. Container publication still follows all gates below and the existing
+`release.yml` workflow.
 
 ## Reproduce the container gate
 
