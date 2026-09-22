@@ -1,17 +1,17 @@
 # Model Lab release plan
 
 Status: the repository is public and
-[v0.2.0-rc.1](https://github.com/hugosmoreira/model-lab/releases/tag/v0.2.0-rc.1)
+[v0.2.0-rc.2](https://github.com/hugosmoreira/model-lab/releases/tag/v0.2.0-rc.2)
 is published as a source prerelease. Application, build and secret checks pass
 on its unchanged tagged commit; downloaded assets match their checksums.
 Main/tag rules, release review and private vulnerability reporting are active
 and verified. Native-library advisory and binary-distribution review remain
 open; no container or hosted service has been published.
 
-The next source candidate is `0.2.0-rc.2`, including the listener repair and
+The source prerelease includes the listener repair and
 [verification of the recent eleven-finding audit](SECURITY_AUDIT_VERIFICATION-2026-09-22.md).
-Candidate checks and protected release preparation are in progress; the rc.1
-tag and assets remain immutable.
+The protected workflow and downloaded-packet verification are complete. The
+rc.1 tag and assets remain unchanged; use rc.2 for the current security repairs.
 
 Prepared 2026-09-17 from the [project audit](AUDIT-2026-09-17.md).
 This is the execution plan for the [roadmap](ROADMAP.md). Update this document
@@ -25,8 +25,8 @@ results. Start with local/private use and SQLite. Offer a keyless, read-only
 hosted demo after the release candidate passes.
 
 Prepared version: `0.2.0-rc.2` in all five packages, runner metadata and CITATION.
-Annotated tag `v0.2.0-rc.1` points to
-`d60431a1f2fa8efb68be97f911e50758f092f510`. Target `v0.2.0` only after
+Annotated tag `v0.2.0-rc.2` points to
+`e8b4bf510ddd328e74c3b24db63ef9d56f748b2b`. Target `v0.2.0` only after
 the release-candidate checks and feedback.
 Keep pre-1.0 expectations
 explicit while storage and replay contracts change.
@@ -44,6 +44,34 @@ and persistence behavior are exercised against an isolated test project.
 Do not add an authentication system just to publish a self-hosted tool.
 
 ## Verified starting point
+
+### Source rc.2 publication completed (2026-09-22)
+
+- [PR #17](https://github.com/hugosmoreira/model-lab/pull/17) merged the reviewed
+  repairs. Its source tree, CI synthetic merge and tagged main commit all have
+  tree `9afd4cff5e7c10372af9dc005454a628a450b272`.
+- Annotated tag object `684f222bb1197b6d7a2657248406dae4851ad404` resolves to the
+  commit above. No previous tag or asset was replaced.
+- [Protected workflow 35739618140](https://github.com/hugosmoreira/model-lab/actions/runs/35739618140)
+  passed exact-commit application/build and tree/history secret checks, used
+  the configured maintainer review gate, and prepared a source-only draft.
+  Its image job was intentionally skipped under the existing source-release
+  policy; the separate full PR image rehearsal is recorded below.
+- Downloaded and verified the draft, then published release `393811329` as a
+  prerelease at `2026-09-22T14:24:59Z`. Anonymous public downloads passed the
+  same verification: server digests, `SHA256SUMS`, `SOURCE_REVISION`, aligned
+  versions and every file's Git blob. The private audit and dotenv files are absent.
+- Source ZIP: 403 files, 3,112,018 bytes, SHA-256
+  `60b1f239459178c3a979a3f41331c7af24f272b7850c387d88128c43d235675d`.
+  Local receipts are under ignored `artifacts-data/rc2-release/`.
+- Rechecked active main/tag rules, main-only release environment with reviewer
+  and administrator bypass disabled, and private vulnerability reporting.
+- [Full PR CI 35739113423](https://github.com/hugosmoreira/model-lab/actions/runs/35739113423)
+  verified live page/API/download headers, graphics, mutation guards, restart,
+  interrupted-run recovery, offline restore and image-layer exclusions on
+  image `sha256:0142dc8a368c01537f982d017552b45c92125f8d10d4e38bd5b88442212f87c9`.
+  Its only failed step is the unsuppressed native advisory scan: 54 HIGH and
+  one CRITICAL occurrence; zero Node findings. No image was published.
 
 ### Security verification and rc.2 preparation (2026-09-22)
 
@@ -590,11 +618,10 @@ it; demonstrate its remediation or a verified mitigation that removes the path.
 | R4–R6: spending and evidence | Verified for supported local stores | Budget/provider regressions, evidence compatibility, memory/SQLite conformance and concurrent final votes |
 | R7–R9: product and replay | Verified | Full production flow, keyboard navigation, 390/412/1024 px layouts, three PNG export sizes, real error/404 states, replay and frontend tests |
 | R10: distributable | Functional checks pass; native advisory/distribution gates blocked | Production dependency image `c6c3b6e`; 37 installed pnpm packages, all-layer exclusions and full CLI/HTTP/restart/crash/restore checks; raw scan retains 54 HIGH / 1 CRITICAL native matches |
-| R11: GitHub release | Public source prerelease complete; container publication remains under R10 | Exact tagged-commit source checks, verified assets, active/read-back branch/tag/environment protections and private reporting |
+| R11: GitHub release | Public source rc.2 complete; container publication remains under R10 | Protected workflow 35739618140, exact tagged-commit source checks, verified anonymous downloads, active/read-back protections and private reporting |
 | R12: demo / new benchmark claims | Optional / open | Add selected target and relevant runtime/evidence checks |
 
-Next: verify and publish rc.2 with the loopback, framing, vote-read and
-diagnostic-redaction repairs. Then implement shared workload limits and bounded
+Next: implement shared workload limits and bounded
 provider health refreshes (H2/M2/L4), evaluate judge integrity (M1), and resolve
 operator credential ownership (H3). Prototype the scoped LLVM rebuild and
 resolve the remaining R10 native advisory
