@@ -10,6 +10,21 @@ gates; a local Docker build is not a published or certified release.
 The API has no authentication or rate limiting. Read the [security policy](../SECURITY.md)
 before providing keys or remote access.
 
+## Local source installation
+
+`pnpm dev` and `pnpm --filter @model-lab/web start` bind to `127.0.0.1` by
+default. Open `http://127.0.0.1:3000`; direct IPv6 `::1` access is not enabled.
+The production command requires `pnpm build` first. These defaults keep the
+unauthenticated server off other network interfaces.
+
+An operator can explicitly override the binding with
+`pnpm --filter @model-lab/web start --hostname 0.0.0.0` (or `dev` for development).
+Configure `MODEL_LAB_APP_ORIGIN` and authenticate the entire application at a
+reverse proxy before permitting remote access. Host and Origin headers are not
+client identity. Keep the server port unreachable except through that proxy.
+The container retains its explicit `0.0.0.0` listener inside the container;
+the host-loopback port mappings below restrict its external reachability.
+
 ## Public demo: keyless and read-only
 
 ```bash

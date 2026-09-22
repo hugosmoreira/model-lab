@@ -4,6 +4,16 @@ All notable changes to Model Lab are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+- Bind source-installed development and production servers to `127.0.0.1` by
+  default. Previously, Next's default listener accepted connections on all
+  interfaces; forgeable request headers did not establish a local caller.
+  Explicit remote bindings still require an authenticated proxy and configured
+  application origin. Container port-binding requirements are unchanged.
+- Add an actual Next socket regression and a synthetic WebGL shader, pixel and
+  screenshot check to the container release rehearsal.
+
 ## 0.2.0-rc.1 — 2026-09-20
 
 [Source prerelease published](https://github.com/hugosmoreira/model-lab/releases/tag/v0.2.0-rc.1)

@@ -15,6 +15,45 @@ these advisory-specific conclusions.
 
 ## Evidence identity and limits
 
+### Follow-up on 2026-09-21 (America/Los_Angeles)
+
+Rescanned the unchanged production-dependency image `c6c3b6e` with the public
+database updated at `2026-09-22T02:00:05Z`. Offline inspection retained 54 HIGH,
+one CRITICAL, 91 MEDIUM, 108 LOW and three UNKNOWN occurrences, with zero Node
+findings. The report is under ignored
+`artifacts-data/container-followup-20260921/image-vulnerabilities-summary.json`.
+This refresh does not identify a new image or clear the native gate.
+
+The [current Debian libxml2 tracker](https://security-tracker.debian.org/tracker/source-package/libxml2)
+still marks trixie's `+deb13u3` vulnerable. Upstream 2.14 changed the library ABI
+and SONAME from `.so.2` to `.so.16`; the
+[2.15.4 release notes](https://raw.githubusercontent.com/GNOME/libxml2/v2.15.4/NEWS)
+do not support treating it as an Expat-style drop-in replacement. A renamed
+symlink or package-version relabel would not repair that incompatibility.
+The dependency chain remains `libgbm1 → mesa-libgallium → libllvm19 → libxml2`.
+[Mesa backports](https://packages.debian.org/trixie-backports/mesa-libgallium)
+still require LLVM19, and even
+[LLVM21 backports](https://packages.debian.org/trixie-backports/libllvm21)
+retain the old libxml2 dependency.
+
+The next bounded prototype is an exact Debian LLVM19 rebuild with the supported
+[`LLVM_ENABLE_LIBXML2=OFF` option](https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-19.1.7/llvm/CMakeLists.txt),
+preserving the package ABI and required JIT/graphics backends. Upstream supplies
+[disabled Windows-manifest stubs](https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-19.1.7/llvm/lib/WindowsManifest/WindowsManifestMerger.cpp).
+No application Windows-manifest use was found, but this is a candidate strategy,
+not a built or verified fix. Compare exports/versioned imports and every native
+consumer before removing libxml2; retain truthful package/source provenance.
+A complete ABI-preserving libxml2 backport is the alternative.
+
+The new `webgl-smoke.mjs` runs through the actual restricted artifact runner:
+it compiles and links shaders, checks two distinct GPU-rendered pixels, captures
+a PNG, then checks a fresh 2D artifact. It passed in the existing image with
+networking disabled. `docker_release_check.py` now requires this control so a
+future native rebuild cannot pass by disabling graphics. Required network,
+WebRTC, cancellation, all-layer and full runtime checks remain in place.
+The browser product-terms/source-delivery and installed `client-only` notice
+questions also remain open; no suppression or publication waiver was introduced.
+
 ### Tagged source candidate CI
 
 Source tag `v0.2.0-rc.1` resolves to
@@ -27,7 +66,7 @@ recovery and offline backup/restore checks pass. The inventory records 37 pnpm
 packages; Trivy identifies 51 Node packages with no findings and 172 Debian
 packages with 54 HIGH / 1 CRITICAL / 90 MEDIUM / 108 LOW / 1 UNKNOWN matches.
 The native scan is the sole failed step. Its full report remains unsuppressed.
-The private GitHub draft contains source only; this CI result does not authorize
+The published GitHub prerelease contains source only; this CI result does not authorize
 container publication or alter the scoped advisory conclusions below.
 
 ### Production dependency follow-up
