@@ -108,7 +108,7 @@ git clone https://github.com/hugosmoreira/model-lab
 cd model-lab
 pnpm install --frozen-lockfile
 pnpm browser:install  # checksum-pinned, patched browser; no artifact-time download
-pnpm dev        # http://localhost:3000
+pnpm dev        # http://127.0.0.1:3000 (this computer only)
 ```
 
 On Linux, install browser system libraries before starting:

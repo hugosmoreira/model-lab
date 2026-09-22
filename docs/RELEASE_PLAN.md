@@ -420,6 +420,38 @@ works; no private results are exposed.
 
 ## Release decision and progress record
 
+### Listener repair and container follow-up (2026-09-21, America/Los_Angeles)
+
+- A newly supplied local audit identified default source listeners on all
+  interfaces. Reproduced this with the real installed Next CLI and an isolated
+  socket probe: both original commands bound `::`. Source `dev` and `start`
+  now bind `127.0.0.1`; explicit hostname overrides and Docker's separate
+  listener remain supported. The CSRF guard remains unchanged and is not
+  authentication. Restart already-running source servers to apply the binding.
+- Added OS-socket regressions for both commands and their operator overrides.
+  Independent candidate review found the fixture could discover an ancestor
+  Next config; an empty fixture config and a hostile-parent regression repair
+  that isolation flaw. No operator dotenv or paid provider was used by the
+  validation. The supplied untracked audit is preserved and not published.
+- Refreshed the existing image's advisory database and offline scan: the strict
+  gate still reports 54 HIGH / one CRITICAL native matches, with zero Node
+  findings. These are package matches, not 55 validated exploit paths.
+- Added a real shader/pixel/screenshot/fresh-artifact control to the image gate.
+  It passes on the current image and protects graphics behavior during the
+  next native-dependency prototype.
+- Confirmed that replacing libxml2 with 2.15.4 directly breaks the installed
+  ABI and that simple backports upgrades retain the dependency. The
+  [native review](CONTAINER_ADVISORY_REVIEW.md) now specifies an LLVM19 rebuild
+  without its optional XML manifest feature as the next bounded experiment,
+  with ABI, consumer, rendering and complete image verification required.
+- Browser redistribution/source delivery and `client-only` notice provenance
+  remain open. No binary was published and the existing source tag was not moved.
+  The source listener repair is a post-`rc.1` change until a new candidate is cut;
+  users of `rc.1` can explicitly pass `--hostname 127.0.0.1` to both web commands.
+- Remaining local audit claims about workload caps, credential-file access and
+  judge robustness need their own validation. This change closes the listener
+  exposure only; it does not classify every audit claim as fixed or exploitable.
+
 ### Public source prerelease completed (2026-09-20 UTC)
 
 - Published release ID `391519300`, `v0.2.0-rc.1`, at
@@ -529,7 +561,8 @@ it; demonstrate its remediation or a verified mitigation that removes the path.
 | R11: GitHub release | Public source prerelease complete; container publication remains under R10 | Exact tagged-commit source checks, verified assets, active/read-back branch/tag/environment protections and private reporting |
 | R12: demo / new benchmark claims | Optional / open | Add selected target and relevant runtime/evidence checks |
 
-Next: collect source-prerelease feedback and resolve the R10 native advisory
+Next: cut a new source candidate containing the loopback-default repair, then
+prototype the scoped LLVM rebuild and resolve the remaining R10 native advisory
 and binary redistribution blockers before any image promotion. Rerun the
 complete image gate on the final candidate and preserve its immutable digest.
 The source-only release does not imply container certification.

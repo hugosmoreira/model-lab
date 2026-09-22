@@ -3,9 +3,9 @@
   "version": "0.2.0-rc.1",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
-    "start": "next start",
+    "start": "next start --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit",
     "lint": "pnpm -w exec eslint apps/web",
     "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test test/*.test.mjs && pnpm run test:frontend && pnpm run test:preview",

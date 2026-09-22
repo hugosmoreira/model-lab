@@ -314,6 +314,11 @@ def smoke_image(image, work, report, check_interrupted):
             ".catch(e=>{console.error(e);process.exit(1)});",
         )
         report["chromium"] = chromium_launch.stdout.strip()
+        report["webgl"] = json.loads(output(
+            "docker", "exec", "--workdir", "/app", primary,
+            "node", "--experimental-strip-types", "--disable-warning=ExperimentalWarning",
+            "runners/build-arena/test/webgl-smoke.mjs",
+        ))
         report["expatBrowserLoader"] = sorted({
             line.split("calling init:", 1)[1].strip() for line in chromium_launch.stderr.splitlines()
             if "calling init:" in line and "libexpat.so.1" in line
