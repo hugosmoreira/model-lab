@@ -66,6 +66,7 @@ import {
   captureSourceRevision,
   computeFingerprint,
   promptHash,
+  scrubSecrets,
   startRun as runnerStartRun,
   type BaseKind,
   type EndpointConfig,
@@ -406,9 +407,7 @@ async function getStoreSafe(): Promise<RunStore | null> {
 
 /** First line only, secrets redacted, capped at 160 chars — log-safe. */
 function scrub(message: string): string {
-  const firstLine = (message.split("\n", 1)[0] ?? "")
-    .replace(/sb_secret_[A-Za-z0-9_-]+/g, "[redacted]")
-    .replace(/eyJ[A-Za-z0-9_-]{10,}/g, "[redacted]");
+  const firstLine = scrubSecrets(message).split("\n", 1)[0] ?? "";
   return firstLine.length > 160 ? `${firstLine.slice(0, 160)}…` : firstLine;
 }
 

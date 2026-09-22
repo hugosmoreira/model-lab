@@ -147,7 +147,7 @@ export class OpenAiCompatibleProvider implements Provider {
         ) {
           delete body["seed"];
         } else {
-          throw new Error(scrubSecrets(`${this.kind} HTTP 400: ${detail.slice(0, 300)}`));
+          throw new Error(`${this.kind} HTTP 400: ${scrubSecrets(detail).slice(0, 300)}`);
         }
         req.beforeRetry?.();
         res = await post();
@@ -157,7 +157,7 @@ export class OpenAiCompatibleProvider implements Provider {
           res.body === null
             ? "empty body"
             : await readBoundedText(res.body, { signal: deadline.signal });
-        throw new Error(scrubSecrets(`${this.kind} HTTP ${res.status}: ${detail.slice(0, 300)}`));
+        throw new Error(`${this.kind} HTTP ${res.status}: ${scrubSecrets(detail).slice(0, 300)}`);
       }
 
       let tokensIn = 0;
@@ -187,7 +187,7 @@ export class OpenAiCompatibleProvider implements Provider {
         const chunk = parsed as any;
         if (chunk?.error !== undefined) {
           throw new Error(
-            scrubSecrets(`${this.kind} stream error: ${JSON.stringify(chunk.error).slice(0, 300)}`),
+            `${this.kind} stream error: ${scrubSecrets(JSON.stringify(chunk.error)).slice(0, 300)}`,
           );
         }
         // Every chunk names the model that produced it — a dated snapshot behind

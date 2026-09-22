@@ -219,7 +219,7 @@ export async function checkProviderHealth(
         idleMs: timeoutMs,
         totalMs: timeoutMs,
       }).catch(() => "");
-      detail = scrubSecrets(`HTTP ${res.status}${text !== "" ? `: ${text.slice(0, 120)}` : ""}`);
+      detail = `HTTP ${res.status}${text !== "" ? `: ${scrubSecrets(text).slice(0, 120)}` : ""}`;
     }
     return {
       providerId,

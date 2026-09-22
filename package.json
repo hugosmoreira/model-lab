@@ -1,7 +1,7 @@
 {
   "name": "model-lab",
   "private": true,
-  "version": "0.2.0-rc.1",
+  "version": "0.2.0-rc.2",
   "packageManager": "pnpm@10.34.5",
   "scripts": {
     "browser:install": "node --experimental-strip-types --disable-warning=ExperimentalWarning apps/web/scripts/install-browser.mjs",

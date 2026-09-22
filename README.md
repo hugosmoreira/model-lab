@@ -13,8 +13,10 @@ real browser tests against every generated artifact, judge the builds with an
 order-swapped LLM judge, add your own ratings, and export results that trace back to a
 reproducible run bundle.
 
-**Source prerelease:** [v0.2.0-rc.1](https://github.com/hugosmoreira/model-lab/releases/tag/v0.2.0-rc.1)
-is available with a source archive and verified checksums. The
+**Source candidate:** `0.2.0-rc.2` contains the loopback listener and
+[audit follow-up repairs](docs/SECURITY_AUDIT_VERIFICATION-2026-09-22.md).
+Download published source archives and checksums from
+[GitHub Releases](https://github.com/hugosmoreira/model-lab/releases). The
 [2026-09-17 audit](docs/AUDIT-2026-09-17.md) led to changes in artifact isolation,
 spending controls, evidence storage and result labeling. The
 [release plan](docs/RELEASE_PLAN.md) records verification and the unresolved

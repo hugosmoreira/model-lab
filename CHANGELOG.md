@@ -6,6 +6,18 @@ All notable changes to Model Lab are recorded here. The format follows
 
 ## Unreleased
 
+## 0.2.0-rc.2 — 2026-09-22
+
+- Add operator UI framing protection and browser response headers. This does
+  not replace authentication for remote private deployments.
+- Stop inserting fixture votes while reading the comparison queue, including
+  read-only mode and failed vote reads. Explicit demo seeding retains its votes;
+  an existing empty vote table now stays empty.
+- Redact Google key, Supabase secret and complete JWT shapes in provider/store
+  diagnostics before truncation. Redaction remains best effort; no live
+  credential exposure or key validity was established by this verification.
+- Verify all eleven claims in the recent local audit and record the remaining
+  evidence gaps in [the follow-up report](docs/SECURITY_AUDIT_VERIFICATION-2026-09-22.md).
 - Bind source-installed development and production servers to `127.0.0.1` by
   default. Previously, Next's default listener accepted connections on all
   interfaces; forgeable request headers did not establish a local caller.

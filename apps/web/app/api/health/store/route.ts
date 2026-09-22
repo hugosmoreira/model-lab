@@ -1,4 +1,5 @@
 import { getStore } from "@model-lab/store";
+import { scrubSecrets } from "@model-lab/build-arena-runner";
 import { isReadOnly } from "@/lib/server/read-only";
 
 export const dynamic = "force-dynamic";
@@ -10,11 +11,7 @@ export const dynamic = "force-dynamic";
  * anything resembling a key.
  */
 function scrub(message: string): string {
-  return message
-    .split("\n")[0]!
-    .replace(/sb_secret_[A-Za-z0-9_-]+/g, "sb_secret_…")
-    .replace(/eyJ[A-Za-z0-9_-]{10,}/g, "…jwt…")
-    .slice(0, 200);
+  return scrubSecrets(message).split("\n")[0]!.slice(0, 200);
 }
 
 export async function GET() {

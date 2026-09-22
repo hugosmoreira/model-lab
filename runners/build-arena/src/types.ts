@@ -17,7 +17,7 @@ import type {
   SampleResult,
 } from "@model-lab/schemas";
 
-export const RUNNER_VERSION = "build-arena-runner v0.2.0-rc.1";
+export const RUNNER_VERSION = "build-arena-runner v0.2.0-rc.2";
 
 export type BaseKind = "anthropic" | "openai-compatible" | "ollama" | "mock";
 

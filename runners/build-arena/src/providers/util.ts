@@ -6,12 +6,50 @@
 import type { FinishReason } from "../types";
 import { providerDeadline, PROVIDER_LIMITS, ProviderSafetyError } from "./limits";
 
+/** Recognize compact JWTs independently of JSON spacing or diagnostic prefixes. */
+function redactCompactJwt(token: string): string {
+  const segments = token.split(".");
+  for (const index of [0, 1]) {
+    try {
+      const value: unknown = JSON.parse(
+        Buffer.from(segments[index]!, "base64url").toString("utf8"),
+      );
+      if (
+        typeof value === "object" &&
+        value !== null &&
+        !Array.isArray(value) &&
+        (index === 1 || ("alg" in value && typeof value.alg === "string"))
+      ) {
+        // A claims object is sufficient for conservative redaction when text
+        // was concatenated directly before the encoded JOSE header.
+        return "[redacted-jwt]";
+      }
+    } catch {
+      // Ordinary dotted diagnostics, versions and filenames are not credentials.
+    }
+  }
+  return token;
+}
+
 /** Redact anything that looks like a credential from arbitrary text. */
 export function scrubSecrets(text: string): string {
-  return text
-    .replace(/sk-[A-Za-z0-9_-]{6,}/g, "sk-***")
-    .replace(/(bearer\s+)[A-Za-z0-9._~+/=-]+/gi, "$1***")
-    .replace(/((?:x-api-key|api[-_]?key|authorization)["']?\s*[:=]\s*["']?)[^\s"',;}]+/gi, "$1***");
+  return (
+    text
+      // The left boundary prevents repeatedly scanning suffixes of long words.
+      .replace(
+        /(?<![A-Za-z0-9_-])[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/g,
+        redactCompactJwt,
+      )
+      .replace(/AIza[0-9A-Za-z_-]{20,}/g, "[redacted-google-key]")
+      .replace(/sb_secret_[A-Za-z0-9_-]+/g, "[redacted-secret]")
+      .replace(/eyJ[A-Za-z0-9_-]{10,}(?:\.[A-Za-z0-9_-]+){0,2}/g, "[redacted-jwt]")
+      .replace(/sk-[A-Za-z0-9_-]{6,}/g, "sk-***")
+      .replace(/(bearer\s+)[A-Za-z0-9._~+/=-]+/gi, "$1***")
+      .replace(
+        /((?:x-api-key|api[-_]?key|authorization)["']?\s*[:=]\s*["']?)[^\s"',;}]+/gi,
+        "$1***",
+      )
+  );
 }
 
 /** Stringify an unknown error with secrets scrubbed. */

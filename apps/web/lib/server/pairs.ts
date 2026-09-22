@@ -18,9 +18,8 @@
  *  - votes are FINAL once cast; the queue's `currentIndex` is simply the
  *    first pair without a final vote.
  *
- * Demo storyline: on first load, if the store holds no votes for
- * run_8f3ac21e, the four final fixture session votes are seeded so the demo
- * lands exactly where the prototype did (pair 5 of 6, four votes cast). The
+ * Demo votes are installed only by explicit seedDemo (or memory-store setup).
+ * Reading an empty queue must not manufacture votes. The
  * judge-contamination warning attaches only to the demo's pair 5 — it is
  * fixture narrative; real runs omit it.
  */
@@ -153,21 +152,6 @@ function sideView(slot: "A" | "B", endpointId: string, artifact: Artifact | null
   };
 }
 
-/**
- * Seed the four final fixture session votes for the demo run when the store
- * holds none (memory auto-seeds them via seedDemo; sqlite/supabase may not).
- * Failures (e.g. demo run absent from a persistent backend) degrade silently:
- * the queue just starts at pair 1.
- */
-async function ensureDemoVotes(store: RunStore): Promise<void> {
-  const existing = await store.listVotes(DEMO_RUN_ID).catch((): PairwiseVote[] => []);
-  if (existing.length > 0) return;
-  for (const v of fx.pairwiseSession.votes) {
-    if (!v.final) continue;
-    await store.upsertVote({ ...v, pairing: [v.pairing[0], v.pairing[1]] }).catch(() => undefined);
-  }
-}
-
 /* ------------------------------------------------------------------------- */
 
 export async function buildPairQueue(runView: RunView): Promise<PairQueue> {
@@ -179,8 +163,6 @@ export async function buildPairQueue(runView: RunView): Promise<PairQueue> {
   } catch {
     store = null;
   }
-
-  if (store !== null && runId === DEMO_RUN_ID) await ensureDemoVotes(store);
 
   const votes = store !== null ? await store.listVotes(runId).catch((): PairwiseVote[] => []) : [];
   const voteByPair = new Map(votes.map((v) => [v.pairIndex, v] as const));
