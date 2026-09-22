@@ -339,6 +339,12 @@ def smoke_image(image, work, report, check_interrupted):
         expect(terminal["status"] == "completed", f"Mock benchmark failed: {terminal['status']}")
         mutation_checks(base, run_id, config)
         report["mutationRequests"] = "passed: three routes reject foreign/null/missing Origin and text/plain without side effects; same-origin run/annotation/vote succeed"
+        for path in ("/", "/api/health/store", f"/api/runs/{run_id}/bundle"):
+            with urllib.request.urlopen(base + path, timeout=30) as response:
+                expect("frame-ancestors 'none'" in response.headers.get("Content-Security-Policy", ""), f"Missing framing policy on {path}")
+                for key, value in (("X-Frame-Options", "DENY"), ("X-Content-Type-Options", "nosniff"), ("Referrer-Policy", "no-referrer")):
+                    expect(response.headers.get(key) == value, f"Missing {key} on {path}")
+        report["operatorHeaders"] = "passed: live page, API and evidence download reject framing and retain diagnostic response protections"
         for path in ("/runs/run_deadbeef/results", "/share/run_deadbeef"):
             rejected_request(base, path, None, 404)
         report["missingRunPages"] = "passed: results and share return HTTP 404"

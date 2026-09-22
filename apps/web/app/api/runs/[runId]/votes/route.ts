@@ -3,8 +3,7 @@
  *
  * GET  /api/runs/[runId]/votes — the full pair queue:
  *        { pairs, currentIndex, stats }
- *      First GET for the demo run seeds the four fixture session votes when
- *      the store holds none, so the demo lands where the prototype did.
+ *      Reads recorded votes only; demo votes are installed by explicit seeding.
  *
  * POST /api/runs/[runId]/votes — cast a blind vote for one pair:
  *        { pairIndex, vote: 'A'|'B'|'tie'|'skip', confidence? }

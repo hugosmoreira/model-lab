@@ -5,6 +5,32 @@ import test from "node:test";
 register("./ts-resolve.mjs", import.meta.url);
 const { checkProvidersHealth, checkProviderHealth } = await import("../src/providers/health.ts");
 
+test("health diagnostics scrub credentials before the 120-character cut", async () => {
+  const before = { ...process.env };
+  const originalFetch = globalThis.fetch;
+  try {
+    delete process.env.MODEL_LAB_MOCK_PROVIDERS;
+    process.env.GOOGLE_API_KEY = "synthetic-test-credential";
+    const jwt = [
+      Buffer.from('{ "alg":"HS256"}').toString("base64url"),
+      Buffer.from('{ "role":"fixture"}').toString("base64url"),
+      "synthetic-signature",
+    ].join(".");
+    for (const secret of ["AIza" + "x".repeat(35), "sk-" + "x".repeat(30), jwt]) {
+      globalThis.fetch = async () => new Response("x".repeat(112) + secret, { status: 401 });
+      const result = await checkProviderHealth("google");
+      assert.equal(result.status, "disconnected");
+      assert.ok(!result.detail.includes(secret.slice(0, 8)));
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const key of ["MODEL_LAB_MOCK_PROVIDERS", "GOOGLE_API_KEY"]) {
+      if (before[key] === undefined) delete process.env[key];
+      else process.env[key] = before[key];
+    }
+  }
+});
+
 test("forced mock health blocks every provider probe, including keyless Ollama", async () => {
   const before = { ...process.env };
   const originalFetch = globalThis.fetch;

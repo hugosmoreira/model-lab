@@ -8,6 +8,11 @@ Main/tag rules, release review and private vulnerability reporting are active
 and verified. Native-library advisory and binary-distribution review remain
 open; no container or hosted service has been published.
 
+The next source candidate is `0.2.0-rc.2`, including the listener repair and
+[verification of the recent eleven-finding audit](SECURITY_AUDIT_VERIFICATION-2026-09-22.md).
+Candidate checks and protected release preparation are in progress; the rc.1
+tag and assets remain immutable.
+
 Prepared 2026-09-17 from the [project audit](AUDIT-2026-09-17.md).
 This is the execution plan for the [roadmap](ROADMAP.md). Update this document
 as work is verified; keep the audit as a record of the original findings.
@@ -19,7 +24,7 @@ Docker image, complete a benchmark, inspect the evidence, and export trustworthy
 results. Start with local/private use and SQLite. Offer a keyless, read-only
 hosted demo after the release candidate passes.
 
-Prepared version: `0.2.0-rc.1` in all five packages, runner metadata and CITATION.
+Prepared version: `0.2.0-rc.2` in all five packages, runner metadata and CITATION.
 Annotated tag `v0.2.0-rc.1` points to
 `d60431a1f2fa8efb68be97f911e50758f092f510`. Target `v0.2.0` only after
 the release-candidate checks and feedback.
@@ -39,6 +44,33 @@ and persistence behavior are exercised against an isolated test project.
 Do not add an authentication system just to publish a self-hosted tool.
 
 ## Verified starting point
+
+### Security verification and rc.2 preparation (2026-09-22)
+
+- Checked all eleven supplied audit claims against current source and resolved
+  policy. Two current findings were confirmed (L1 framing and L2 vote reads),
+  five retained evidence gaps, and four did not establish a remaining separate
+  vulnerability on repaired main. The immutable rc.1 defaults still require
+  the previously documented loopback workaround or an upgrade.
+- Added global framing protection; removed fixture vote writes from the shared
+  queue reader; improved shared diagnostic redaction before truncation, including
+  JWT serialization variants found by independent candidate review. Corrected
+  the Dockerfile's example to publish only on host loopback.
+- Pre-fix header and vote regressions failed as expected. The repaired focused
+  suites pass, including actual Next socket checks, memory/SQLite queue states,
+  provider HTTP/SSE/health errors, and store-health credential handling. Whole
+  repository lint and web/runner typechecks pass locally. Added live page/API/
+  download header assertions to the clean-image CI rehearsal.
+- Aligned all five packages, runner metadata and citation to `0.2.0-rc.2`.
+  Exact candidate source CI, protected workflow, immutable tag and downloaded
+  packet verification remain release steps. No new tag or public release is
+  claimed by this preparation checkpoint.
+- The original local audit is preserved untracked and is excluded from the
+  public source packet. Only the sanitized verification report is committed.
+  No operator credentials were read, rotated or transmitted; no paid benchmark
+  or live Supabase validation was performed.
+
+The following table preserves the original September 17 starting snapshot.
 
 | Area | Observed state | Release implication |
 | --- | --- | --- |
@@ -561,8 +593,11 @@ it; demonstrate its remediation or a verified mitigation that removes the path.
 | R11: GitHub release | Public source prerelease complete; container publication remains under R10 | Exact tagged-commit source checks, verified assets, active/read-back branch/tag/environment protections and private reporting |
 | R12: demo / new benchmark claims | Optional / open | Add selected target and relevant runtime/evidence checks |
 
-Next: cut a new source candidate containing the loopback-default repair, then
-prototype the scoped LLVM rebuild and resolve the remaining R10 native advisory
+Next: verify and publish rc.2 with the loopback, framing, vote-read and
+diagnostic-redaction repairs. Then implement shared workload limits and bounded
+provider health refreshes (H2/M2/L4), evaluate judge integrity (M1), and resolve
+operator credential ownership (H3). Prototype the scoped LLVM rebuild and
+resolve the remaining R10 native advisory
 and binary redistribution blockers before any image promotion. Rerun the
 complete image gate on the final candidate and preserve its immutable digest.
 The source-only release does not imply container certification.

@@ -8,7 +8,7 @@
 # browsers and weighs about 4 GB; this one is a fraction of that.)
 #
 #   docker build -t model-lab .
-#   docker run --rm -p 3000:3000 -v model-lab-data:/data \
+#   docker run --rm -p 127.0.0.1:3000:3000 -v model-lab-data:/data \
 #     -e MODEL_LAB_MOCK_PROVIDERS=1 -e MODEL_LAB_READ_ONLY=1 model-lab
 #
 # See docs/DEPLOY.md for the two deployment profiles.

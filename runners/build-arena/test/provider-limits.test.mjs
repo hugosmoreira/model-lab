@@ -3,7 +3,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 register("./ts-resolve.mjs", import.meta.url);
 
-const { readSse, readBoundedText } = await import("../src/providers/util.ts");
+const { readSse, readBoundedText, scrubSecrets, errorMessage } =
+  await import("../src/providers/util.ts");
 const { boundedGenerate, ProviderSafetyError } = await import("../src/providers/limits.ts");
 const { OpenAiCompatibleProvider } = await import("../src/providers/openai-compatible.ts");
 const { AnthropicProvider } = await import("../src/providers/anthropic.ts");
@@ -18,6 +19,68 @@ const sse = (events) =>
   events
     .map((event) => `data: ${typeof event === "string" ? event : JSON.stringify(event)}\n\n`)
     .join("");
+
+const syntheticSecrets = [
+  "AIza" + "aB0_-".repeat(7),
+  "sb_secret_" + "synthetic".repeat(5),
+  [
+    Buffer.from('{"alg":"HS256"}').toString("base64url"),
+    Buffer.from('{"fixture":"private-marker"}').toString("base64url"),
+    "synthetic-signature",
+  ].join("."),
+  "sk-" + "synthetic".repeat(5),
+  [
+    Buffer.from('{ "alg":"HS256"}').toString("base64url"),
+    Buffer.from('{ "role":"fixture"}').toString("base64url"),
+    "synthetic-signature",
+  ].join("."),
+];
+
+test("diagnostics redact complete credential shapes and preserve ordinary errors", () => {
+  for (const secret of syntheticSecrets) {
+    for (const text of [secret, `rejected '${secret}'`, `one ${secret} two ${secret}`]) {
+      const scrubbed = scrubSecrets(text);
+      assert.ok(!scrubbed.includes(secret));
+      for (const segment of secret.split(".")) assert.ok(!scrubbed.includes(segment));
+      assert.ok(!errorMessage(new Error(text)).includes(secret));
+    }
+  }
+  assert.equal(scrubSecrets("HTTP 429: rate limit reached"), "HTTP 429: rate limit reached");
+  assert.equal(scrubSecrets("v1.2.3 at module.test.ts"), "v1.2.3 at module.test.ts");
+  assert.equal(scrubSecrets("x".repeat(256_000)), "x".repeat(256_000));
+  assert.equal(scrubSecrets("Bearer synthetic.token-value"), "Bearer ***");
+  assert.equal(scrubSecrets('api_key="synthetic-value"'), 'api_key="***"');
+});
+
+test("both adapters scrub HTTP and stream errors before diagnostic truncation", async () => {
+  const original = globalThis.fetch;
+  try {
+    for (const adapter of [
+      new OpenAiCompatibleProvider({ baseUrl: "http://synthetic.invalid", apiKey: null }),
+      new AnthropicProvider({ baseUrl: "http://synthetic.invalid", apiKey: "fixture" }),
+    ]) {
+      for (const secret of syntheticSecrets) {
+        for (const status of [400, 401]) {
+          globalThis.fetch = async () => new Response("x".repeat(292) + secret, { status });
+          await assert.rejects(collect(adapter.generate(request)), (error) => {
+            assert.ok(!error.message.includes(secret.slice(0, 8)), error.message);
+            assert.match(error.message, /HTTP (400|401)/);
+            return true;
+          });
+        }
+        globalThis.fetch = async () =>
+          new Response(sse([{ type: "error", error: { message: secret } }]));
+        await assert.rejects(collect(adapter.generate(request)), (error) => {
+          assert.ok(!error.message.includes(secret));
+          assert.match(error.message, /stream error/);
+          return true;
+        });
+      }
+    }
+  } finally {
+    globalThis.fetch = original;
+  }
+});
 
 function body(parts, { stall = false, onCancel = () => {} } = {}) {
   let index = 0;

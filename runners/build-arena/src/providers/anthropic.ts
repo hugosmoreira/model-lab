@@ -88,7 +88,7 @@ export class AnthropicProvider implements Provider {
           res.body === null
             ? "empty body"
             : await readBoundedText(res.body, { signal: deadline.signal });
-        throw new Error(scrubSecrets(`anthropic HTTP ${res.status}: ${detail.slice(0, 300)}`));
+        throw new Error(`anthropic HTTP ${res.status}: ${scrubSecrets(detail).slice(0, 300)}`);
       }
 
       let tokensIn = 0;
@@ -151,9 +151,7 @@ export class AnthropicProvider implements Provider {
           if (stop !== null) finishReason = stop;
         } else if (type === "error") {
           throw new Error(
-            scrubSecrets(
-              `anthropic stream error: ${JSON.stringify(msg?.error ?? msg).slice(0, 300)}`,
-            ),
+            `anthropic stream error: ${scrubSecrets(JSON.stringify(msg?.error ?? msg)).slice(0, 300)}`,
           );
         } else if (type === "message_stop") {
           sawStop = true;

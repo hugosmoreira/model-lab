@@ -3,13 +3,110 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { MemoryStore, demoFixtures, type RunStore } from "@model-lab/store";
+import { MemoryStore, SqliteStore, demoFixtures, type RunStore } from "@model-lab/store";
 import type { HumanAnnotation } from "@model-lab/schemas";
 import { runManifest } from "@model-lab/schemas/fixtures";
 import type { ShareCardContent, ShareCardRow } from "../components/share/ShareCard";
 import { getRunView, listAllRuns } from "../lib/server/loaders";
 import { buildAltText, buildCsv, buildJson, buildPostDraft } from "../lib/share/export-data";
 import { modelScoreSource, scoreAxisLabel } from "../lib/score-presentation";
+import { buildPairQueue } from "../lib/server/pairs";
+import { GET as storeHealth } from "../app/api/health/store/route";
+
+test("store-health errors remove every JWT segment and other credentials", async () => {
+  const cacheKey = Symbol.for("model-lab.store.singleton");
+  const state = globalThis as typeof globalThis & { [cacheKey]?: unknown };
+  const previousCache = state[cacheKey];
+  const previousBackend = process.env.MODEL_LAB_STORE;
+  const store = new MemoryStore();
+  const jwt = [
+    Buffer.from('{ "alg":"HS256"}').toString("base64url"),
+    Buffer.from('{ "fixture":"private-marker"}').toString("base64url"),
+    "synthetic-signature",
+  ].join(".");
+  const secrets = [jwt, "AIza" + "x".repeat(35), "sb_secret_" + "x".repeat(30)];
+  try {
+    process.env.MODEL_LAB_STORE = "memory";
+    state[cacheKey] = { backend: "memory", promise: Promise.resolve(store) };
+    store.listRuns = async () => {
+      throw new Error(`store unavailable ${secrets.join(" ")}\nprivate second line`);
+    };
+    const response = await storeHealth();
+    assert.equal(response.status, 503);
+    const payload = await response.json();
+    assert.match(payload.error, /^store unavailable/);
+    assert.ok(payload.error.length <= 200);
+    assert.ok(!payload.error.includes("private second line"));
+    for (const secret of secrets.flatMap((value) => value.split("."))) {
+      assert.ok(!payload.error.includes(secret));
+    }
+  } finally {
+    if (previousCache === undefined) delete state[cacheKey];
+    else state[cacheKey] = previousCache;
+    if (previousBackend === undefined) delete process.env.MODEL_LAB_STORE;
+    else process.env.MODEL_LAB_STORE = previousBackend;
+  }
+});
+
+test("reading a demo vote queue never inserts votes, including on read failure", async () => {
+  const cacheKey = Symbol.for("model-lab.store.singleton");
+  const state = globalThis as typeof globalThis & { [cacheKey]?: unknown };
+  const previousCache = state[cacheKey];
+  const before = { ...process.env };
+  const root = mkdtempSync(join(tmpdir(), "model-lab-pair-read-"));
+  process.env.MODEL_LAB_DATA_DIR = root;
+  try {
+    for (const store of [new MemoryStore(), new SqliteStore(":memory:")]) {
+      try {
+        process.env.MODEL_LAB_STORE = store instanceof SqliteStore ? "sqlite" : "memory";
+        state[cacheKey] = { backend: process.env.MODEL_LAB_STORE, promise: Promise.resolve(store) };
+        const fixture = demoFixtures();
+        fixture.votes = [];
+        await store.seedDemo(fixture);
+        const view = await getRunView(fixture.run.id, store);
+        const write = store.upsertVote.bind(store);
+        let writes = 0;
+        store.upsertVote = async () => {
+          writes++;
+          throw new Error("read attempted a write");
+        };
+        for (const readOnly of ["0", "1"]) {
+          process.env.MODEL_LAB_READ_ONLY = readOnly;
+          for (let repeat = 0; repeat < 2; repeat++) {
+            const queue = await buildPairQueue(view);
+            assert.equal(queue.currentIndex, 1);
+            assert.equal(queue.stats.votesCast, 0);
+            assert.deepEqual(await store.listVotes(fixture.run.id), []);
+          }
+        }
+        const read = store.listVotes.bind(store);
+        store.listVotes = async () => {
+          throw new Error("vote reads unavailable");
+        };
+        await buildPairQueue(view);
+        assert.equal(writes, 0);
+        store.listVotes = read;
+        store.upsertVote = write;
+        await store.seedDemo(demoFixtures());
+        const votes = await store.listVotes(fixture.run.id);
+        const queue = await buildPairQueue(await getRunView(fixture.run.id, store));
+        assert.equal(queue.currentIndex, 5);
+        assert.equal(queue.stats.votesCast, 4);
+        assert.deepEqual(await store.listVotes(fixture.run.id), votes);
+      } finally {
+        if (store instanceof SqliteStore) store.close();
+      }
+    }
+  } finally {
+    if (previousCache === undefined) delete state[cacheKey];
+    else state[cacheKey] = previousCache;
+    for (const key of ["MODEL_LAB_STORE", "MODEL_LAB_READ_ONLY", "MODEL_LAB_DATA_DIR"]) {
+      if (before[key] === undefined) delete process.env[key];
+      else process.env[key] = before[key];
+    }
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test("missing runs never render demo data, and empty stores remain empty", async () => {
   process.env.MODEL_LAB_STORE = "memory";

@@ -15,9 +15,10 @@ Please avoid public exploit reports until the maintainer has assessed them.
 
 ## Supported versions
 
-The published source prerelease `0.2.0-rc.1` contains security changes that are
-absent from the historical 0.1.0 implementation. Container publication remains
-blocked. See the changelog and release plan before choosing a version.
+Use source candidate `0.2.0-rc.2` or newer for the loopback listener, framing,
+vote-read and diagnostic-redaction repairs. The immutable `0.2.0-rc.1` archive
+does not contain these changes. See the [audit verification](docs/SECURITY_AUDIT_VERIFICATION-2026-09-22.md)
+for remaining findings and evidence gaps. Container publication remains blocked.
 
 ## Generated artifacts
 
@@ -63,6 +64,10 @@ same Origin header; the CLI calls the service directly. This prevents browser
 cross-origin writes; a direct HTTP client can forge Origin, so it is not authentication.
 Read-only mode rejects all three mutations before processing their bodies.
 
+The operator UI rejects framing through CSP `frame-ancestors 'none'` and
+`X-Frame-Options: DENY`. It is intended to be opened as a top-level page.
+Demo votes are created by explicit seeding, never by comparison-queue reads.
+
 Provider keys and Supabase service credentials remain server-side. Docker build
 exclusions cover nested dotenv files, databases and generated state, and release
 checks inspect every image layer using synthetic sentinels. Error redaction is
@@ -83,6 +88,11 @@ Tokenization, upstream usage reports, prices and unreported reasoning can differ
 from estimates. Configure provider-side limits as appropriate. Unknown cloud
 pricing is rejected for paid admission. Local and deterministic mock endpoints
 have zero configured provider cost.
+
+These are per-run spending controls, not process-wide workload or daily account
+quotas. The API has broader sample-count inputs than the wizard, and simultaneous
+runs can multiply resource use. Shared workload limits and bounded health
+refreshes remain follow-up work; keep the trusted operator access boundary.
 
 `MODEL_LAB_MOCK_PROVIDERS=1` prevents provider generation, judging and health
 probes from making provider requests. The application still serves its own UI and

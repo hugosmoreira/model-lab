@@ -1,4 +1,11 @@
 This is a **source release** of Model Lab for local/private, single-host use.
+Version **0.2.0-rc.2** includes the default loopback listener repair that is absent
+from rc.1. It also blocks framing of the operator UI, removes fixture-vote
+writes from comparison reads, and improves diagnostic credential redaction.
+See the [audit verification](https://github.com/hugosmoreira/model-lab/blob/main/docs/SECURITY_AUDIT_VERIFICATION-2026-09-22.md)
+for claim-by-claim results and the remaining workload, probe, judge-integrity and
+operator credential questions. This is not a claim that every audit item is closed.
+
 Install the pinned dependencies and browser using the repository's
 [README](https://github.com/hugosmoreira/model-lab/blob/main/README.md), then start with forced mock providers. Paid provider
 calls require the operator's own configuration. The included examples do not
@@ -21,7 +28,7 @@ must pass for this exact commit before the workflow prepares the draft.
 **Container publication is not certified by this source release.** The image
 advisory gate and binary redistribution review remain separate requirements.
 Supabase is experimental. The app has no built-in authentication; remote
-writable installations require an authenticating reverse proxy. Generated
+private installations require an authenticating reverse proxy on every route. Generated
 code is hostile input, and the documented browser controls do not constitute
 an OS-level sandbox. Read [SECURITY.md](https://github.com/hugosmoreira/model-lab/blob/main/SECURITY.md) and
 [deployment guidance](https://github.com/hugosmoreira/model-lab/blob/main/docs/DEPLOY.md) before operating it.
