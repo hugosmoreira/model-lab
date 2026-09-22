@@ -8,6 +8,11 @@ All notable changes to Model Lab are recorded here. The format follows
 
 ## 0.2.0-rc.2 — 2026-09-22
 
+[Source prerelease published](https://github.com/hugosmoreira/model-lab/releases/tag/v0.2.0-rc.2)
+at `2026-09-22T14:24:59Z`. The protected source workflow passed on the exact
+tagged commit; anonymous downloads match the checksums and all 403 Git blobs.
+Container publication remains blocked.
+
 - Add operator UI framing protection and browser response headers. This does
   not replace authentication for remote private deployments.
 - Stop inserting fixture votes while reading the comparison queue, including

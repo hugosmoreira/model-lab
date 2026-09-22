@@ -15,6 +15,20 @@ these advisory-specific conclusions.
 
 ## Evidence identity and limits
 
+### Source rc.2 follow-up on 2026-09-22
+
+[PR CI 35739113423](https://github.com/hugosmoreira/model-lab/actions/runs/35739113423)
+checked synthetic merge `00b35088bf8c647cd1a7c960f7e57bb7d888c43d`, whose
+Git tree equals source tag `v0.2.0-rc.2`. The clean image is
+`sha256:0142dc8a368c01537f982d017552b45c92125f8d10d4e38bd5b88442212f87c9`.
+The complete functional rehearsal passes, including the new live operator
+headers on page/API/download responses and the graphics check. The public
+database updated at `2026-09-22T07:24:27Z` retains 54 HIGH, one CRITICAL,
+91 MEDIUM, 108 LOW and three UNKNOWN native occurrences; 51 identified Node
+packages have no findings. The advisory scan remains the only failed CI step.
+Reports are retained by CI and under ignored `artifacts-data/rc2-release/pr-image/`.
+The scoped LLVM rebuild is still a proposed prototype, not a verified repair.
+
 ### Follow-up on 2026-09-21 (America/Los_Angeles)
 
 Rescanned the unchanged production-dependency image `c6c3b6e` with the public

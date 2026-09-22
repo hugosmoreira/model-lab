@@ -68,14 +68,22 @@ See [the living release plan](RELEASE_PLAN.md) for completion receipts. Containe
 publication remains blocked by the native advisory and redistribution gates;
 this review neither suppresses those findings nor certifies an image.
 
+Completion: the exact tagged commit passed [protected source workflow
+35739618140](https://github.com/hugosmoreira/model-lab/actions/runs/35739618140).
+The [full PR image rehearsal](https://github.com/hugosmoreira/model-lab/actions/runs/35739113423)
+also passed live HTTP header checks on a page, an API and an evidence download,
+plus its existing functional checks. Its native advisory scan is the sole
+failed step. [Source rc.2](https://github.com/hugosmoreira/model-lab/releases/tag/v0.2.0-rc.2)
+was published on September 22; anonymous asset downloads match the checksums
+and every file in the 403-file tagged source tree.
+
 ## Next work
 
-1. Finish exact-commit source checks and publish the patched rc.2 source packet.
-2. Add shared workload admission and bounded/coalesced health refreshes, with
+1. Add shared workload admission and bounded/coalesced health refreshes, with
    synthetic abuse tests and explicit operator-facing limits (H2, M2, L4).
-3. Evaluate adversarial judge artifacts and strict response parsing (M1),
+2. Evaluate adversarial judge artifacts and strict response parsing (M1),
    retaining uncertainty rather than presenting a delimiter change as a cure.
-4. Resolve the local credential ownership question (H3) without publishing host
+3. Resolve the local credential ownership question (H3) without publishing host
    identifiers or changing the managed sandbox's policy.
-5. Continue the scoped LLVM/libxml2 prototype and binary redistribution review;
+4. Continue the scoped LLVM/libxml2 prototype and binary redistribution review;
    rerun the entire image gate before any container promotion.

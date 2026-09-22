@@ -13,7 +13,8 @@ real browser tests against every generated artifact, judge the builds with an
 order-swapped LLM judge, add your own ratings, and export results that trace back to a
 reproducible run bundle.
 
-**Source candidate:** `0.2.0-rc.2` contains the loopback listener and
+**Source prerelease:** [v0.2.0-rc.2](https://github.com/hugosmoreira/model-lab/releases/tag/v0.2.0-rc.2)
+is published and contains the loopback listener and
 [audit follow-up repairs](docs/SECURITY_AUDIT_VERIFICATION-2026-09-22.md).
 Download published source archives and checksums from
 [GitHub Releases](https://github.com/hugosmoreira/model-lab/releases). The
