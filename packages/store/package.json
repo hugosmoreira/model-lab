@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@model-lab/schemas": "workspace:*",
-    "@supabase/supabase-js": "^2.49.0"
+    "@supabase/supabase-js": "^2.116.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
