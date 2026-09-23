@@ -54,6 +54,16 @@ for (const backend of ["memory", "sqlite"]) {
       assert.deepEqual(await store.listSamples(fx.run.id), originalSamples);
       await store.insertAnnotation({ ...base, ignored: "x".repeat(100000) });
       assert.equal("ignored" in (await store.listAnnotations(fx.run.id)).at(-1), false);
+      let reads = 0;
+      await assert.rejects(
+        store.insertAnnotation({
+          ...base,
+          get scoreOverride() {
+            return reads++ === 0 ? 99 : 8;
+          },
+        }),
+        { code: "INVALID" },
+      );
     } finally {
       store.close?.();
     }

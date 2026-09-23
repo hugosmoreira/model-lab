@@ -13,21 +13,21 @@ export const ANNOTATION_CAPACITY_MESSAGE =
 /** The API is not the only writer: apply the same shape rules in every store. */
 export function validateAnnotation(annotation: HumanAnnotation): HumanAnnotation {
   const parsed = HumanAnnotation.safeParse(annotation);
+  const value = parsed.success ? parsed.data : null;
   if (
-    !parsed.success ||
-    !Number.isInteger(annotation.sampleIndex) ||
-    annotation.sampleIndex < 1 ||
-    (annotation.scoreOverride !== null &&
-      (!Number.isFinite(annotation.scoreOverride) ||
-        annotation.scoreOverride < 0 ||
-        annotation.scoreOverride > 10))
+    value === null ||
+    !Number.isInteger(value.sampleIndex) ||
+    value.sampleIndex < 1 ||
+    (value.scoreOverride !== null &&
+      (!Number.isFinite(value.scoreOverride) ||
+        value.scoreOverride < 0 ||
+        value.scoreOverride > 10))
   ) {
     throw new StoreError(
       "INVALID",
       "Annotation must reference a positive sample index and a 0–10 score.",
     );
   }
-  const value = parsed.data;
   const text = [value.runId, value.endpointId, value.note, value.author, value.at];
   if (
     value.note.length < 1 ||
