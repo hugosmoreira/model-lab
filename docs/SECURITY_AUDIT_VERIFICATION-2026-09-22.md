@@ -123,6 +123,14 @@ synthetic; no provider request or real credential is used. Existing budget,
 evidence/replay, unit and frontend evidence tests pass. See the release plan
 for independent review and clean CI receipts.
 
+Independent candidate review found no concrete bypass or regression, including
+1,641 additional parser probes. [PR #20 CI](https://github.com/hugosmoreira/model-lab/actions/runs/35820586670)
+passed the complete source gate, secret scan and image functional rehearsal.
+Its only failed step was the unsuppressed native advisory scan (54 HIGH and
+one CRITICAL occurrence; zero Node findings). This verifies the bounded parser
+repair and compatibility, not semantic prompt-injection resistance or image
+publication readiness. The immutable rc.2 archive is unchanged.
+
 Remaining sequence:
 
 1. Bound remaining annotation volume and request/storage resources (L4),

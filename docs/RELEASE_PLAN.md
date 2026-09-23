@@ -70,9 +70,22 @@ Do not add an authentication system just to publish a self-hosted tool.
   provider credentials or operator evidence are used.
 - Independent read-only candidate review found no concrete bypass or regression;
   its 1,641 additional parser probes cover escaped aliases, structure inside
-  strings, byte limits and nested invalid values. Clean GitHub source/image
-  checks remain the integration gates for this candidate; record their receipts
-  here before protected merge. Existing rc.2 tags/assets remain immutable.
+  strings, byte limits and nested invalid values.
+- [PR #20](https://github.com/hugosmoreira/model-lab/pull/20) carries this patch.
+  [Clean CI 35820586670](https://github.com/hugosmoreira/model-lab/actions/runs/35820586670)
+  passed all source checks and the redacted tree/history secret scan with zero
+  unresolved findings. Implementation commit
+  `7dea3550530e9d3fb1a9124aa1fe47c691912b39` and CI merge
+  `2507272ab4311eca875f093740e85d36a5abfd1b` share tree
+  `723bc82b51ff002dd158db1e269ea6d8c83fbd82`.
+- The same run passed the complete clean-image functional rehearsal on
+  `sha256:76fbd7c6fc3195ed7ece43136797dad93f86f04509b63814eea79a12c1300279`.
+  Only the raw native advisory gate failed: 54 HIGH, one CRITICAL, 91 MEDIUM,
+  108 LOW and 11 UNKNOWN occurrences; zero Node findings. Local receipts are
+  retained under ignored `artifacts-data/judge-integrity/`. Final documentation
+  changes require the source/secret gates again before protected merge; the
+  recorded image rehearsal covers the implementation above. No image was
+  published, and existing rc.2 tags/assets remain immutable.
 
 ### Shared workload and provider-health hardening (2026-09-22)
 
@@ -712,8 +725,13 @@ gates pass. No paid benchmark has been run; existing n=1 evidence stays historic
 and new tests use synthetic outputs.
 
 For L4, trace annotation writes and all mutation-body readers before choosing
-shared limits. Bound new input and storage growth without discarding historical
-evidence, breaking ordinary annotation edits or weakening atomic final votes.
+shared limits. The run, annotation and vote routes currently call `req.json()`;
+the annotation route alone caps notes at 4,000 characters, while the shared
+store validator accepts an unbounded note string. Enforce new-write bounds at
+the shared store boundary and use an atomic per-run annotation cap in persistent
+backends. Bound HTTP bytes while streaming, not just via Content-Length.
+Preserve historical evidence and ordinary annotation appends without weakening
+atomic final votes; request/count limits alone do not establish a disk quota.
 Cover concurrency, streamed/incorrect-length bodies and every supported backend;
 keep untested live Supabase behavior explicit.
 
