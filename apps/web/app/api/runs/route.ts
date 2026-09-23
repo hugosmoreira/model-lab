@@ -15,6 +15,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { RunMode } from "@model-lab/schemas";
+import {
+  WORKLOAD_LIMITS,
+  WorkloadLimitError,
+  RunCapacityError,
+} from "@model-lab/build-arena-runner";
 import { getStore } from "@model-lab/store";
 import { listRuns as listRegistryRuns, type RunRecord } from "@/lib/live/run-registry";
 import { isReadOnly, readOnlyResponse } from "@/lib/server/read-only";
@@ -25,12 +30,12 @@ import { reconcileInterruptedRuns } from "@/lib/server/run-recovery";
 export const dynamic = "force-dynamic";
 
 const CreateRunRequest = z.object({
-  name: z.string().min(1).optional(),
+  name: z.string().min(1).max(WORKLOAD_LIMITS.nameLength).optional(),
   mode: RunMode,
   packSlug: z.string().min(1),
-  endpointIds: z.array(z.string().min(1)).min(1),
-  samplesPerModel: z.number().int().min(1),
-  /** hard ceiling in USD; the workspace default when omitted */
+  endpointIds: z.array(z.string().min(1)).min(1).max(WORKLOAD_LIMITS.endpoints),
+  samplesPerModel: z.number().int().min(1).max(WORKLOAD_LIMITS.samplesPerModel),
+  /** Estimated admission budget in USD; the workspace default when omitted. */
   maxBudgetUsd: z.number().positive().max(1000).optional(),
 });
 export type CreateRunRequest = z.infer<typeof CreateRunRequest>;
@@ -66,7 +71,13 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ runId }, { status: 201 });
   } catch (err) {
-    if (err instanceof RunServiceError) {
+    if (err instanceof RunCapacityError) {
+      return NextResponse.json(
+        { error: err.message },
+        { status: 429, headers: { "Retry-After": "5" } },
+      );
+    }
+    if (err instanceof RunServiceError || err instanceof WorkloadLimitError) {
       return NextResponse.json({ error: err.message }, { status: 400 });
     }
     return NextResponse.json({ error: "Run creation failed unexpectedly." }, { status: 500 });

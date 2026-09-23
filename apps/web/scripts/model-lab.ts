@@ -30,7 +30,7 @@ run options
   --pack <slug>          benchmark pack (see: pnpm cli packs)
   --models <ids>         comma-separated endpoint ids (see: pnpm cli models)
   --samples <n>          samples per model (default 1; n=1 is an anecdote)
-  --budget <usd>         hard spend ceiling for the run (default: workspace setting)
+  --budget <usd>         estimated admission budget (default: workspace setting)
   --mode <mode>          build-arena (default) | verified
   --name <text>          run name (default: the pack name)
   --fail-under <ratio>   exit 1 if any model's capability ratio is below this (0–1)
@@ -150,12 +150,13 @@ async function main(): Promise<void> {
   if (mode !== "build-arena" && mode !== "verified") {
     fail(`--mode must be build-arena or verified (got ${mode})`, 2);
   }
-  const samples = Number.parseInt(values.samples, 10);
+  const samples = Number(values.samples);
   if (!Number.isInteger(samples) || samples < 1 || samples > 10) {
     fail(`--samples must be an integer from 1 to 10 (got ${values.samples})`, 2);
   }
-  const budget = values.budget === undefined ? undefined : Number.parseFloat(values.budget);
-  if (budget !== undefined && !(budget > 0)) fail(`--budget must be a positive amount`, 2);
+  const budget = values.budget === undefined ? undefined : Number(values.budget);
+  if (budget !== undefined && (!Number.isFinite(budget) || !(budget > 0)))
+    fail(`--budget must be a positive finite amount`, 2);
   const failUnder =
     values["fail-under"] === undefined ? undefined : Number.parseFloat(values["fail-under"]);
   if (failUnder !== undefined && !(failUnder >= 0 && failUnder <= 1)) {
@@ -177,7 +178,12 @@ async function main(): Promise<void> {
       ...(budget !== undefined ? { maxBudgetUsd: budget } : {}),
     }));
   } catch (err) {
-    if (err instanceof runService.RunServiceError) fail(err.message, 2);
+    if (
+      err instanceof runService.RunServiceError ||
+      err instanceof runService.WorkloadLimitError ||
+      err instanceof runService.RunCapacityError
+    )
+      fail(err.message, 2);
     throw err;
   }
   console.log(`run ${runId} started · ${endpointIds.length} models · n=${samples} · mode ${mode}`);

@@ -62,6 +62,9 @@ import {
 import { getStore, type RunStore } from "@model-lab/store";
 import {
   FsRunStore,
+  acquireRunAdmission,
+  validateRunSelection,
+  validateWorkload,
   RUNNER_VERSION,
   captureSourceRevision,
   computeFingerprint,
@@ -78,6 +81,10 @@ import {
 import { registerRun, type RunRecord } from "@/lib/live/run-registry";
 import { loadPackFromDisk, tasksForPack } from "@/lib/server/packs";
 import { acquireRunLease, reconcileInterruptedRuns, type RunLease } from "./run-recovery";
+
+// CLI imports this service dynamically under tsx. Use the same error exports
+// as the service's runner import, rather than a second ESM/CJS module instance.
+export { RunCapacityError, WorkloadLimitError } from "@model-lab/build-arena-runner";
 
 /** Input contract — matches the wizard's POST /api/runs body (agent A). */
 export interface StartRunInput {
@@ -711,6 +718,9 @@ async function pumpEvents(
  * returns the new run id. Throws RunServiceError on unknown pack/endpoints.
  */
 export async function startRun(input: StartRunInput): Promise<{ runId: string }> {
+  // Copy before the first await: callers cannot mutate validated selection.
+  input = structuredClone(input);
+  validateRunSelection(input);
   const selected = input.endpointIds.map((id) => {
     const ep = endpointCatalog.find((candidate) => candidate.id === id);
     if (ep === undefined) throw new RunServiceError(`Unknown model endpoint: ${id}`);
@@ -755,6 +765,7 @@ export async function startRun(input: StartRunInput): Promise<{ runId: string }>
   }
 
   const createdAt = new Date().toISOString();
+  validateWorkload(cfg);
   const record: RunRecord = {
     id: runId,
     config: {
@@ -769,19 +780,19 @@ export async function startRun(input: StartRunInput): Promise<{ runId: string }>
   };
   const store = await getStoreSafe();
   if (store !== null) await reconcileInterruptedRuns(store);
-  const lease = store !== null ? acquireRunLease(store, runId) : null;
-  if (store !== null) {
-    // Non-fatal: the live run continues even if the store rejects it, but the
-    // failure (e.g. a seedRegistry error against a fresh database) is logged.
-    await persistRunCreation(store, cfg, createdAt).catch(warnPersist("runCreation", store));
-  }
-
-  let fsStore: FsRunStore;
+  const fsStore = new FsRunStore();
+  const admission = acquireRunAdmission(fsStore.root);
+  let lease: RunLease | null = null;
   let handle: RunHandle;
   try {
-    fsStore = new FsRunStore();
-    handle = runnerStartRun(cfg, { store: fsStore });
+    lease = store !== null ? acquireRunLease(store, runId) : null;
+    if (store !== null) {
+      // Metadata failures remain non-fatal. Capacity is already reserved.
+      await persistRunCreation(store, cfg, createdAt).catch(warnPersist("runCreation", store));
+    }
+    handle = runnerStartRun(cfg, { store: fsStore, admission });
   } catch (err) {
+    admission.release();
     lease?.stop();
     if (store !== null) {
       const ended = await store

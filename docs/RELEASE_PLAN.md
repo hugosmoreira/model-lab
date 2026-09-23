@@ -45,6 +45,51 @@ Do not add an authentication system just to publish a self-hosted tool.
 
 ## Verified starting point
 
+### Shared workload and provider-health hardening (2026-09-22)
+
+- Implemented the next H2/M2/L4 follow-up in source after rc.2. The original
+  report's unauthorized-spend and provider-lockout claims remain unproven;
+  these changes close the reproduced missing resource bounds.
+- Shared API/CLI/raw-runner policy: 1–8 distinct endpoints, 1–10 samples,
+  at most 80 generated samples including verified tasks, 1–4 workers,
+  0–3 transport retries and a 200-character name limit. CLI parsing rejects
+  numeric suffixes and non-finite budgets; explicit positive finite budget
+  overrides remain supported.
+- A dedicated SQLite permit file admits at most two executing runs per resolved
+  artifact directory across processes and metadata backends. Acquisition and
+  stale dead-owner reclamation are transactional. Permits precede service
+  metadata writes and survive cancellation/worker failures until execution
+  settles. Existing metadata recovery leases keep their separate lifetime.
+- Web health requests share an in-flight batch, keep the 60-second ordinary
+  cache and enforce a 10-second manual-refresh/failure cooldown. The UI shows
+  when refresh becomes available. Mode changes cannot join or overwrite another
+  mode's cache or reset the real-mode cooldown.
+- Focused synthetic workload, budget, actual API/CLI and health regressions pass,
+  including six competing child processes, concurrent stale-owner reclamation,
+  80-sample verified runs and a $2,001 explicit budget with zero provider spend.
+  Independent candidate review found a transient SQLite cleanup failure that
+  could strand capacity. A locked-database regression reproduced it; retryable
+  cleanup now preserves the run outcome and automatically frees the slot.
+  Local runner/web typechecks, workspace lint and focused tests pass.
+  No provider credentials, operator data or paid calls are used by these tests.
+- [PR #19](https://github.com/hugosmoreira/model-lab/pull/19) records the patch.
+  [Clean CI 35818475610](https://github.com/hugosmoreira/model-lab/actions/runs/35818475610)
+  passed the full source typecheck/lint/format/test/audit/mock-CLI/build gate
+  and tree/history secret scan with zero unresolved findings. Its synthetic
+  merge `08d3e1deef619814a88d8404cfae2c1acef856df` and implementation commit
+  `ec070b6ce7896e825ec6ffe3ef49d6aad843d76a` share Git tree
+  `c3d9e9722d1e95152073d268ffa6f1b698ea26f7`.
+- The same CI run passed the entire clean-image functional rehearsal on
+  `sha256:d96ab21447425b6663619d6d01019840d09f0258aec2718f2fd80f3ed8e02fa1`:
+  offline CLI, graphics, headers, mutation guards, restart, interrupted-run
+  recovery, offline backup/restore and layer exclusions. Its only failed step
+  is the unsuppressed native advisory gate: 54 HIGH, one CRITICAL, 91 MEDIUM,
+  108 LOW and 11 UNKNOWN occurrences; zero Node findings. Receipts are retained
+  under ignored `artifacts-data/workload-hardening/`. No image was published.
+- This patch does not change rc.2's tag/assets. Admission covers one artifact
+  directory on one host, not distinct roots sharing only a metadata database,
+  old running binaries, distributed servers or account-wide daily spend.
+
 ### Source rc.2 publication completed (2026-09-22)
 
 - [PR #17](https://github.com/hugosmoreira/model-lab/pull/17) merged the reviewed
@@ -621,9 +666,8 @@ it; demonstrate its remediation or a verified mitigation that removes the path.
 | R11: GitHub release | Public source rc.2 complete; container publication remains under R10 | Protected workflow 35739618140, exact tagged-commit source checks, verified anonymous downloads, active/read-back protections and private reporting |
 | R12: demo / new benchmark claims | Optional / open | Add selected target and relevant runtime/evidence checks |
 
-Next: implement shared workload limits and bounded
-provider health refreshes (H2/M2/L4), evaluate judge integrity (M1), and resolve
-operator credential ownership (H3). Prototype the scoped LLVM rebuild and
+Next: evaluate judge integrity (M1) and remaining annotation/body/storage limits
+(L4), and resolve operator credential ownership (H3). Prototype the scoped LLVM rebuild and
 resolve the remaining R10 native advisory
 and binary redistribution blockers before any image promotion. Rerun the
 complete image gate on the final candidate and preserve its immutable digest.
@@ -636,3 +680,11 @@ Public source visibility and prerelease publication are complete. Container/pack
 publication and hosted deployment remain separate maintainer decisions after their
 gates pass. No paid benchmark has been run; existing n=1 evidence stays historical
 and new tests use synthetic outputs.
+
+For M1, first retain adversarial artifact fixtures that try to change the rubric
+or cross the current prompt delimiters, and malformed verdicts that exploit
+partial JSON extraction or score clamping. Verify strict verdict acceptance,
+order-swap handling and persistence through the real judge pipeline with
+synthetic responses. Keep measured browser/objective results distinct from
+subjective judge output. A prompt-format change or fake provider response alone
+cannot prove that a live judge resists injection; record that limit explicitly.

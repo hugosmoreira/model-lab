@@ -104,3 +104,10 @@ export type { ReplayContract, BundleEvidence } from "./bundle";
 export { replayConfiguration } from "./config-fingerprint";
 export { captureSourceRevision, captureRunCreation } from "./provenance";
 export type { RunCreationRecord, SourceRevision } from "./provenance";
+export { acquireRunAdmission, RunCapacityError, type RunAdmission } from "./run-admission";
+export {
+  WORKLOAD_LIMITS,
+  WorkloadLimitError,
+  validateRunSelection,
+  validateWorkload,
+} from "./workload";

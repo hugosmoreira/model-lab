@@ -60,6 +60,8 @@ import { createProvider } from "./providers";
 import { errorMessage } from "./providers/util";
 import { boundedGenerate, MAX_GENERATION_BYTES, ProviderSafetyError } from "./providers/limits";
 import { FsRunStore } from "./store-fs";
+import { acquireRunAdmission, type RunAdmission } from "./run-admission";
+import { validateWorkload } from "./workload";
 import {
   RUNNER_VERSION,
   type EndpointConfig,
@@ -114,6 +116,8 @@ export function extractArtifactHtml(raw: string): ArtifactExtraction {
 
 export interface StartRunOptions {
   store?: FsRunStore;
+  /** Service reservation acquired before metadata publication. Consumed once. */
+  admission?: RunAdmission;
   /** injectable for tests; defaults to the Playwright implementation */
   checksRunner?: (
     html: string,
@@ -181,8 +185,25 @@ function kindLabel(ep: EndpointConfig): string {
 
 export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunHandle {
   cfg = structuredClone(cfg);
+  validateWorkload(cfg);
   for (const endpoint of cfg.endpoints) endpointPrices(endpoint);
   const store = options.store ?? new FsRunStore();
+  const admission = options.admission ?? acquireRunAdmission(store.root);
+  admission.claim(store.root);
+  try {
+    const handle = startAdmittedRun(cfg, { ...options, store });
+    return { ...handle, done: handle.done.finally(() => admission.release()) };
+  } catch (error) {
+    admission.release();
+    throw error;
+  }
+}
+
+function startAdmittedRun(
+  cfg: RunnerConfig,
+  options: StartRunOptions & { store: FsRunStore },
+): RunHandle {
+  const store = options.store;
   const creation = store.createRun(cfg);
   const checksRunner = options.checksRunner ?? runBrowserChecks;
   const providerFactory = options.providerFactory ?? createProvider;
@@ -1105,8 +1126,12 @@ export function startRun(cfg: RunnerConfig, options: StartRunOptions = {}): RunH
         })(),
       );
     }
-    await Promise.all(workers);
+    // Do not release shared capacity while a sibling worker is still running
+    // after a filesystem/provider failure in another worker.
+    const settled = await Promise.allSettled(workers);
     if (usingDefaultChecks && !verified) await closeBrowserChecks().catch(() => undefined);
+    const failed = settled.find((result) => result.status === "rejected");
+    if (failed?.status === "rejected") throw failed.reason;
 
     // -- LLM-judge phase: after all samples, before run.completed -----------
     // Gated: build-arena mode only, config.judge set, run not cancelled or

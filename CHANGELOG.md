@@ -6,6 +6,19 @@ All notable changes to Model Lab are recorded here. The format follows
 
 ## Unreleased
 
+- Bound shared API/CLI/runner workloads to eight distinct endpoints, ten samples
+  per model, eighty generated samples including verified tasks, four workers,
+  three transport retries and 200-character names. Invalid CLI numeric suffixes
+  and non-finite budgets are rejected; explicit finite budget overrides remain.
+- Limit execution to two active runs per artifact directory across web and CLI
+  processes, with transactional admission, stale dead-owner recovery and
+  retryable cleanup. Saturated API starts return HTTP 429. Use one host and the
+  same resolved artifact directory, and stop older writers before upgrading.
+- Coalesce concurrent web provider-health requests and bound manual refreshes
+  and failures to a ten-second minimum interval, retaining the ordinary
+  one-minute cache. Settings displays the refresh wait; forced mock probes
+  remain network-free.
+
 ## 0.2.0-rc.2 — 2026-09-22
 
 [Source prerelease published](https://github.com/hugosmoreira/model-lab/releases/tag/v0.2.0-rc.2)

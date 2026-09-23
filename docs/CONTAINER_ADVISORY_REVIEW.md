@@ -15,6 +15,24 @@ these advisory-specific conclusions.
 
 ## Evidence identity and limits
 
+### Workload hardening follow-up on 2026-09-22 (America/Los_Angeles)
+
+[PR #19 CI 35818475610](https://github.com/hugosmoreira/model-lab/actions/runs/35818475610)
+checked synthetic merge `08d3e1deef619814a88d8404cfae2c1acef856df`, whose
+tree equals implementation commit `ec070b6ce7896e825ec6ffe3ef49d6aad843d76a`.
+Image `sha256:d96ab21447425b6663619d6d01019840d09f0258aec2718f2fd80f3ed8e02fa1`
+passes the complete functional rehearsal with the new shared run permits:
+offline CLI, graphics, headers, mutation guards, restart, interrupted recovery,
+offline backup/restore and all-layer exclusions. Source and history secret
+checks pass with zero unresolved findings.
+
+Trivy 0.74.0 used the public database updated at `2026-09-23T01:09:35Z`,
+downloaded at `2026-09-23T04:34:27Z`. Across 172 Debian packages the raw counts
+are 54 HIGH, one CRITICAL, 91 MEDIUM, 108 LOW and 11 UNKNOWN; 51 Node packages
+have zero findings. The unsuppressed native scan is the sole failed CI step.
+Reports are retained under ignored `artifacts-data/workload-hardening/image-check/`.
+This runtime evidence does not clear native reachability or distribution gates.
+
 ### Source rc.2 follow-up on 2026-09-22
 
 [PR CI 35739113423](https://github.com/hugosmoreira/model-lab/actions/runs/35739113423)

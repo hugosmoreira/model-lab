@@ -12,6 +12,187 @@ import { buildAltText, buildCsv, buildJson, buildPostDraft } from "../lib/share/
 import { modelScoreSource, scoreAxisLabel } from "../lib/score-presentation";
 import { buildPairQueue } from "../lib/server/pairs";
 import { GET as storeHealth } from "../app/api/health/store/route";
+import { NextRequest } from "next/server";
+import { acquireRunAdmission, WorkloadLimitError } from "@model-lab/build-arena-runner";
+import { POST as createRun } from "../app/api/runs/route";
+import { GET as providerHealth } from "../app/api/providers/health/route";
+import { startRun as startServiceRun, subscribeRun } from "../lib/server/run-service";
+
+test("service keeps admission through preparation and releases it despite metadata failure", async () => {
+  const root = mkdtempSync(join(tmpdir(), "model-lab-service-workload-"));
+  const before = { ...process.env };
+  const key = Symbol.for("model-lab.store.singleton");
+  const state = globalThis as typeof globalThis & { [key]?: unknown };
+  const previous = state[key];
+  const store = new MemoryStore();
+  let prepare!: () => void;
+  const prepared = new Promise<void>((resolve) => {
+    prepare = resolve;
+  });
+  let resume!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    resume = resolve;
+  });
+  store.createRun = async () => {
+    prepare();
+    await gate;
+    throw new Error("synthetic metadata failure");
+  };
+  process.env.MODEL_LAB_DATA_DIR = root;
+  process.env.MODEL_LAB_STORE = "memory";
+  process.env.MODEL_LAB_MOCK_PROVIDERS = "1";
+  state[key] = { backend: "memory", promise: Promise.resolve(store) };
+  const permits: ReturnType<typeof acquireRunAdmission>[] = [];
+  try {
+    const starting = startServiceRun({
+      name: "Verified control",
+      mode: "verified",
+      packSlug: "structured-json-mini",
+      endpointIds: ["openai/gpt-5-mini"],
+      samplesPerModel: 10,
+      maxBudgetUsd: 2001,
+    });
+    await prepared;
+    permits.push(acquireRunAdmission(root));
+    assert.throws(() => acquireRunAdmission(root), /already has 2 active runs/);
+    resume();
+    const { runId } = await starting;
+    const events = await subscribeRun(runId);
+    assert.ok(events);
+    const kinds = [];
+    for await (const event of events) kinds.push(event.type);
+    assert.ok(kinds.includes("run.completed"));
+    // The finished feed remains registered, but its slot is reusable.
+    permits.push(acquireRunAdmission(root));
+  } finally {
+    resume();
+    for (const permit of permits) permit.release();
+    if (previous === undefined) delete state[key];
+    else state[key] = previous;
+    process.env = before;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("API and service reject invalid or saturated workloads before metadata publication", async () => {
+  const root = mkdtempSync(join(tmpdir(), "model-lab-api-workload-"));
+  const before = { ...process.env };
+  const key = Symbol.for("model-lab.store.singleton");
+  const state = globalThis as typeof globalThis & { [key]?: unknown };
+  const previous = state[key];
+  const store = new MemoryStore();
+  let writes = 0;
+  const write = store.createRun.bind(store);
+  store.createRun = async (...args) => {
+    writes++;
+    return write(...args);
+  };
+  process.env.MODEL_LAB_DATA_DIR = root;
+  process.env.MODEL_LAB_STORE = "memory";
+  process.env.MODEL_LAB_MOCK_PROVIDERS = "1";
+  process.env.MODEL_LAB_READ_ONLY = "0";
+  delete process.env.MODEL_LAB_APP_ORIGIN;
+  state[key] = { backend: "memory", promise: Promise.resolve(store) };
+  const input = {
+    name: "Fixture",
+    mode: "build-arena" as const,
+    packSlug: "raycaster-oneshot",
+    endpointIds: ["openai/gpt-5-mini"],
+    samplesPerModel: 1,
+  };
+  const post = (body: unknown) =>
+    createRun(
+      new NextRequest("http://localhost/api/runs", {
+        method: "POST",
+        headers: { origin: "http://localhost", "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    );
+  const permits: ReturnType<typeof acquireRunAdmission>[] = [];
+  try {
+    for (const override of [
+      { name: "x".repeat(201) },
+      { samplesPerModel: 11 },
+      { samplesPerModel: 1.5 },
+      { endpointIds: [input.endpointIds[0]!, input.endpointIds[0]!] },
+    ]) {
+      assert.equal((await post({ ...input, ...override })).status, 400);
+      await assert.rejects(startServiceRun({ ...input, ...override }), WorkloadLimitError);
+    }
+    await assert.rejects(
+      startServiceRun({ ...input, mode: "verified", samplesPerModel: Infinity }),
+      WorkloadLimitError,
+    );
+    permits.push(acquireRunAdmission(root), acquireRunAdmission(root));
+    for (const mode of ["build-arena", "verified", "performance", "head-to-head", "custom"]) {
+      const response = await post({
+        ...input,
+        mode,
+        packSlug: mode === "verified" ? "structured-json-mini" : input.packSlug,
+      });
+      assert.equal(response.status, 429, await response.text());
+      assert.equal(response.headers.get("Retry-After"), "5");
+    }
+    assert.equal(writes, 0);
+  } finally {
+    for (const permit of permits) permit.release();
+    if (previous === undefined) delete state[key];
+    else state[key] = previous;
+    process.env = before;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("actual health route shares a live batch and forced-mock refresh never joins it", async () => {
+  const before = { ...process.env };
+  const fetchBefore = globalThis.fetch;
+  const key = Symbol.for("model-lab.provider-health.bounded");
+  const state = globalThis as typeof globalThis & { [key]?: unknown };
+  const previous = state[key];
+  delete state[key];
+  for (const name of Object.keys(process.env))
+    if (name.endsWith("_API_KEY")) delete process.env[name];
+  process.env.MODEL_LAB_MOCK_PROVIDERS = "0";
+  process.env.OPENAI_API_KEY = "synthetic-health-fixture";
+  let finish!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  const urls: string[] = [];
+  globalThis.fetch = async (url) => {
+    urls.push(String(url));
+    await pending;
+    return Response.json({ data: [], models: [] });
+  };
+  const request = () =>
+    providerHealth(new NextRequest("http://localhost/api/providers/health?refresh=1"));
+  try {
+    const batch = Array.from({ length: 20 }, request);
+    assert.equal(urls.length, 2, "only synthetic OpenAI and keyless Ollama should be probed");
+    process.env.MODEL_LAB_MOCK_PROVIDERS = "1";
+    const mocked = await (await request()).json();
+    assert.ok(
+      mocked.providers.every((p: { status: string }) =>
+        ["mocked", "unsupported"].includes(p.status),
+      ),
+    );
+    assert.equal(urls.length, 2);
+    finish();
+    await Promise.all(batch);
+    assert.deepEqual((await (await request()).json()).providers, mocked.providers);
+    process.env.MODEL_LAB_MOCK_PROVIDERS = "0";
+    const cached = await (await request()).json();
+    assert.equal(cached.cached, true);
+    assert.ok(cached.retryAfterMs > 0);
+    assert.equal(urls.length, 2);
+  } finally {
+    finish();
+    globalThis.fetch = fetchBefore;
+    process.env = before;
+    if (previous === undefined) delete state[key];
+    else state[key] = previous;
+  }
+});
 
 test("store-health errors remove every JWT segment and other credentials", async () => {
   const cacheKey = Symbol.for("model-lab.store.singleton");

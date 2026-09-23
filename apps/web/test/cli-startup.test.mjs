@@ -59,3 +59,22 @@ test("actual CLI auto policy lists Ollama real with all cloud credentials absent
   assert.match(child.stdout, /ollama\/[^\r\n]+real \(local server, keyless\)/);
   assert.match(child.stdout, /openai\/[^\r\n]+mock \(no key in this environment\)/);
 });
+
+test("actual CLI rejects numeric suffixes, fractions, infinities and oversized names before execution", () => {
+  for (const [flag, value, error] of [
+    ["--samples", "1x", /--samples must/],
+    ["--samples", "1.5", /--samples must/],
+    ["--samples", "11", /--samples must/],
+    ["--budget", "2usd", /--budget must/],
+    ["--budget", "Infinity", /--budget must/],
+    ["--name", "x".repeat(201), /name: must/],
+  ]) {
+    const child = runCli(
+      ["run", "--pack", "fixture", "--models", "fixture", flag, value, "--mock"],
+      "1",
+    );
+    assert.equal(child.status, 2, child.stderr);
+    assert.match(child.stderr, error);
+    assert.doesNotMatch(child.stderr, /NETWORK_TRAP_REACHED/);
+  }
+});
