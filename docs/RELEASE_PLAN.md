@@ -45,6 +45,35 @@ Do not add an authentication system just to publish a self-hosted tool.
 
 ## Verified starting point
 
+### Judge verdict and evidence hardening (2026-09-22)
+
+- Completed the bounded M1 follow-up in current source. Confirmed the old
+  parser accepted surrounding prose and converted an invalid score of 99 into
+  10. It also tolerated duplicate/extra fields and blank pair reasoning.
+- New verdicts require a whole JSON object with exact unique fields, finite
+  scores in 0–10 and nonempty explanations capped at 4,000 characters. A schema
+  failure gets the existing one retry, then a skipped grade or pair. The shared
+  boundary covers both rubric grading and both orders of each comparison.
+- Serialize the challenge and generated sources as quoted JSON evidence,
+  including exact truncation counts. Adversarial delimiter, role-spoof and
+  forged-verdict fixtures remain intact as data. Screenshot text is explicitly
+  untrusted too. No encoding or prompt instruction is claimed to prove live
+  resistance to manipulation; M1's semantic claim remains unproven.
+- Source-only vision fallback rebuilds its prompt, including on a schema retry.
+  Skip pairs whose two accepted orders used different evidence modes. Preserve
+  stable swaps, ties, reversal exclusion, failed-render caps and budget admission.
+- Twelve synthetic judge tests pass, including the real runner, intercepted
+  Anthropic SSE transport, final snapshots and bundle export. Only accepted
+  grades persist; measured browser scores remain unchanged. The broader local
+  judge/budget/unit/evidence suite passes 59 tests, frontend evidence passes nine,
+  and runner/web typechecks plus workspace lint pass. No paid calls, actual
+  provider credentials or operator evidence are used.
+- Independent read-only candidate review found no concrete bypass or regression;
+  its 1,641 additional parser probes cover escaped aliases, structure inside
+  strings, byte limits and nested invalid values. Clean GitHub source/image
+  checks remain the integration gates for this candidate; record their receipts
+  here before protected merge. Existing rc.2 tags/assets remain immutable.
+
 ### Shared workload and provider-health hardening (2026-09-22)
 
 - Implemented the next H2/M2/L4 follow-up in source after rc.2. The original
@@ -666,8 +695,9 @@ it; demonstrate its remediation or a verified mitigation that removes the path.
 | R11: GitHub release | Public source rc.2 complete; container publication remains under R10 | Protected workflow 35739618140, exact tagged-commit source checks, verified anonymous downloads, active/read-back protections and private reporting |
 | R12: demo / new benchmark claims | Optional / open | Add selected target and relevant runtime/evidence checks |
 
-Next: evaluate judge integrity (M1) and remaining annotation/body/storage limits
-(L4), and resolve operator credential ownership (H3). Prototype the scoped LLVM rebuild and
+Next: bound remaining annotation/body/storage resources (L4), retain the live
+judge-integrity evaluation gap (M1), and resolve operator credential ownership
+(H3). Prototype the scoped LLVM rebuild and
 resolve the remaining R10 native advisory
 and binary redistribution blockers before any image promotion. Rerun the
 complete image gate on the final candidate and preserve its immutable digest.
@@ -681,10 +711,15 @@ publication and hosted deployment remain separate maintainer decisions after the
 gates pass. No paid benchmark has been run; existing n=1 evidence stays historical
 and new tests use synthetic outputs.
 
-For M1, first retain adversarial artifact fixtures that try to change the rubric
-or cross the current prompt delimiters, and malformed verdicts that exploit
-partial JSON extraction or score clamping. Verify strict verdict acceptance,
-order-swap handling and persistence through the real judge pipeline with
-synthetic responses. Keep measured browser/objective results distinct from
-subjective judge output. A prompt-format change or fake provider response alone
-cannot prove that a live judge resists injection; record that limit explicitly.
+For L4, trace annotation writes and all mutation-body readers before choosing
+shared limits. Bound new input and storage growth without discarding historical
+evidence, breaking ordinary annotation edits or weakening atomic final votes.
+Cover concurrency, streamed/incorrect-length bodies and every supported backend;
+keep untested live Supabase behavior explicit.
+
+For M1, adversarial fixtures, strict parsing and synthetic pipeline persistence
+are implemented above. A live evaluation still needs matched benign controls,
+pinned model/prompt versions, repeated trials, both pair orders and an explicit
+spend ceiling. Keep measured browser/objective results distinct from subjective
+judge output. A prompt-format change or fake provider response alone cannot prove
+that a live judge resists injection.

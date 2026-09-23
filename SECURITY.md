@@ -51,6 +51,28 @@ Run the container with resource limits appropriate to the workload and keep
 Node, Chromium and dependencies patched. Generated programs can consume CPU and
 memory until termination; the tool is not a public arbitrary-code execution service.
 
+## Subjective judge evidence
+
+Generated source and text visible in captures are untrusted inputs to the LLM
+judge. Current source serializes the brief and artifact source as quoted JSON
+data and tells the judge to disregard embedded instructions. This preserves
+structural framing; it does not establish that a live model ignores adversarial
+instructions. Judge scores remain subjective and separate from measured browser
+or objective scores. Order swapping detects position reversals, not injection.
+
+New verdicts must be a single complete JSON object with exactly the requested
+fields, no duplicate keys, finite scores in 0–10 and nonempty explanations of
+at most 4,000 characters. Invalid replies get one schema retry, then are skipped;
+they are never extracted from surrounding text or clamped into an accepted score.
+Failed renders retain the existing maximum grade of five. Source-only fallback
+uses corresponding prompt wording and recorded labels. A pair with different
+render evidence modes across its two orders is skipped.
+
+These controls are newer than the immutable rc.2 archive. Historical evidence
+is not rewritten. Synthetic fixtures verify parsing, retry/budget behavior,
+evidence labels and persistence/export separation; no live adversarial judge
+evaluation has established semantic instruction integrity.
+
 ## Requests and credentials
 
 The application ships **no authentication or general request rate limiting**. Put authentication
