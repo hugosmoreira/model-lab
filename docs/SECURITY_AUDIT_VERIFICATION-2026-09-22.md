@@ -145,8 +145,14 @@ existing guards. Synthetic tests cover missing/false lengths, UTF-8 and escaped
 notes, unsupported encoding, stalls, slow drip, abort and hanging cancellation.
 Store and actual-route tests preserve samples, annotation history and final votes;
 six simultaneous SQLite connections admit exactly one final-slot write. The
-independent candidate review found no concrete bypass/regression. See the living
-release plan for final PostgreSQL/CI receipts. These changes are newer than rc.2
+independent candidate review found no concrete bypass/regression. Clean
+[PR #21 CI](https://github.com/hugosmoreira/model-lab/actions/runs/35824184839)
+passed full source and secret gates plus real PostgreSQL migration/rollback and
+concurrency tests at two isolation levels. The full image functional rehearsal
+also passed; only the raw native advisory scan failed (54 HIGH and one CRITICAL
+occurrence, zero Node findings). Hosted Supabase integration remains
+experimental. See the living release plan for exact revision/image receipts.
+These changes are newer than rc.2
 and do not establish a whole-volume disk quota or remote authorization boundary.
 
 Remaining sequence:

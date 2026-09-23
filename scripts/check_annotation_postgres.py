@@ -40,7 +40,9 @@ def main():
                          "POSTGRES_HOST_AUTH_METHOD=trust", IMAGE, timeout=180)
         assert created.returncode == 0, created.stderr
         deadline = time.monotonic() + 60
-        while docker("exec", name, "pg_isready", "-U", "postgres").returncode != 0:
+        # The image's initialization server uses only its Unix socket. Wait for
+        # final TCP readiness on container loopback, not that temporary server.
+        while docker("exec", name, "pg_isready", "-h", "127.0.0.1", "-U", "postgres").returncode != 0:
             assert time.monotonic() < deadline, "PostgreSQL startup timed out"
             time.sleep(0.5)
         sql((ROOT / "supabase/migrations/0001_init.sql").read_text())

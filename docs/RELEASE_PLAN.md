@@ -67,8 +67,26 @@ Do not add an authentication system just to publish a self-hosted tool.
   Six new store tests, twelve body/guard tests and eleven frontend/route tests
   pass, along with store/web typechecks, lint and format. Independent read-only
   candidate review found no concrete bypass/regression and passed six additional
-  stream probes. PostgreSQL migration/concurrency and full clean CI remain the
-  integration gates; Docker's Linux daemon is unavailable on this host.
+  stream probes. A subsequent parent check ensures validation uses the exact
+  normalized annotation snapshot that is persisted, including changing getters.
+- [PR #21](https://github.com/hugosmoreira/model-lab/pull/21) carries the patch.
+  [Clean CI 35824184839](https://github.com/hugosmoreira/model-lab/actions/runs/35824184839)
+  passed all source gates, the zero-unresolved secret scan and real PostgreSQL
+  migration/concurrency tests. The latter verifies retained legacy/orphan history,
+  a newly created parent reusing an orphan ID, failed-write/explicit rollback,
+  UTF-8 bounds and six final-slot contenders at READ COMMITTED and REPEATABLE READ.
+  No hosted Supabase credentials or project were used. Implementation commit
+  `ec0d1498c41dbdb2a7b4b10f4412c5f08c09696a` and CI merge
+  `3dfa01a5654bbd59eb9ec05cb272978380374b61` share tree
+  `12943aef2ab34e9cbcb9907f6d9d5c8d29af7e72`. Local receipts are under ignored
+  `artifacts-data/annotation-resource-limits/`.
+- That run also passed the full image functional rehearsal on
+  `sha256:bcf78df11d5b7cd70e33fe65850f91309546c2799b25521772b5467fcd4806c2`.
+  Its sole failed step was the unsuppressed native advisory gate: 54 HIGH,
+  one CRITICAL, 91 MEDIUM, 108 LOW and 11 UNKNOWN occurrences; zero Node findings.
+  The final follow-up changes documentation and the PostgreSQL test startup
+  readiness probe only; source/secret checks must pass again before protected
+  merge. The recorded image rehearsal covers the implementation above.
 - `0003_annotation_limits.sql` is required before upgraded Supabase writers.
   The isolated PostgreSQL test checks SQL behavior only; hosted Supabase remains
   experimental. This does not impose a whole-volume disk quota, delete history,
