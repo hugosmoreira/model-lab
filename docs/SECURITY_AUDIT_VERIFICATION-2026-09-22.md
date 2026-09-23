@@ -85,15 +85,20 @@ two-run permit database per artifact directory, plus coalesced web provider
 health with a ten-second refresh/failure cooldown. It bounds run names at 200
 characters. Synthetic tests cover process races, dead/live owners, startup and
 cancellation, verified task counts, actual API/CLI paths and mock transitions.
-See the [current release plan](RELEASE_PLAN.md) for candidate review/CI status;
+See the [current release plan](RELEASE_PLAN.md) for review and CI receipts;
 these changes are not in the immutable rc.2 archive. Account-wide quotas,
 annotation volume and general HTTP-body limits are not claimed as resolved.
 
-1. Complete clean CI for this H2/M2/L4 hardening. Independent review identified
-   a failed permit-cleanup path; a locked-database regression now verifies
-   automatic retry without overwriting a successfully completed run's outcome.
-2. Evaluate adversarial judge artifacts and strict response parsing (M1),
+Independent review identified a failed permit-cleanup path; a locked-database
+regression now verifies automatic retry without overwriting a successfully
+completed run's outcome. [CI 35818475610](https://github.com/hugosmoreira/model-lab/actions/runs/35818475610)
+passed all source checks and the full image functional rehearsal. The native
+advisory scan is still the sole failed step; no container publication is cleared.
+
+1. Evaluate adversarial judge artifacts and strict response parsing (M1),
    retaining uncertainty rather than presenting a delimiter change as a cure.
+2. Bound remaining annotation volume and request/storage resources (L4),
+   preserving existing evidence and legitimate annotation workflows.
 3. Resolve the local credential ownership question (H3) without publishing host
    identifiers or changing the managed sandbox's policy.
 4. Continue the scoped LLVM/libxml2 prototype and binary redistribution review;
