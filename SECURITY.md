@@ -53,7 +53,7 @@ memory until termination; the tool is not a public arbitrary-code execution serv
 
 ## Requests and credentials
 
-The application ships **no authentication or rate limiting**. Put authentication
+The application ships **no authentication or general request rate limiting**. Put authentication
 in front of the entire application, including APIs and event streams, before
 allowing remote access to a private instance. Read APIs expose stored results.
 
@@ -89,10 +89,29 @@ from estimates. Configure provider-side limits as appropriate. Unknown cloud
 pricing is rejected for paid admission. Local and deterministic mock endpoints
 have zero configured provider cost.
 
-These are per-run spending controls, not process-wide workload or daily account
-quotas. The API has broader sample-count inputs than the wizard, and simultaneous
-runs can multiply resource use. Shared workload limits and bounded health
-refreshes remain follow-up work; keep the trusted operator access boundary.
+Current source additionally limits runs to 1–8 distinct endpoints, integer
+1–10 samples per model, at most 80 generated samples (including verified tasks),
+1–4 endpoint workers and 0–3 transport retries. Supplied names contain 1–200
+characters. The service and raw runner enforce these bounds before creating runs;
+the CLI rejects partially parsed numbers. Positive finite operator budget
+overrides remain supported; the HTTP API retains its existing $1,000 maximum.
+
+At most two runs can execute in one resolved artifact data directory. A dedicated
+`.workload.sqlite` permit database shares this limit between web, CLI and direct
+runner processes, even with memory metadata. Transactional dead-owner recovery
+waits 30 seconds and never evicts a live or uncertain same-host PID. Cancellation
+releases capacity only when execution settles. Saturated HTTP starts return 429.
+Use one host and one shared artifact directory; separate directories, historical
+versions and unrelated applications do not participate in this limit. Do not
+delete the permit database while writers are running. These are local workload
+bounds, not daily provider-account quotas or a substitute for access control.
+
+Web provider-health calls share an in-flight batch and cache ordinary reads for
+60 seconds. Forced refreshes and unexpected failures obey a 10-second minimum
+interval per server process; the UI displays the remaining wait. Forced mock
+and real health caches are separate. The explicit CLI `models --check` remains
+one operator-requested batch. These hardening changes are newer than the
+immutable rc.2 source archive.
 
 `MODEL_LAB_MOCK_PROVIDERS=1` prevents provider generation, judging and health
 probes from making provider requests. The application still serves its own UI and

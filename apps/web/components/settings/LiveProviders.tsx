@@ -24,6 +24,7 @@ interface Health {
 interface HealthResponse {
   cached: boolean;
   checkedAt: string;
+  retryAfterMs: number;
   providers: Health[];
 }
 
@@ -77,14 +78,17 @@ export function LiveProviders({ initial }: { initial: Provider[] }) {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [checking, setChecking] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshWait, setRefreshWait] = useState(0);
 
   const load = useCallback(async (refresh: boolean) => {
     setChecking(true);
     setError(null);
     try {
       const res = await fetch(`/api/providers/health${refresh ? "?refresh=1" : ""}`);
+      const payload = await res.json();
+      setRefreshWait(Math.ceil((payload.retryAfterMs ?? 0) / 1000));
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setHealth((await res.json()) as HealthResponse);
+      setHealth(payload as HealthResponse);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -95,6 +99,12 @@ export function LiveProviders({ initial }: { initial: Provider[] }) {
   useEffect(() => {
     void load(false);
   }, [load]);
+
+  useEffect(() => {
+    if (refreshWait <= 0) return;
+    const timer = setTimeout(() => setRefreshWait((seconds) => Math.max(0, seconds - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [refreshWait]);
 
   const byId = new Map((health?.providers ?? []).map((h) => [h.providerId, h]));
   const cards = initial
@@ -113,6 +123,7 @@ export function LiveProviders({ initial }: { initial: Provider[] }) {
             : mocked
               ? "Forced mock mode: no provider network requests were made."
               : `${probed} providers probed${health?.cached ? " (cached for a minute)" : ""}. Keys are read from this server's environment; only whether one is set is shown.`}
+        {!mocked && refreshWait > 0 ? ` Refresh available in ${refreshWait}s.` : ""}
       </p>
       <div
         style={{
@@ -128,6 +139,7 @@ export function LiveProviders({ initial }: { initial: Provider[] }) {
             now={Date.now()}
             onTest={() => void load(true)}
             testing={checking}
+            refreshWait={refreshWait}
             mocked={byId.get(p.id)?.status === "mocked"}
           />
         ))}

@@ -79,8 +79,19 @@ and every file in the 403-file tagged source tree.
 
 ## Next work
 
-1. Add shared workload admission and bounded/coalesced health refreshes, with
-   synthetic abuse tests and explicit operator-facing limits (H2, M2, L4).
+The finding table above records the rc.2 review baseline. Subsequent source
+hardening adds shared API/CLI/raw-runner workload bounds and a transactional
+two-run permit database per artifact directory, plus coalesced web provider
+health with a ten-second refresh/failure cooldown. It bounds run names at 200
+characters. Synthetic tests cover process races, dead/live owners, startup and
+cancellation, verified task counts, actual API/CLI paths and mock transitions.
+See the [current release plan](RELEASE_PLAN.md) for candidate review/CI status;
+these changes are not in the immutable rc.2 archive. Account-wide quotas,
+annotation volume and general HTTP-body limits are not claimed as resolved.
+
+1. Complete clean CI for this H2/M2/L4 hardening. Independent review identified
+   a failed permit-cleanup path; a locked-database regression now verifies
+   automatic retry without overwriting a successfully completed run's outcome.
 2. Evaluate adversarial judge artifacts and strict response parsing (M1),
    retaining uncertainty rather than presenting a delimiter change as a cure.
 3. Resolve the local credential ownership question (H3) without publishing host

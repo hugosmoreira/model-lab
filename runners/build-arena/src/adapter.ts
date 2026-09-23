@@ -91,7 +91,7 @@ export class BuildArenaAdapter implements RunnerAdapter {
   }
 
   validateConfiguration(cfg: RunnerConfig): ValidationResult {
-    const errors: ValidationIssue[] = [];
+    const errors: ValidationIssue[] = workloadIssues(cfg);
     const warnings: ValidationIssue[] = [];
     const error = (field: string, message: string): void => {
       errors.push({ field, message });
@@ -133,9 +133,6 @@ export class BuildArenaAdapter implements RunnerAdapter {
     } else if (cfg.pack.tasks !== undefined && cfg.pack.tasks.length > 0) {
       warn("pack.tasks", "task list is ignored outside verified mode");
     }
-    if (cfg.endpoints.length === 0) error("endpoints", "at least one endpoint is required");
-    if (cfg.endpoints.length > 8)
-      warn("endpoints", `${cfg.endpoints.length} endpoints is a large run`);
     const seen = new Set<string>();
     for (const ep of cfg.endpoints) {
       const field = `endpoints[${ep.id}]`;
@@ -160,15 +157,12 @@ export class BuildArenaAdapter implements RunnerAdapter {
         warn(field, `${ep.modelId} (${ep.providerId}) runs unseeded — provider lacks seed support`);
       }
     }
-    if (cfg.samplesPerModel < 1) error("samplesPerModel", "must be ≥ 1");
-    if (cfg.samplesPerModel > 10) warn("samplesPerModel", "more than 10 samples per model");
     if (cfg.temperature < 0 || cfg.temperature > 2) error("temperature", "must be within [0, 2]");
     if (!Number.isSafeInteger(cfg.maxOutputTokens) || cfg.maxOutputTokens <= 0)
       error("maxOutputTokens", "must be a positive integer");
     else if (!verified && cfg.maxOutputTokens < 4_000) {
       warn("maxOutputTokens", "under 4k tokens the raycaster artifact may truncate");
     }
-    if (cfg.concurrency < 1) error("concurrency", "must be ≥ 1");
     if (!Number.isFinite(cfg.maxBudgetUsd) || cfg.maxBudgetUsd <= 0)
       error("maxBudgetUsd", "must be finite and > 0");
     if (
@@ -180,7 +174,6 @@ export class BuildArenaAdapter implements RunnerAdapter {
     ) {
       error("judge", "finite non-negative input and output prices required");
     }
-    if (cfg.transportRetries < 0) error("transportRetries", "must be ≥ 0");
     if (cfg.failSample !== undefined) {
       const known = cfg.endpoints.some((ep) => ep.id === cfg.failSample?.endpointId);
       if (!known) warn("failSample", "endpointId does not match any configured endpoint");
@@ -247,3 +240,4 @@ export class BuildArenaAdapter implements RunnerAdapter {
 export function createBuildArenaAdapter(store?: FsRunStore): BuildArenaAdapter {
   return new BuildArenaAdapter(store);
 }
+import { workloadIssues } from "./workload";

@@ -7,8 +7,20 @@ experimental. Serverless and horizontally scaled deployment are unsupported.
 The [release plan](RELEASE_PLAN.md) records candidate verification and publication
 gates; a local Docker build is not a published or certified release.
 
-The API has no authentication or rate limiting. Read the [security policy](../SECURITY.md)
+The API has no authentication or general request rate limiting. Read the [security policy](../SECURITY.md)
 before providing keys or remote access.
+
+Current source after rc.2 admits at most two executing runs per shared
+`MODEL_LAB_DATA_DIR`, enforced through `.workload.sqlite` in that directory.
+Web and CLI must use the same artifact directory on the same host. Stop older
+server/CLI binaries before upgrading; they do not participate in this gate.
+Normal completion releases permits. After a crash, a new start can reclaim a
+dead owner's permit after 30 seconds. A live or uncertain PID remains reserved;
+stop all writers before repairing damaged state or restoring a backup. Never
+delete the permit database while work is running. Sharing only the metadata
+database with different artifact directories does not share workload admission.
+See [the limits](../SECURITY.md#provider-limits-and-spending) for supported run
+sizes and the provider-health refresh interval.
 
 ## Local source installation
 
