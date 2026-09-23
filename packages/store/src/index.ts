@@ -48,3 +48,4 @@ export { SupabaseStore, type SupabaseStoreOptions } from "./supabase";
 export { getStore, resetStore, resolveBackend, type StoreBackend } from "./factory";
 export { demoFixtures } from "./demo";
 export { runStoreConformance } from "./conformance";
+export { ANNOTATION_LIMITS } from "./evaluations";

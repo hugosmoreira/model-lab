@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "pnpm -w exec eslint apps/web",
     "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test test/*.test.mjs && pnpm run test:frontend && pnpm run test:preview",
-    "test:frontend": "pnpm -w exec tsx --tsconfig apps/web/tsconfig.json --test apps/web/scripts/frontend-truth.test.ts",
+    "test:frontend": "pnpm -w exec tsx --tsconfig apps/web/tsconfig.json --test apps/web/scripts/frontend-truth.test.ts apps/web/scripts/mutation-limits.test.ts",
     "test:preview": "pnpm -w exec tsx --tsconfig apps/web/test/tsconfig.json --test apps/web/test/artifact-preview.test.tsx"
   },
   "dependencies": {

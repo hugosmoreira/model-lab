@@ -105,12 +105,20 @@ function AddNoteForm({
           ...(withScore ? { scoreOverride: score } : {}),
         }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const detail = (await res.json().catch(() => null)) as { error?: unknown } | null;
+        setError(
+          typeof detail?.error === "string"
+            ? detail.error
+            : "Note could not be saved. Please try again.",
+        );
+        return;
+      }
       setNote("");
       setWithScore(false);
       router.refresh();
     } catch {
-      setError("Note could not be saved — annotations need a store-backed run.");
+      setError("Note could not be saved. Check your connection and try again.");
     } finally {
       setBusy(false);
     }
@@ -123,6 +131,7 @@ function AddNoteForm({
         onChange={(e) => setNote(e.target.value)}
         placeholder="Add note — appended to the audit trail, never mutates scores"
         rows={2}
+        maxLength={4000}
         aria-label="Add annotation note"
         style={{
           resize: "vertical",

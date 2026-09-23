@@ -44,7 +44,12 @@ import {
   type SeedFixtures,
   type StoredRunEvent,
 } from "./types";
-import { validateAnnotation, validateVote } from "./evaluations";
+import {
+  ANNOTATION_LIMITS,
+  ANNOTATION_CAPACITY_MESSAGE,
+  validateAnnotation,
+  validateVote,
+} from "./evaluations";
 
 // ---------------------------------------------------------------------------
 // path resolution
@@ -509,6 +514,20 @@ const TERMINAL_SAMPLE_STATUSES = new Set<string>(["scored", "failed"]);
 // Triggers also protect writes from another SQLite connection. They apply to
 // future writes without deleting historical annotations in existing databases.
 const EVALUATION_GUARDS_SQL = `
+create index if not exists annotations_run_idx on annotations (run_id);
+create trigger if not exists annotations_resource_limits
+before insert on annotations
+begin
+  -- BLOB length counts UTF-8 bytes even after embedded NULs. The shared store
+  -- validator additionally enforces the UI's 4,000 UTF-16-unit note limit.
+  select raise(abort, 'annotation_text_limit') where
+    length(cast(new.run_id as blob)) + length(cast(new.endpoint_id as blob)) +
+    length(cast(new.note as blob)) + length(cast(new.author as blob)) +
+    length(cast(new.at as blob)) > ${ANNOTATION_LIMITS.textBytes};
+  select raise(abort, 'annotation_capacity') where
+    (select count(*) from (select 1 from annotations where run_id = new.run_id limit ${ANNOTATION_LIMITS.perRun})) >= ${ANNOTATION_LIMITS.perRun};
+end;
+
 create trigger if not exists annotations_require_sample
 before insert on annotations
 when not exists (
@@ -544,6 +563,10 @@ end;
 
 function rethrowEvaluationError(error: unknown): never {
   const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("annotation_capacity"))
+    throw new StoreError("LIMIT", ANNOTATION_CAPACITY_MESSAGE);
+  if (message.includes("annotation_text_limit"))
+    throw new StoreError("INVALID", "Annotation text exceeds 32 KiB.");
   if (message.includes("evaluation_reference_not_found")) {
     throw new StoreError(
       "NOT_FOUND",
@@ -846,7 +869,7 @@ export class SqliteStore implements RunStore {
   // -- append-only human audit trail ----------------------------------------
 
   async insertAnnotation(a: HumanAnnotation): Promise<void> {
-    validateAnnotation(a);
+    a = validateAnnotation(a);
     try {
       this.db
         .prepare(

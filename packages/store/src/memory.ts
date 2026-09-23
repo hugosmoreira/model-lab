@@ -27,7 +27,12 @@ import {
   type SeedFixtures,
   type StoredRunEvent,
 } from "./types";
-import { validateAnnotation, validateVote } from "./evaluations";
+import {
+  ANNOTATION_LIMITS,
+  ANNOTATION_CAPACITY_MESSAGE,
+  validateAnnotation,
+  validateVote,
+} from "./evaluations";
 
 const sampleKey = (endpointId: string, sampleIndex: number): string =>
   `${endpointId}#${sampleIndex}`;
@@ -170,7 +175,7 @@ export class MemoryStore implements RunStore {
   // -- append-only human audit trail ----------------------------------------
 
   async insertAnnotation(a: HumanAnnotation): Promise<void> {
-    validateAnnotation(a);
+    a = validateAnnotation(a);
     const rec = this.mustGet(a.runId);
     if (
       !rec.runModels.has(a.endpointId) ||
@@ -180,6 +185,9 @@ export class MemoryStore implements RunStore {
         "NOT_FOUND",
         `Sample ${a.runId}/${a.endpointId}#${a.sampleIndex} not found in this run.`,
       );
+    }
+    if (rec.annotations.length >= ANNOTATION_LIMITS.perRun) {
+      throw new StoreError("LIMIT", ANNOTATION_CAPACITY_MESSAGE);
     }
     rec.annotations.push(structuredClone(a));
   }

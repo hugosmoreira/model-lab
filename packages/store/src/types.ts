@@ -34,7 +34,7 @@ import type {
 
 /** Every store failure is thrown as a StoreError with a stable `code`. */
 export type StoreErrorCode =
-  "NOT_FOUND" | "IMMUTABLE" | "DUPLICATE" | "INVALID" | "CONFIG" | "BACKEND";
+  "NOT_FOUND" | "IMMUTABLE" | "DUPLICATE" | "INVALID" | "LIMIT" | "CONFIG" | "BACKEND";
 
 export class StoreError extends Error {
   readonly code: StoreErrorCode;
@@ -131,7 +131,7 @@ export interface RunStore {
   listArtifacts(runId: string): Promise<Artifact[]>;
 
   // -- append-only human audit trail ----------------------------------------
-  /** Requires a persisted sample and participant in the same run; throws NOT_FOUND. */
+  /** Requires a persisted sample/participant. New writes are bounded; full runs throw LIMIT. */
   insertAnnotation(a: HumanAnnotation): Promise<void>;
   /** Annotations for a run in append order. */
   listAnnotations(runId: string): Promise<HumanAnnotation[]>;

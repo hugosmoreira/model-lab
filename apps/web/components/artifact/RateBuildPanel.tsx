@@ -54,7 +54,17 @@ export function RateBuildPanel({
           scoreOverride: saved,
         }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const detail = (await res.json().catch(() => null)) as { error?: unknown } | null;
+        setState({
+          kind: "error",
+          msg:
+            typeof detail?.error === "string"
+              ? detail.error
+              : "Score could not be saved. Please try again.",
+        });
+        return;
+      }
       setNote("");
       setState({
         kind: "saved",
@@ -64,7 +74,7 @@ export function RateBuildPanel({
     } catch {
       setState({
         kind: "error",
-        msg: "Score could not be saved — ratings need a store-backed run.",
+        msg: "Score could not be saved. Check your connection and try again.",
       });
     } finally {
       setBusy(false);

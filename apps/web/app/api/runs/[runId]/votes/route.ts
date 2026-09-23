@@ -21,6 +21,7 @@ import { getRunView } from "@/lib/server/loaders";
 import { buildPairQueue } from "@/lib/server/pairs";
 import { isReadOnly, readOnlyResponse } from "@/lib/server/read-only";
 import { guardMutationRequest } from "@/lib/server/mutation-guard";
+import { readMutationJson } from "@/lib/server/mutation-body";
 
 export const dynamic = "force-dynamic";
 
@@ -56,13 +57,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ run
   if (rejected !== null) return rejected;
   const { runId } = await params;
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Request body must be JSON." }, { status: 400 });
-  }
-  const parsed = VoteRequest.safeParse(body);
+  const body = await readMutationJson(req);
+  if (!body.ok) return body.response;
+  const parsed = VoteRequest.safeParse(body.value);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Invalid vote.", issues: parsed.error.issues },

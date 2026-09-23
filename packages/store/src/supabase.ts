@@ -37,7 +37,7 @@ import {
   type SeedFixtures,
   type StoredRunEvent,
 } from "./types";
-import { validateAnnotation, validateVote } from "./evaluations";
+import { ANNOTATION_CAPACITY_MESSAGE, validateAnnotation, validateVote } from "./evaluations";
 
 // ---------------------------------------------------------------------------
 // row shapes (Postgres column names; jsonb arrives pre-parsed as unknown)
@@ -445,7 +445,7 @@ export class SupabaseStore implements RunStore {
   // -- append-only human audit trail ----------------------------------------
 
   async insertAnnotation(a: HumanAnnotation): Promise<void> {
-    validateAnnotation(a);
+    a = validateAnnotation(a);
     const { error } = await this.client.from("annotations").insert({
       run_id: a.runId,
       endpoint_id: a.endpointId,
@@ -739,6 +739,8 @@ export class SupabaseStore implements RunStore {
   // -- internals ------------------------------------------------------------
 
   private mustEvaluation(error: { code: string; message: string } | null, op: string): void {
+    if (error?.code === "ML002") throw new StoreError("LIMIT", ANNOTATION_CAPACITY_MESSAGE);
+    if (error?.code === "ML003") throw new StoreError("INVALID", "Annotation text exceeds 32 KiB.");
     if (error?.code === "23503") {
       throw new StoreError(
         "NOT_FOUND",

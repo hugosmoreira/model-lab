@@ -45,6 +45,53 @@ Do not add an authentication system just to publish a self-hosted tool.
 
 ## Verified starting point
 
+### Annotation and mutation-body bounds (2026-09-22)
+
+- Reproduced the L4 resource gaps: direct memory/SQLite writes accepted oversized
+  notes and more than 1,000 annotations; mutation routes buffered JSON before
+  checking its schema. No separate unauthorized caller or access bypass was
+  established under the trusted-operator policy.
+- All three mutation routes share a 64 KiB streamed-byte ceiling and ten-second
+  total read deadline after read-only/origin guards. Missing/dishonest lengths,
+  compressed bodies, aborts and stalled reads have explicit rejection paths.
+  Maximum ordinary, multibyte and escaped 4,000-unit notes remain accepted.
+- Shared new-write annotation validation enforces 1–4,000 UTF-16 note units and
+  32 KiB of total persisted text; normalized fields prevent unknown-property
+  retention in memory. A run admits 1,000 annotations, with atomic SQLite guards
+  and a PostgreSQL counter migration. Existing over-limit and orphan history is
+  preserved. New parent rows also count legacy orphan history for reused IDs.
+- Annotation forms keep unsaved text and display server limit errors. Actual
+  route regressions preserve ordinary annotations, measured scores, guard order
+  and final-vote immutability. Local store conformance passes (46 assertions for
+  each of memory, fresh SQLite and reopened SQLite, plus vote-race/history tests).
+  Six new store tests, twelve body/guard tests and eleven frontend/route tests
+  pass, along with store/web typechecks, lint and format. Independent read-only
+  candidate review found no concrete bypass/regression and passed six additional
+  stream probes. A subsequent parent check ensures validation uses the exact
+  normalized annotation snapshot that is persisted, including changing getters.
+- [PR #21](https://github.com/hugosmoreira/model-lab/pull/21) carries the patch.
+  [Clean CI 35824184839](https://github.com/hugosmoreira/model-lab/actions/runs/35824184839)
+  passed all source gates, the zero-unresolved secret scan and real PostgreSQL
+  migration/concurrency tests. The latter verifies retained legacy/orphan history,
+  a newly created parent reusing an orphan ID, failed-write/explicit rollback,
+  UTF-8 bounds and six final-slot contenders at READ COMMITTED and REPEATABLE READ.
+  No hosted Supabase credentials or project were used. Implementation commit
+  `ec0d1498c41dbdb2a7b4b10f4412c5f08c09696a` and CI merge
+  `3dfa01a5654bbd59eb9ec05cb272978380374b61` share tree
+  `12943aef2ab34e9cbcb9907f6d9d5c8d29af7e72`. Local receipts are under ignored
+  `artifacts-data/annotation-resource-limits/`.
+- That run also passed the full image functional rehearsal on
+  `sha256:bcf78df11d5b7cd70e33fe65850f91309546c2799b25521772b5467fcd4806c2`.
+  Its sole failed step was the unsuppressed native advisory gate: 54 HIGH,
+  one CRITICAL, 91 MEDIUM, 108 LOW and 11 UNKNOWN occurrences; zero Node findings.
+  The final follow-up changes documentation and the PostgreSQL test startup
+  readiness probe only; source/secret checks must pass again before protected
+  merge. The recorded image rehearsal covers the implementation above.
+- `0003_annotation_limits.sql` is required before upgraded Supabase writers.
+  The isolated PostgreSQL test checks SQL behavior only; hosted Supabase remains
+  experimental. This does not impose a whole-volume disk quota, delete history,
+  change published rc.2 assets or clear container advisory/distribution gates.
+
 ### Judge verdict and evidence hardening (2026-09-22)
 
 - Completed the bounded M1 follow-up in current source. Confirmed the old
@@ -708,10 +755,10 @@ it; demonstrate its remediation or a verified mitigation that removes the path.
 | R11: GitHub release | Public source rc.2 complete; container publication remains under R10 | Protected workflow 35739618140, exact tagged-commit source checks, verified anonymous downloads, active/read-back protections and private reporting |
 | R12: demo / new benchmark claims | Optional / open | Add selected target and relevant runtime/evidence checks |
 
-Next: bound remaining annotation/body/storage resources (L4), retain the live
-judge-integrity evaluation gap (M1), and resolve operator credential ownership
-(H3). Prototype the scoped LLVM rebuild and
-resolve the remaining R10 native advisory
+Next: prototype the scoped LLVM rebuild, retain the live judge-integrity
+evaluation gap (M1), and resolve operator credential ownership (H3). Track
+aggregate disk retention separately from the implemented per-request/per-run
+bounds (L4). Resolve the remaining R10 native advisory
 and binary redistribution blockers before any image promotion. Rerun the
 complete image gate on the final candidate and preserve its immutable digest.
 The source-only release does not imply container certification.
@@ -724,16 +771,13 @@ publication and hosted deployment remain separate maintainer decisions after the
 gates pass. No paid benchmark has been run; existing n=1 evidence stays historical
 and new tests use synthetic outputs.
 
-For L4, trace annotation writes and all mutation-body readers before choosing
-shared limits. The run, annotation and vote routes currently call `req.json()`;
-the annotation route alone caps notes at 4,000 characters, while the shared
-store validator accepts an unbounded note string. Enforce new-write bounds at
-the shared store boundary and use an atomic per-run annotation cap in persistent
-backends. Bound HTTP bytes while streaming, not just via Content-Length.
-Preserve historical evidence and ordinary annotation appends without weakening
-atomic final votes; request/count limits alone do not establish a disk quota.
-Cover concurrency, streamed/incorrect-length bodies and every supported backend;
-keep untested live Supabase behavior explicit.
+For R10, build the scoped LLVM 19 variant without libxml2 support in an isolated
+candidate, preserve its required ABI/backends, inspect all consumers and exercise
+actual WebGL plus the full image gate. Retain fresh unsuppressed advisory reports
+and complete binary/source/license obligations before promoting an image.
+For L4, the new bounds above cover mutation bodies and annotation appends;
+aggregate disk use and retention remain separate operator policy, with no
+automatic evidence deletion. Hosted Supabase verification is still open.
 
 For M1, adversarial fixtures, strict parsing and synthetic pipeline persistence
 are implemented above. A live evaluation still needs matched benign controls,

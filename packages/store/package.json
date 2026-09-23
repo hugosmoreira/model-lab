@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit",
     "lint": "pnpm -w exec eslint packages/store",
-    "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning test/conformance.test.mjs"
+    "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning test/conformance.test.mjs && node --experimental-strip-types --disable-warning=ExperimentalWarning --test test/annotation-limits.test.mjs"
   },
   "dependencies": {
     "@model-lab/schemas": "workspace:*",
