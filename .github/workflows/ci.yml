@@ -83,6 +83,9 @@ jobs:
       - name: Store, runner and web regression suites
         run: pnpm test
 
+      - name: PostgreSQL annotation migration and concurrent admission
+        run: python3 scripts/check_annotation_postgres.py
+
       - name: Image-layer scanner regression
         run: python3 scripts/check_image_layers.py
 

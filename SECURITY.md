@@ -86,6 +86,27 @@ same Origin header; the CLI calls the service directly. This prevents browser
 cross-origin writes; a direct HTTP client can forge Origin, so it is not authentication.
 Read-only mode rejects all three mutations before processing their bodies.
 
+Current source reads mutation JSON through a common 64 KiB byte limit and a
+ten-second total read deadline. It counts streamed bytes even without a truthful
+Content-Length, cancels rejected bodies without waiting for cancellation, and
+rejects unsupported compression. Oversize, timeout and encoding errors return
+413, 408 and 415 respectively; malformed JSON/lengths return 400. These controls
+bound application body consumption, not connection count or upstream buffering.
+
+New annotations through any store API require a 1–4,000 UTF-16-unit note and
+at most 32 KiB of combined UTF-8 text (run/endpoint IDs, note, author, timestamp).
+Unknown properties are stripped before persistence. Each run admits at most
+1,000 annotations; a full run returns 409 without deleting or replacing notes.
+SQLite triggers and the PostgreSQL migration provide an atomic count guard and
+a byte-limit backstop for inserts. Apply
+[`0003_annotation_limits.sql`](supabase/migrations/0003_annotation_limits.sql)
+before starting upgraded Supabase writers. Its counter includes legacy rows and
+is rolled back with failed inserts. Historical oversized/over-limit data remains
+readable; the new-write policy does not rewrite it. A database administrator can
+alter guards; these are application resource limits, not protection from a
+privileged database administrator or an overall disk quota. The immutable rc.2
+archive does not contain these changes.
+
 The operator UI rejects framing through CSP `frame-ancestors 'none'` and
 `X-Frame-Options: DENY`. It is intended to be opened as a top-level page.
 Demo votes are created by explicit seeding, never by comparison-queue reads.

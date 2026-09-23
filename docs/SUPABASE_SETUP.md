@@ -16,12 +16,25 @@ Next.js server code and the runner.
 
 ## 2. Apply the schema
 
-Apply [0001_init.sql](../supabase/migrations/0001_init.sql), then
-[0002_evaluation_integrity.sql](../supabase/migrations/0002_evaluation_integrity.sql)
+Stop application writers and apply [0001_init.sql](../supabase/migrations/0001_init.sql), then
+[0002_evaluation_integrity.sql](../supabase/migrations/0002_evaluation_integrity.sql), then
+[0003_annotation_limits.sql](../supabase/migrations/0003_annotation_limits.sql)
 (or use `supabase db push` with the CLI). The first migration enables
 deny-by-default RLS; only the server's service role reads/writes. The second
 validates new evaluation references and prevents changing a final vote.
 Existing orphaned historical annotations are retained for audit purposes.
+The third migration limits new annotation text to 32 KiB and admission to
+1,000 notes per run, using a transactional counter initialized from existing
+history. Over-limit historical runs remain readable and cannot append more.
+The counter belongs to the append-only audit trail; do not reset it or manually
+delete notes to reclaim capacity. Schema readers remain compatible with historical
+rows. Apply all three migrations before starting current-source writers.
+
+CI runs these migrations and concurrent annotation admission against an isolated,
+digest-pinned PostgreSQL container (`python3 scripts/check_annotation_postgres.py`).
+That exercises SQL behavior, not a hosted Supabase project's PostgREST, RLS role
+configuration or deployment integration. Those remain experimental until tested
+in an isolated project; local synthetic tests intercept Supabase HTTP responses.
 
 ## 3. Preserve local evidence
 

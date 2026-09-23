@@ -6,6 +6,13 @@ All notable changes to Model Lab are recorded here. The format follows
 
 ## Unreleased
 
+- Bound all mutation JSON bodies to 64 KiB and ten seconds of reading, including
+  requests with missing or incorrect Content-Length. Reject compressed bodies.
+- Limit new annotation notes to 4,000 UTF-16 units and total persisted text to
+  32 KiB, with 1,000 annotations per run. Enforce atomic admission in SQLite and
+  PostgreSQL; apply the new Supabase `0003_annotation_limits.sql` migration before
+  upgrading writers. Historical notes remain readable and unchanged. Forms
+  preserve unsaved input and display limit errors.
 - Require one complete judge JSON verdict with exact fields, unique keys,
   finite scores in 0–10 and nonempty bounded explanations. Invalid replies
   receive one schema retry, then are skipped instead of extracted or clamped.

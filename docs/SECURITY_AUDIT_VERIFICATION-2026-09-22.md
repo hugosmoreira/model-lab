@@ -131,14 +131,32 @@ one CRITICAL occurrence; zero Node findings). This verifies the bounded parser
 repair and compatibility, not semantic prompt-injection resistance or image
 publication readiness. The immutable rc.2 archive is unchanged.
 
+### L4 follow-up: annotation and request resource bounds
+
+The original access-control verdict is unchanged. Synthetic memory and SQLite
+reproductions confirmed oversized direct-store notes and unbounded annotation
+appends. Current source now applies shared new-write validation (4,000 UTF-16
+note units, 32 KiB combined text) and a 1,000-annotation limit per run. SQLite
+insertion triggers and the PostgreSQL counter migration make admission atomic.
+Historical schemas stay permissive, preserving old oversized and orphan notes.
+
+All mutation routes now bound streamed JSON to 64 KiB and ten seconds after the
+existing guards. Synthetic tests cover missing/false lengths, UTF-8 and escaped
+notes, unsupported encoding, stalls, slow drip, abort and hanging cancellation.
+Store and actual-route tests preserve samples, annotation history and final votes;
+six simultaneous SQLite connections admit exactly one final-slot write. The
+independent candidate review found no concrete bypass/regression. See the living
+release plan for final PostgreSQL/CI receipts. These changes are newer than rc.2
+and do not establish a whole-volume disk quota or remote authorization boundary.
+
 Remaining sequence:
 
-1. Bound remaining annotation volume and request/storage resources (L4),
-   preserving existing evidence and legitimate annotation workflows.
+1. Prototype the scoped LLVM/libxml2 repair and complete binary redistribution
+   review; rerun the entire image gate before any container promotion.
 2. Define a deliberate live adversarial judge evaluation with matched benign
    controls, pinned model/prompt versions, both pair orders, repeated trials
    and a stated spend ceiling before claiming M1 instruction resistance.
 3. Resolve the local credential ownership question (H3) without publishing host
    identifiers or changing the managed sandbox's policy.
-4. Continue the scoped LLVM/libxml2 prototype and binary redistribution review;
-   rerun the entire image gate before any container promotion.
+4. Define aggregate storage/retention policy without silently deleting evidence,
+   and validate hosted Supabase integration in an isolated project.

@@ -24,6 +24,7 @@ import { getStore } from "@model-lab/store";
 import { listRuns as listRegistryRuns, type RunRecord } from "@/lib/live/run-registry";
 import { isReadOnly, readOnlyResponse } from "@/lib/server/read-only";
 import { guardMutationRequest } from "@/lib/server/mutation-guard";
+import { readMutationJson } from "@/lib/server/mutation-body";
 import { RunServiceError, startRun } from "@/lib/server/run-service";
 import { reconcileInterruptedRuns } from "@/lib/server/run-recovery";
 
@@ -45,14 +46,9 @@ export async function POST(req: NextRequest) {
   const rejected = guardMutationRequest(req);
   if (rejected !== null) return rejected;
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Request body must be JSON." }, { status: 400 });
-  }
-
-  const parsed = CreateRunRequest.safeParse(body);
+  const body = await readMutationJson(req);
+  if (!body.ok) return body.response;
+  const parsed = CreateRunRequest.safeParse(body.value);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Invalid run configuration.", issues: parsed.error.issues },

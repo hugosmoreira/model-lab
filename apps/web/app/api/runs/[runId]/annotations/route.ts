@@ -9,16 +9,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import type { HumanAnnotation } from "@model-lab/schemas";
-import { getStore, StoreError } from "@model-lab/store";
+import { ANNOTATION_LIMITS, getStore, StoreError } from "@model-lab/store";
 import { isReadOnly, readOnlyResponse } from "@/lib/server/read-only";
 import { guardMutationRequest } from "@/lib/server/mutation-guard";
+import { readMutationJson } from "@/lib/server/mutation-body";
 
 export const dynamic = "force-dynamic";
 
 const AnnotationRequest = z.object({
   endpointId: z.string().min(1),
   sampleIndex: z.number().int().min(1),
-  note: z.string().min(1).max(4000),
+  note: z.string().min(1).max(ANNOTATION_LIMITS.noteCharacters),
   scoreOverride: z
     .number()
     .min(0)
@@ -37,13 +38,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ run
   if (rejected !== null) return rejected;
   const { runId } = await params;
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Request body must be JSON." }, { status: 400 });
-  }
-  const parsed = AnnotationRequest.safeParse(body);
+  const body = await readMutationJson(req);
+  if (!body.ok) return body.response;
+  const parsed = AnnotationRequest.safeParse(body.value);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Invalid annotation.", issues: parsed.error.issues },
@@ -67,6 +64,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ run
     const store = await getStore();
     await store.insertAnnotation(annotation);
   } catch (err) {
+    if (err instanceof StoreError && err.code === "LIMIT") {
+      return NextResponse.json({ error: err.message }, { status: 409 });
+    }
     if (err instanceof StoreError && err.code === "INVALID") {
       return NextResponse.json({ error: err.message }, { status: 400 });
     }
