@@ -95,10 +95,49 @@ completed run's outcome. [CI 35818475610](https://github.com/hugosmoreira/model-
 passed all source checks and the full image functional rehearsal. The native
 advisory scan is still the sole failed step; no container publication is cleared.
 
-1. Evaluate adversarial judge artifacts and strict response parsing (M1),
-   retaining uncertainty rather than presenting a delimiter change as a cure.
-2. Bound remaining annotation volume and request/storage resources (L4),
+### M1 follow-up: verdict and evidence handling
+
+The original M1 verdict remains **needs review for semantic judge manipulation**.
+An independent source trace and synthetic reproductions confirmed a narrower
+defect: prose/fence-wrapped verdicts were accepted, duplicate and extra fields
+were tolerated, out-of-range scores (including overflow) were clamped, and pair
+reasoning could be empty. Before the patch, the wrapper regression failed and
+an invalid score of 99 was accepted immediately as 10 instead of retried.
+
+The shared judge parser now validates the whole response and exact schema,
+including decoded duplicate key names, bounded nonempty explanations and finite
+scores in range. It retains the existing one retry and skip behavior. JSON
+serialization keeps malicious delimiter and role-spoof text inside quoted
+evidence fields. That framing change is not proof of live model obedience.
+Vision fallback rebuilds the evidence description; mixed image/source pair
+orders are skipped rather than recorded with a misleading source-only label.
+
+Twelve synthetic regressions cover valid controls, alternate malformed forms,
+forged artifact instructions, swapped sources/captures, reversal exclusion,
+ties, failed-render caps, cancellation, fallback during the schema retry and
+budget charges for rejected responses. The real runner with an intercepted
+Anthropic SSE transport verifies final snapshots and exported events/pairs:
+accepted subjective grades survive, rejected grades do not, and measured browser
+scores remain unchanged. Captures and browser measurements in these tests are
+synthetic; no provider request or real credential is used. Existing budget,
+evidence/replay, unit and frontend evidence tests pass. See the release plan
+for independent review and clean CI receipts.
+
+Independent candidate review found no concrete bypass or regression, including
+1,641 additional parser probes. [PR #20 CI](https://github.com/hugosmoreira/model-lab/actions/runs/35820586670)
+passed the complete source gate, secret scan and image functional rehearsal.
+Its only failed step was the unsuppressed native advisory scan (54 HIGH and
+one CRITICAL occurrence; zero Node findings). This verifies the bounded parser
+repair and compatibility, not semantic prompt-injection resistance or image
+publication readiness. The immutable rc.2 archive is unchanged.
+
+Remaining sequence:
+
+1. Bound remaining annotation volume and request/storage resources (L4),
    preserving existing evidence and legitimate annotation workflows.
+2. Define a deliberate live adversarial judge evaluation with matched benign
+   controls, pinned model/prompt versions, both pair orders, repeated trials
+   and a stated spend ceiling before claiming M1 instruction resistance.
 3. Resolve the local credential ownership question (H3) without publishing host
    identifiers or changing the managed sandbox's policy.
 4. Continue the scoped LLVM/libxml2 prototype and binary redistribution review;

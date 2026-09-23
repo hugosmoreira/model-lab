@@ -6,6 +6,13 @@ All notable changes to Model Lab are recorded here. The format follows
 
 ## Unreleased
 
+- Require one complete judge JSON verdict with exact fields, unique keys,
+  finite scores in 0–10 and nonempty bounded explanations. Invalid replies
+  receive one schema retry, then are skipped instead of extracted or clamped.
+- Quote adversarial artifacts as structured judge evidence. Vision fallback
+  now rebuilds the source-only prompt; comparisons using different evidence
+  modes in the two orders are skipped. These changes do not establish live
+  model resistance to prompt injection or rewrite historical results.
 - Bound shared API/CLI/runner workloads to eight distinct endpoints, ten samples
   per model, eighty generated samples including verified tasks, four workers,
   three transport retries and 200-character names. Invalid CLI numeric suffixes
