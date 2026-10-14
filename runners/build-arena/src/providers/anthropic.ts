@@ -10,7 +10,7 @@ import {
   readSse,
   scrubSecrets,
 } from "./util";
-import { providerDeadline, ProviderSafetyError } from "./limits";
+import { providerDeadline, ProviderSafetyError, type DeadlineLimits } from "./limits";
 
 const DEFAULT_BASE_URL = "https://api.anthropic.com";
 const ANTHROPIC_VERSION = "2023-06-01";
@@ -18,7 +18,7 @@ const ANTHROPIC_VERSION = "2023-06-01";
 export interface AnthropicOptions {
   apiKey?: string;
   baseUrl?: string;
-  limits?: { idleMs?: number; totalMs?: number };
+  limits?: DeadlineLimits;
 }
 
 export class AnthropicProvider implements Provider {
@@ -55,33 +55,54 @@ export class AnthropicProvider implements Provider {
     const body: Record<string, unknown> = {
       model: req.model,
       max_tokens: req.maxTokens,
-      temperature: req.temperature,
       stream: true,
       messages: [{ role: "user", content }],
     };
+    if (req.omitTemperature !== true) body["temperature"] = req.temperature;
+    // Thinking happens either way; a summarized display streams its progress so
+    // a long think arrives as activity instead of silence. Billing is the same.
+    if (req.alwaysThinks === true) {
+      body["thinking"] = { type: "adaptive", display: "summarized" };
+    }
     if (req.system !== undefined) body["system"] = req.system;
     // The Messages API has no seed parameter; endpoints must set supportsSeed=false.
 
     const deadline = providerDeadline(req.signal, this.limits);
+    const apiKey = this.apiKey;
     try {
-      let res: Response;
-      try {
-        res = await deadline.wait(
-          fetch(`${this.baseUrl}/v1/messages`, {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-              "x-api-key": this.apiKey,
-              "anthropic-version": ANTHROPIC_VERSION,
-            },
-            body: JSON.stringify(body),
-            signal: deadline.signal,
-          }),
-        );
-        deadline.touch();
-      } catch (err) {
-        if (err instanceof ProviderSafetyError) throw err;
-        throw new Error(`anthropic transport error: ${errorMessage(err)}`);
+      const post = async (): Promise<Response> => {
+        try {
+          const response = await deadline.wait(
+            fetch(`${this.baseUrl}/v1/messages`, {
+              method: "POST",
+              headers: {
+                "content-type": "application/json",
+                "x-api-key": apiKey,
+                "anthropic-version": ANTHROPIC_VERSION,
+              },
+              body: JSON.stringify(body),
+              signal: deadline.signal,
+            }),
+          );
+          deadline.touch();
+          return response;
+        } catch (err) {
+          if (err instanceof ProviderSafetyError) throw err;
+          throw new Error(`anthropic transport error: ${errorMessage(err)}`);
+        }
+      };
+
+      let res = await post();
+      // A model whose catalog entry did not say so may still reject sampling
+      // parameters; drop temperature once when the server says so, as the OpenAI path does.
+      if (res.status === 400 && "temperature" in body) {
+        const detail = await readBoundedText(res.body, { signal: deadline.signal });
+        if (!/temperature/i.test(detail)) {
+          throw new Error(`anthropic HTTP 400: ${scrubSecrets(detail).slice(0, 300)}`);
+        }
+        delete body["temperature"];
+        req.beforeRetry?.();
+        res = await post();
       }
       if (!res.ok || res.body === null) {
         const detail =
@@ -128,6 +149,7 @@ export class AnthropicProvider implements Provider {
           sawFinalUsage = false;
           finishReason = null;
           if (msg?.delta?.type === "text_delta" && typeof msg?.delta?.text === "string") {
+            deadline.output();
             yield { type: "delta", text: msg.delta.text as string };
           }
         } else if (type === "message_delta") {

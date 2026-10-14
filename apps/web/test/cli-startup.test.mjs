@@ -12,17 +12,17 @@ const cli = fileURLToPath(new URL("../scripts/model-lab.ts", import.meta.url));
 const tsconfig = fileURLToPath(new URL("../tsconfig.json", import.meta.url));
 const tsx = pathToFileURL(require.resolve("tsx")).href;
 
-function runCli(args, flag) {
+const NETWORK_TRAP =
+  "globalThis.fetch = () => { console.error('NETWORK_TRAP_REACHED'); process.exit(98); };\n";
+
+function runCli(args, flag, trapSource = NETWORK_TRAP) {
   const root = mkdtempSync(join(tmpdir(), "model-lab-cli-test-"));
   const app = join(root, "apps", "web");
   mkdirSync(app, { recursive: true });
   writeFileSync(join(root, "pnpm-workspace.yaml"), "packages: []\n");
   writeFileSync(join(root, ".env"), `MODEL_LAB_MOCK_PROVIDERS=${flag}\n`);
   const trap = join(root, "trap.mjs");
-  writeFileSync(
-    trap,
-    "globalThis.fetch = () => { console.error('NETWORK_TRAP_REACHED'); process.exit(98); };\n",
-  );
+  writeFileSync(trap, trapSource);
   const env = { ...process.env, TSX_TSCONFIG_PATH: tsconfig, MODEL_LAB_STORE: "memory" };
   for (const key of Object.keys(env)) {
     if (key.endsWith("_API_KEY")) delete env[key];
@@ -53,11 +53,21 @@ test("actual CLI --mock overrides dotenv and models --check makes zero provider 
   assert.match(child.stdout, /ollama\s+mocked\s/);
 });
 
-test("actual CLI auto policy lists Ollama real with all cloud credentials absent", () => {
-  const child = runCli(["models"], "");
+test("actual CLI auto policy lists installed Ollama models and contacts nothing else without keys", () => {
+  // Only the local Ollama model list may be read; any other request trips the trap.
+  const ollamaOnly = [
+    "globalThis.fetch = async (url) => {",
+    "  if (String(url).endsWith('/api/tags'))",
+    "    return Response.json({ models: [{ name: 'fixture-local:latest', details: {} }] });",
+    "  console.error('NETWORK_TRAP_REACHED ' + url);",
+    "  process.exit(98);",
+    "};",
+  ].join("\n");
+  const child = runCli(["models"], "", ollamaOnly);
   assert.equal(child.status, 0, child.stderr);
-  assert.match(child.stdout, /ollama\/[^\r\n]+real \(local server, keyless\)/);
-  assert.match(child.stdout, /openai\/[^\r\n]+mock \(no key in this environment\)/);
+  assert.doesNotMatch(child.stderr, /NETWORK_TRAP_REACHED/);
+  assert.match(child.stdout, /ollama\/fixture-local\s[^\r\n]+real \(local server, keyless\)/);
+  assert.match(child.stdout, /openai\s+OPENAI_API_KEY is not set/);
 });
 
 test("actual CLI rejects numeric suffixes, fractions, infinities and oversized names before execution", () => {

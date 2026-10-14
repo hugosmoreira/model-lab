@@ -48,6 +48,7 @@ export const ModelCapability = z.enum([
   "control", // the null baseline: a deterministic page that renders nothing
   "hosted",
   "general",
+  "reasoning", // thinks before answering: slow first token, thinking spends the output cap
 ]);
 export type ModelCapability = z.infer<typeof ModelCapability>;
 

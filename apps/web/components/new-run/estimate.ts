@@ -28,7 +28,8 @@ export interface EstRange {
   high: number;
 }
 
-type PricedEndpoint = Pick<ModelEndpoint, "priceInPerMtokUsd" | "priceOutPerMtokUsd">;
+type PricedEndpoint = Pick<ModelEndpoint, "priceInPerMtokUsd" | "priceOutPerMtokUsd"> &
+  Partial<Pick<ModelEndpoint, "deployment">>;
 
 export function endpointCostRange(
   ep: PricedEndpoint,
@@ -68,12 +69,18 @@ export function tokenRange(modelCount: number, samples: number, estOutputTokens:
 
 /** "400k ctx" / "1M ctx" / "10M ctx". */
 export function ctxLabel(tokens: number): string {
-  return tokens >= 1_000_000 ? `${tokens / 1_000_000}M ctx` : `${Math.round(tokens / 1000)}k ctx`;
+  if (tokens <= 0) return "ctx —";
+  return tokens >= 1_000_000
+    ? `${Number((tokens / 1_000_000).toFixed(1))}M ctx`
+    : `${Math.round(tokens / 1000)}k ctx`;
 }
 
-/** "$3 / $15 per Mtok" — null prices render "$0.00 (local)". */
+/** "$3 / $15 per Mtok" — null prices render "$0.00 (local)", or "price unknown" in the cloud. */
 export function priceLabel(ep: PricedEndpoint): string {
-  if (ep.priceInPerMtokUsd == null || ep.priceOutPerMtokUsd == null) return "$0.00 (local)";
+  if (ep.priceInPerMtokUsd == null || ep.priceOutPerMtokUsd == null)
+    return ep.deployment === undefined || ep.deployment === "local"
+      ? "$0.00 (local)"
+      : "price unknown";
   return `$${ep.priceInPerMtokUsd} / $${ep.priceOutPerMtokUsd} per Mtok`;
 }
 

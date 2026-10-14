@@ -6,13 +6,19 @@ import {
   resolveMaxOutputTokens,
 } from "@/lib/server/run-service";
 import { isReadOnly } from "@/lib/server/read-only";
+import { loadPackFromDisk } from "@/lib/server/packs";
+import { fixtures } from "@/lib/data";
+import { getModelCatalog } from "@/lib/server/model-catalog";
 import { EmptyState } from "@/components/ui/primitives";
 
-export default function Page() {
+export default async function Page() {
+  const readOnly = isReadOnly();
+  const catalog = readOnly ? null : await getModelCatalog();
+  const availability = readOnly ? [] : await listEndpointAvailability();
   return (
     <>
       <TopBar title="New Run" />
-      {isReadOnly() ? (
+      {catalog === null ? (
         <main style={{ padding: 20 }}>
           <EmptyState
             title="This instance is read-only"
@@ -23,7 +29,18 @@ export default function Page() {
         <NewRunWizard
           maxOutputTokens={resolveMaxOutputTokens()}
           judgeEnabled={resolveJudgeConfig("build-arena") !== undefined}
-          endpointAvailability={listEndpointAvailability()}
+          endpointAvailability={availability}
+          models={catalog.models.map(({ endpoint, model, displayName, releasedAt, recent }) => ({
+            endpoint,
+            model,
+            displayName,
+            releasedAt,
+            recent,
+          }))}
+          catalog={{ source: catalog.source, fetchedAt: catalog.fetchedAt }}
+          runnablePackSlugs={fixtures.benchmarkPacks
+            .filter((pack) => loadPackFromDisk(pack.slug) !== null)
+            .map((pack) => pack.slug)}
         />
       )}
     </>

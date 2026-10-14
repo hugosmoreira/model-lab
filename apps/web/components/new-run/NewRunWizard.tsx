@@ -11,7 +11,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import type { EndpointAvailability } from "@/lib/server/run-service";
-import type { ModelEndpoint, Provider, RunMode } from "@model-lab/schemas";
+import type { ModelDefinition, ModelEndpoint, Provider, RunMode } from "@model-lab/schemas";
 import { Callout, EmptyState, ModelDot, ProgressBar, StatusDot } from "@/components/ui/primitives";
 import { fixtures, getModelForEndpoint } from "@/lib/data";
 import { usd } from "@/lib/format";
@@ -105,12 +105,33 @@ interface WizardState {
   selected: string[]; // endpoint ids
   /** build-arena samples per model; verified mode runs one sample per task instead */
   samplesPerModel: number;
+  /** hard per-run spend ceiling sent with the run */
+  budgetUsd: number;
   search: string;
   deployment: DeploymentFilter;
+  /** include releases outside the recent window */
+  showOlder: boolean;
+}
+
+/** One model from the server's live catalog. */
+export interface WizardModel {
+  endpoint: ModelEndpoint;
+  model: ModelDefinition;
+  displayName: string;
+  releasedAt: string | null;
+  recent: boolean;
+}
+
+/** Where the model list came from, for the line above it. */
+export interface WizardCatalogInfo {
+  source: "live" | "snapshot" | "demo";
+  fetchedAt: string;
 }
 
 /** n=1 is an anecdote; the wizard offers the sizes worth paying for. */
 const SAMPLE_OPTIONS: readonly number[] = [1, 2, 3, 5];
+/** Frontier models at list price need more than the default ceiling. */
+const BUDGET_OPTIONS: readonly number[] = [2, 5, 10, 25];
 
 function providerDisplayName(p: Provider): string {
   return p.isLocal ? `${p.name} · local` : p.name;
@@ -126,8 +147,7 @@ function providerNote(p: Provider, availability: EndpointAvailability[]): string
     : "API key required";
 }
 
-function endpointTags(ep: ModelEndpoint): string {
-  const model = getModelForEndpoint(ep.id);
+function endpointTags(model: ModelDefinition): string {
   const tags: string[] = [...model.capabilities];
   if (!model.supportsSeed) tags.push("no seed support");
   return tags.join(" · ");
@@ -147,10 +167,18 @@ export function NewRunWizard({
   maxOutputTokens,
   judgeEnabled = false,
   endpointAvailability = [],
+  runnablePackSlugs,
+  models = [],
+  catalog,
 }: {
   maxOutputTokens?: number;
   judgeEnabled?: boolean;
   endpointAvailability?: EndpointAvailability[];
+  /** packs with a definition on disk; catalog-only packs have no matching checks */
+  runnablePackSlugs?: string[];
+  /** the live model catalog, newest first per provider */
+  models?: WizardModel[];
+  catalog?: WizardCatalogInfo;
 }) {
   const router = useRouter();
   const [launching, setLaunching] = useState(false);
@@ -160,11 +188,22 @@ export function NewRunWizard({
     mode: "build-arena",
     packSlug:
       fixtures.benchmarkPacks.find((p) => p.kind === "build-arena")?.slug ?? "raycaster-oneshot",
-    selected: [...fixtures.RUN_ENDPOINT_IDS],
+    selected: [],
     samplesPerModel: 1,
+    budgetUsd: fixtures.runConfiguration.maxBudgetUsd,
     search: "",
     deployment: "all",
+    showOlder: false,
   }));
+  const catalogEndpoints = models.map((m) => m.endpoint);
+  const infoById = new Map(models.map((m) => [m.endpoint.id, m]));
+  const modelOf = (id: string): ModelDefinition =>
+    infoById.get(id)?.model ?? getModelForEndpoint(id);
+  /* A paid model with no list price cannot be capped, so it cannot run live. */
+  const unpriced = (ep: ModelEndpoint): boolean =>
+    ep.deployment !== "local" &&
+    ep.priceOutPerMtokUsd === null &&
+    !endpointAvailability.some((entry) => entry.id === ep.id && entry.mocked);
 
   const set = (patch: Partial<WizardState>) => setState((s) => ({ ...s, ...patch }));
   const toggleEndpoint = (id: string) =>
@@ -175,19 +214,23 @@ export function NewRunWizard({
 
   const cfg = fixtures.runConfiguration;
   const pack = fixtures.benchmarkPacks.find((p) => p.slug === state.packSlug);
-  const arenaPacks = fixtures.benchmarkPacks.filter((p) => p.kind === "build-arena");
-  const evalPacks = fixtures.benchmarkPacks.filter((p) => p.kind === "eval");
+  const runnablePacks = fixtures.benchmarkPacks.filter(
+    (p) => runnablePackSlugs === undefined || runnablePackSlugs.includes(p.slug),
+  );
+  const arenaPacks = runnablePacks.filter((p) => p.kind === "build-arena");
+  const evalPacks = runnablePacks.filter((p) => p.kind === "eval");
   const isVerified = state.mode === "verified";
   const taskCount = pack?.taskCount ?? 0;
 
   /* Selection, in canonical fixture order regardless of click order. */
-  const selectedEndpoints = fixtures.endpoints.filter((ep) => state.selected.includes(ep.id));
+  const selectedEndpoints = catalogEndpoints.filter((ep) => state.selected.includes(ep.id));
   const n = selectedEndpoints.length;
   const mockedSelected = selectedEndpoints.filter((endpoint) =>
     endpointAvailability.some((entry) => entry.id === endpoint.id && entry.mocked),
   );
   /* Verified MVP: 1 sample per task — the runner iterates the pack's tasks. */
   const samples = isVerified ? 1 : state.samplesPerModel;
+  const budgetUsd = state.budgetUsd;
   const callsPerModel = isVerified ? taskCount : samples;
   const calls = n * callsPerModel;
 
@@ -199,8 +242,8 @@ export function NewRunWizard({
   const cost = totalCostRange(selectedEndpoints, samples, estOut);
   const tok = tokenRange(n, samples, estOut);
   const costLabel = `${usd(cost.low)}–${usd(cost.high)}`;
-  const budgetPctRaw = (cost.high / cfg.maxBudgetUsd) * 100;
-  const budgetExceeded = cost.high > cfg.maxBudgetUsd;
+  const budgetPctRaw = (cost.high / budgetUsd) * 100;
+  const budgetExceeded = cost.high > budgetUsd;
 
   /* Validation. */
   const modelCountOk = n >= 2 && n <= 8;
@@ -211,7 +254,7 @@ export function NewRunWizard({
   const canStart = modelCountOk && !budgetExceeded;
   const startBlockReason = !modelCountOk
     ? modelCountReason
-    : `Worst-case estimate ${usd(cost.high)} exceeds the ${usd(cfg.maxBudgetUsd)} budget ceiling.`;
+    : `Worst-case estimate ${usd(cost.high)} exceeds the ${usd(budgetUsd)} budget ceiling.`;
 
   /* Rule-generated warnings. */
   const byModelId = new Map<string, ModelEndpoint[]>();
@@ -221,7 +264,7 @@ export function NewRunWizard({
     byModelId.set(ep.modelId, list);
   }
   const dupeGroups = Array.from(byModelId.values()).filter((list) => list.length > 1);
-  const unseeded = selectedEndpoints.filter((ep) => !getModelForEndpoint(ep.id).supportsSeed);
+  const unseeded = selectedEndpoints.filter((ep) => !modelOf(ep.id).supportsSeed);
   const seedSupportedCount = n - unseeded.length;
 
   /* Model filtering (step 3). */
@@ -229,8 +272,8 @@ export function NewRunWizard({
   const matchesFilters = (ep: ModelEndpoint): boolean => {
     if (state.deployment === "cloud" && ep.deployment === "local") return false;
     if (state.deployment === "local" && ep.deployment !== "local") return false;
-    if (!q) return true;
-    const model = getModelForEndpoint(ep.id);
+    if (!q) return state.showOlder || infoById.get(ep.id)?.recent !== false;
+    const model = modelOf(ep.id);
     const hay = [ep.id, ep.modelId, model.family, model.shortName, ...model.capabilities]
       .join(" ")
       .toLowerCase();
@@ -239,7 +282,7 @@ export function NewRunWizard({
   const providerGroups = fixtures.providers
     .map((provider) => ({
       provider,
-      endpoints: fixtures.endpoints.filter(
+      endpoints: catalogEndpoints.filter(
         (ep) => ep.providerId === provider.id && matchesFilters(ep),
       ),
     }))
@@ -253,7 +296,7 @@ export function NewRunWizard({
   const enabledScorers = scorerSettings.filter((s) => s.enabled);
   const safeguardDesc =
     [
-      `Hard budget stop at ${usd(cfg.maxBudgetUsd)}`,
+      `Hard budget stop at ${usd(budgetUsd)}`,
       `network ${cfg.artifactNetworkPolicy} for artifacts`,
       "bounded browser diagnostics and provider responses",
     ].join(" · ") + ".";
@@ -292,7 +335,7 @@ export function NewRunWizard({
     { k: "Est. tokens", v: n > 0 ? `${kTokens(tok.low)} – ${kTokens(tok.high)}` : "—" },
     {
       k: "Est. cost",
-      v: `${usd(cost.low)} – ${usd(cost.high)} (ceiling ${usd(cfg.maxBudgetUsd)})`,
+      v: `${usd(cost.low)} – ${usd(cost.high)} (ceiling ${usd(budgetUsd)})`,
     },
     { k: "Scorers", v: scorersSummary },
     { k: "Prompt provenance", v: "Recorded at launch from the selected pack" },
@@ -321,6 +364,7 @@ export function NewRunWizard({
     sub: string;
     val: string;
     options?: readonly number[];
+    format?: (value: number) => string;
     onSelect?: (value: number) => void;
   }[] = [
     { name: "Temperature", sub: "identical across models", val: String(cfg.temperature) },
@@ -355,7 +399,14 @@ export function NewRunWizard({
       sub: "on transport error only",
       val: `${cfg.retryPolicy.transportRetries} retry`,
     },
-    { name: "Max budget", sub: "hard stop", val: usd(cfg.maxBudgetUsd) },
+    {
+      name: "Max budget",
+      sub: "hard stop · every call is reserved before it runs",
+      val: usd(budgetUsd),
+      options: BUDGET_OPTIONS,
+      format: usd,
+      onSelect: (value: number) => set({ budgetUsd: value }),
+    },
     { name: "Tool access", sub: "no tools in one-shot mode", val: cfg.toolAccess ? "on" : "off" },
     { name: "Network access (artifact)", sub: "sandbox policy", val: cfg.artifactNetworkPolicy },
     {
@@ -383,6 +434,7 @@ export function NewRunWizard({
           packSlug: state.packSlug,
           endpointIds: selectedEndpoints.map((ep) => ep.id),
           samplesPerModel: samples,
+          maxBudgetUsd: budgetUsd,
         }),
       });
       if (!res.ok) {
@@ -751,8 +803,16 @@ export function NewRunWizard({
                 </span>
               )}
             </h2>
-            <p style={{ margin: "0 0 14px", fontSize: 13, color: "var(--color-muted)" }}>
+            <p style={{ margin: "0 0 6px", fontSize: 13, color: "var(--color-muted)" }}>
               Select 2–8 models. Provider differences for the same model are recorded separately.
+            </p>
+            <p style={{ ...mono, margin: "0 0 14px", fontSize: 11, color: "var(--color-faint)" }}>
+              {catalog?.source === "live"
+                ? `Listed live from your providers at ${catalog.fetchedAt.slice(11, 16)} UTC · prices from OpenRouter's public list`
+                : catalog?.source === "snapshot"
+                  ? `Forced mock mode: last saved provider list (${catalog.fetchedAt.slice(0, 10)}) · no provider requests`
+                  : "No provider list yet: add an API key to .env or start Ollama, then reload"}
+              {state.showOlder ? "" : ` · releases from the last 6 months`}
             </p>
             <div style={{ display: "flex", gap: 8, marginBottom: 14, maxWidth: 760 }}>
               <input
@@ -797,12 +857,35 @@ export function NewRunWizard({
                   </button>
                 );
               })}
+              <button
+                type="button"
+                aria-pressed={state.showOlder}
+                onClick={() => set({ showOlder: !state.showOlder })}
+                className="hover-border"
+                style={{
+                  background: state.showOlder ? "var(--color-selected)" : "none",
+                  border: "1px solid var(--color-border)",
+                  color: state.showOlder ? "var(--color-text)" : "var(--color-muted)",
+                  borderRadius: 6,
+                  padding: "6px 12px",
+                  cursor: "pointer",
+                  fontSize: 13,
+                  fontFamily: "inherit",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Older models
+              </button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 760 }}>
               {providerGroups.length === 0 && (
                 <EmptyState
-                  title="No models match"
-                  hint="Clear the search or switch the All / Cloud / Local filter."
+                  title={models.length <= 1 ? "No models listed" : "No models match"}
+                  hint={
+                    models.length <= 1
+                      ? "Add a provider key (ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, DEEPSEEK_API_KEY) to .env or start Ollama, then reload."
+                      : "Clear the search, switch the All / Cloud / Local filter, or show older models."
+                  }
                 />
               )}
               {providerGroups.map(({ provider, endpoints }) => (
@@ -841,12 +924,20 @@ export function NewRunWizard({
                   </div>
                   {endpoints.map((ep) => {
                     const sel = state.selected.includes(ep.id);
-                    const model = getModelForEndpoint(ep.id);
+                    const model = modelOf(ep.id);
+                    const released = infoById.get(ep.id)?.releasedAt ?? null;
+                    const blocked = unpriced(ep) && !sel;
                     return (
                       <button
                         key={ep.id}
                         type="button"
                         aria-pressed={sel}
+                        disabled={blocked}
+                        title={
+                          blocked
+                            ? "No list price found, so this run's spend could not be capped"
+                            : undefined
+                        }
                         onClick={() => toggleEndpoint(ep.id)}
                         className="hover-row"
                         style={{
@@ -859,7 +950,8 @@ export function NewRunWizard({
                           background: sel ? "var(--color-row-checked)" : "none",
                           border: "none",
                           borderBottom: "1px solid var(--color-border-row)",
-                          cursor: "pointer",
+                          cursor: blocked ? "not-allowed" : "pointer",
+                          opacity: blocked ? 0.55 : 1,
                           fontFamily: "inherit",
                           textAlign: "left",
                         }}
@@ -897,7 +989,8 @@ export function NewRunWizard({
                             {ep.modelId}
                           </span>
                           <span style={{ fontSize: 11.5, color: "var(--color-faint)" }}>
-                            {endpointTags(ep)}
+                            {endpointTags(model)}
+                            {released !== null ? ` · released ${released.slice(0, 10)}` : ""}
                           </span>
                         </span>
                         <span
@@ -1002,7 +1095,8 @@ export function NewRunWizard({
                   {p.options && p.onSelect ? (
                     <span role="group" aria-label={p.name} style={{ display: "flex", gap: 4 }}>
                       {p.options.map((opt) => {
-                        const active = String(opt) === p.val;
+                        const label = p.format ? p.format(opt) : String(opt);
+                        const active = label === p.val;
                         return (
                           <button
                             key={opt}
@@ -1021,7 +1115,7 @@ export function NewRunWizard({
                               cursor: "pointer",
                             }}
                           >
-                            {opt}
+                            {label}
                           </button>
                         );
                       })}
@@ -1213,9 +1307,9 @@ export function NewRunWizard({
               )}
               {budgetExceeded && (
                 <Callout variant="danger" glyph="✕">
-                  Worst-case estimate {usd(cost.high)} exceeds the {usd(cfg.maxBudgetUsd)} budget
-                  ceiling — deselect models, or lower samples in a later phase. Start Run is
-                  disabled.
+                  Worst-case estimate {usd(cost.high)} exceeds the {usd(budgetUsd)} budget ceiling —
+                  raise Max budget in Shared settings, deselect models or lower samples. Start Run
+                  is disabled.
                 </Callout>
               )}
 
@@ -1326,14 +1420,14 @@ export function NewRunWizard({
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ color: "var(--color-muted)" }}>Budget ceiling</span>
-            <span style={mono}>{usd(cfg.maxBudgetUsd)}</span>
+            <span style={mono}>{usd(budgetUsd)}</span>
           </div>
         </div>
         <ProgressBar pct={Math.min(100, budgetPctRaw)} gradient height={6} />
         {budgetExceeded ? (
           <Callout variant="danger" glyph="✕" style={{ padding: "9px 12px", fontSize: 12 }}>
             Worst-case estimate {usd(cost.high)} is {Math.round(budgetPctRaw)}% of the{" "}
-            {usd(cfg.maxBudgetUsd)} budget — over the ceiling. Start Run is disabled.
+            {usd(budgetUsd)} budget — over the ceiling. Start Run is disabled.
           </Callout>
         ) : (
           <span style={{ fontSize: 12, color: "var(--color-faint)", lineHeight: 1.5 }}>
@@ -1370,7 +1464,7 @@ export function NewRunWizard({
                 color: "var(--color-text-secondary)",
               }}
             >
-              <ModelDot color={getModelForEndpoint(ep.id).identityColor} size={8} />
+              <ModelDot color={modelOf(ep.id).identityColor} size={8} />
               {ep.modelId}
               {ep.deployment === "local" ? " · local" : ""}
             </span>
