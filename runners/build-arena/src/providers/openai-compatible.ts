@@ -11,13 +11,18 @@ import {
   readSse,
   scrubSecrets,
 } from "./util";
-import { providerDeadline, ProviderSafetyError } from "./limits";
+import {
+  providerDeadline,
+  ProviderSafetyError,
+  transportIdleMs,
+  type ProviderLimits,
+} from "./limits";
 
 export interface OpenAiCompatibleOptions {
   baseUrl: string;
   apiKey: string | null; // null => no Authorization header (local servers)
   headers?: Record<string, string>;
-  limits?: { idleMs?: number; totalMs?: number };
+  limits?: ProviderLimits;
 }
 
 /**
@@ -171,7 +176,10 @@ export class OpenAiCompatibleProvider implements Provider {
       let reasoningTokens = 0;
       let finishReason: FinishReason | null = null;
       let servedModel: string | null = null;
-      for await (const sse of readSse(res.body, { signal: deadline.signal })) {
+      for await (const sse of readSse(res.body, {
+        signal: deadline.signal,
+        idleMs: transportIdleMs(this.opts.limits),
+      })) {
         deadline.touch();
         if (sse.data === "[DONE]") {
           sawDone = true;
@@ -197,6 +205,7 @@ export class OpenAiCompatibleProvider implements Provider {
         }
         const delta: unknown = chunk?.choices?.[0]?.delta?.content;
         if (typeof delta === "string" && delta.length > 0) {
+          deadline.token();
           sawFinalUsage = false;
           finishReason = null;
           textLength += delta.length;
@@ -208,13 +217,17 @@ export class OpenAiCompatibleProvider implements Provider {
          * completion_tokens and consume the same max_tokens budget, so a model
          * can spend the entire cap thinking and emit no answer at all. Measure
          * them so that case is diagnosable instead of looking like an empty reply.
+         * Ollama streams them as `reasoning` beside empty content, sometimes for
+         * longer than the idle deadline, so they also count as stream activity.
          */
         const reasoningDelta: unknown =
           chunk?.choices?.[0]?.delta?.reasoning_content ?? chunk?.choices?.[0]?.delta?.reasoning;
         if (typeof reasoningDelta === "string" && reasoningDelta.length > 0) {
+          deadline.token();
           sawFinalUsage = false;
           finishReason = null;
           reasoningLength += reasoningDelta.length;
+          yield { type: "reasoning" };
         }
         const rawFinish = normalizeFinishReason(chunk?.choices?.[0]?.finish_reason);
         if (rawFinish !== null) finishReason = rawFinish;

@@ -3,20 +3,25 @@
  */
 import type { EndpointConfig, Provider } from "../types";
 import { AnthropicProvider } from "./anthropic";
+import { providerDeadlinesFor, type ProviderLimits } from "./limits";
 import { MockProvider } from "./mock";
 import { OllamaProvider } from "./ollama";
 import { OpenAiCompatibleProvider, resolveOpenAiCompatible } from "./openai-compatible";
 
-export function createProvider(endpoint: EndpointConfig): Provider {
+export function createProvider(
+  endpoint: EndpointConfig,
+  limits: ProviderLimits = providerDeadlinesFor(endpoint),
+): Provider {
   switch (endpoint.baseKind) {
     case "anthropic":
-      return new AnthropicProvider();
+      return new AnthropicProvider({ limits });
     case "openai-compatible":
-      return new OpenAiCompatibleProvider(
-        resolveOpenAiCompatible(endpoint.providerId, endpoint.baseUrl),
-      );
+      return new OpenAiCompatibleProvider({
+        ...resolveOpenAiCompatible(endpoint.providerId, endpoint.baseUrl),
+        limits,
+      });
     case "ollama":
-      return new OllamaProvider(endpoint.baseUrl);
+      return new OllamaProvider(endpoint.baseUrl, limits);
     case "mock":
       return new MockProvider();
   }

@@ -58,7 +58,13 @@ import { EventBus } from "./event-bus";
 import { runJudgePhase } from "./judge";
 import { createProvider } from "./providers";
 import { errorMessage } from "./providers/util";
-import { boundedGenerate, MAX_GENERATION_BYTES, ProviderSafetyError } from "./providers/limits";
+import {
+  boundedGenerate,
+  MAX_GENERATION_BYTES,
+  providerDeadlinesFor,
+  ProviderSafetyError,
+  type ProviderDeadlines,
+} from "./providers/limits";
 import { FsRunStore } from "./store-fs";
 import { acquireRunAdmission, type RunAdmission } from "./run-admission";
 import { validateWorkload } from "./workload";
@@ -123,7 +129,7 @@ export interface StartRunOptions {
     html: string,
     opts: { screenshotPath: string; watchdogMs?: number; signal?: AbortSignal },
   ) => Promise<BrowserChecksOutcome>;
-  providerFactory?: (endpoint: EndpointConfig) => Provider;
+  providerFactory?: (endpoint: EndpointConfig, limits: ProviderDeadlines) => Provider;
   browserWatchdogMs?: number;
 }
 
@@ -241,8 +247,14 @@ function startAdmittedRun(
         )
         .map((ep) => [ep.id, ep.quantization]),
     ),
+    // A local first-token window decides whether a slow prefill fails, so a rerun needs it.
+    providerDeadlines: Object.fromEntries(
+      cfg.endpoints.map((ep) => [ep.id, providerDeadlinesFor(ep)]),
+    ),
     recordedAt: startedAtIso,
   };
+  const deadlinesFor = (ep: EndpointConfig): ProviderDeadlines =>
+    environment.providerDeadlines[ep.id] ?? providerDeadlinesFor(ep);
 
   let cancelled = false;
   let budgetStopped = false;
@@ -454,11 +466,16 @@ function startAdmittedRun(
     req.beforeRetry = admit;
     admit();
     try {
-      for await (const chunk of boundedGenerate(provider, req, MAX_GENERATION_BYTES)) {
+      for await (const chunk of boundedGenerate(
+        provider,
+        req,
+        MAX_GENERATION_BYTES,
+        deadlinesFor(ep),
+      )) {
         if (chunk.type === "delta") {
           if (ttftMs === null) ttftMs = Date.now() - started;
           text += chunk.text;
-        } else {
+        } else if (chunk.type === "usage") {
           tokensIn = chunk.tokensIn;
           tokensOut = chunk.tokensOut;
           finishReason = chunk.finishReason ?? null;
@@ -1056,7 +1073,7 @@ function startAdmittedRun(
     const st = stateFor(ep);
     let provider: Provider;
     try {
-      provider = providerFactory(ep);
+      provider = providerFactory(ep, deadlinesFor(ep));
     } catch (err) {
       st.status = "failed";
       emit("model.failed", {

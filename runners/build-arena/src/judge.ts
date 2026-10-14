@@ -399,7 +399,7 @@ export async function runJudgePhase(options: JudgePhaseOptions): Promise<JudgePh
     try {
       for await (const chunk of boundedGenerate(provider, req, MAX_JUDGE_BYTES)) {
         if (chunk.type === "delta") text += chunk.text;
-        else {
+        else if (chunk.type === "usage") {
           tokensIn = chunk.tokensIn;
           tokensOut = chunk.tokensOut;
           usageSource = chunk.usageSource ?? "reported";

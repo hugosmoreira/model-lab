@@ -10,7 +10,12 @@ import {
   readSse,
   scrubSecrets,
 } from "./util";
-import { providerDeadline, ProviderSafetyError } from "./limits";
+import {
+  providerDeadline,
+  ProviderSafetyError,
+  transportIdleMs,
+  type ProviderLimits,
+} from "./limits";
 
 const DEFAULT_BASE_URL = "https://api.anthropic.com";
 const ANTHROPIC_VERSION = "2023-06-01";
@@ -18,7 +23,7 @@ const ANTHROPIC_VERSION = "2023-06-01";
 export interface AnthropicOptions {
   apiKey?: string;
   baseUrl?: string;
-  limits?: { idleMs?: number; totalMs?: number };
+  limits?: ProviderLimits;
 }
 
 export class AnthropicProvider implements Provider {
@@ -98,7 +103,10 @@ export class AnthropicProvider implements Provider {
       let sawUsage = false;
       let sawFinalUsage = false;
       let sawStop = false;
-      for await (const sse of readSse(res.body, { signal: deadline.signal })) {
+      for await (const sse of readSse(res.body, {
+        signal: deadline.signal,
+        idleMs: transportIdleMs(this.limits),
+      })) {
         deadline.touch();
         let parsed: unknown;
         try {
@@ -125,6 +133,7 @@ export class AnthropicProvider implements Provider {
             usageComplete: false,
           };
         } else if (type === "content_block_delta") {
+          deadline.token();
           sawFinalUsage = false;
           finishReason = null;
           if (msg?.delta?.type === "text_delta" && typeof msg?.delta?.text === "string") {

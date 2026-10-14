@@ -6,6 +6,12 @@ All notable changes to Model Lab are recorded here. The format follows
 
 ## Unreleased
 
+- Count streamed reasoning as provider activity. Thirty seconds of reasoning
+  without answer text previously failed the sample with an idle-deadline
+  transport error (`run_e4706263`). Ollama endpoints now wait up to 120 seconds
+  for a first token (`MODEL_LAB_LOCAL_FIRST_TOKEN_MS`), within the 180-second
+  total; the 30-second idle deadline applies once tokens stream. Run provenance
+  records each endpoint's deadlines.
 - Bound all mutation JSON bodies to 64 KiB and ten seconds of reading, including
   requests with missing or incorrect Content-Length. Reject compressed bodies.
 - Limit new annotation notes to 4,000 UTF-16 units and total persisted text to
