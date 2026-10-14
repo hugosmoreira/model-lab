@@ -6,6 +6,11 @@ All notable changes to Model Lab are recorded here. The format follows
 
 ## Unreleased
 
+- Count streamed reasoning as provider activity (Ollama and OpenRouter
+  `reasoning`, DeepSeek `reasoning_content`, Anthropic summarized thinking), so
+  a model that is still thinking is not treated as silent. Under the earlier
+  30-second limit, `run_e4706263` failed after thirty seconds of reasoning. Run
+  provenance now records the provider deadlines each run applied.
 - List runnable models live from each configured provider's model API
   (Anthropic, OpenAI, Google, DeepSeek, Ollama) instead of the demo registry.
   New Run, Models and `pnpm cli models` show chat models released in the last

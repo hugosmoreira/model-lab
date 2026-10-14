@@ -5,9 +5,11 @@ register("./ts-resolve.mjs", import.meta.url);
 
 const { readSse, readBoundedText, scrubSecrets, errorMessage } =
   await import("../src/providers/util.ts");
-const { boundedGenerate, ProviderSafetyError } = await import("../src/providers/limits.ts");
+const { boundedGenerate, PROVIDER_LIMITS, ProviderSafetyError } =
+  await import("../src/providers/limits.ts");
 const { OpenAiCompatibleProvider } = await import("../src/providers/openai-compatible.ts");
 const { AnthropicProvider } = await import("../src/providers/anthropic.ts");
+const { OllamaProvider } = await import("../src/providers/ollama.ts");
 const encode = (value) => new TextEncoder().encode(value);
 const collect = async (source) => {
   const values = [];
@@ -472,6 +474,138 @@ test("Anthropic follows the catalog's thinking and temperature hints", async () 
     assert.equal(sent.length, 2);
     assert.equal("temperature" in sent[1], false);
     assert.equal(retries, 1);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+/** Advances mocked timers in steps, letting stream reads settle between them. */
+async function advance(timers, ms, step = 1_000) {
+  for (let elapsed = 0; elapsed < ms; elapsed += step) {
+    timers.tick(Math.min(step, ms - elapsed));
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+}
+/** A wait on the mocked clock that the request's abort signal interrupts. */
+function delay(ms, signal) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        reject(signal.reason);
+      },
+      { once: true },
+    );
+  });
+}
+/**
+ * Ollama's wire shape: no headers until the first token, then reasoning beside
+ * empty content. firstEventAfterMs models a server that sends headers early.
+ */
+function ollamaFetch({
+  headersAfterMs = 0,
+  firstEventAfterMs = 0,
+  reasoningGapMs = 0,
+  reasoningEvents = 0,
+}) {
+  const events = [
+    ...Array.from({ length: reasoningEvents }, (_, index) => [
+      index === 0 ? firstEventAfterMs : reasoningGapMs,
+      { choices: [{ delta: { content: "", reasoning: "thinking " } }] },
+    ]),
+    [0, { choices: [{ delta: { content: "<!DOCTYPE html><html></html>" } }] }],
+    [0, { choices: [{ delta: {}, finish_reason: "stop" }] }],
+    [0, { choices: [], usage: { prompt_tokens: 3, completion_tokens: 40 } }],
+    [0, "[DONE]"],
+  ];
+  return async (_url, { signal }) => {
+    await delay(headersAfterMs, signal);
+    let index = 0;
+    return new Response(
+      new ReadableStream({
+        async pull(controller) {
+          const next = events[index++];
+          if (next === undefined) return controller.close();
+          if (next[0] > 0) await delay(next[0], signal);
+          controller.enqueue(encode(sse([next[1]])));
+        },
+      }),
+    );
+  };
+}
+const ollamaGenerate = () =>
+  collect(
+    boundedGenerate(
+      new OllamaProvider("http://synthetic.invalid/v1"),
+      request,
+      1024,
+      PROVIDER_LIMITS,
+    ),
+  );
+
+test("a 45 s silent Ollama start passes the default deadlines (run_e4706263)", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const original = globalThis.fetch;
+  try {
+    // Headers with the first token (Ollama), or headers first and a silent prefill.
+    for (const shape of [{ headersAfterMs: 45_000 }, { firstEventAfterMs: 45_000 }]) {
+      globalThis.fetch = ollamaFetch({ ...shape, reasoningEvents: 1 });
+      const run = ollamaGenerate();
+      await advance(t.mock.timers, 46_000);
+      const chunks = await run;
+      assert.deepEqual(
+        chunks.map((chunk) => chunk.type),
+        ["reasoning", "delta", "usage", "usage"],
+      );
+      assert.equal(chunks.at(-1).usageComplete, true);
+    }
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("streamed reasoning keeps a request alive past the first-output window", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const original = globalThis.fetch;
+  // Reasoning every 10 s for 11 minutes and no answer text until it ends.
+  const reasoningEvents = Math.ceil(PROVIDER_LIMITS.firstOutputMs / 10_000) + 6;
+  globalThis.fetch = ollamaFetch({ reasoningGapMs: 10_000, reasoningEvents });
+  try {
+    const run = ollamaGenerate();
+    await advance(t.mock.timers, reasoningEvents * 10_000, 5_000);
+    const chunks = await run;
+    assert.equal(chunks.filter((chunk) => chunk.type === "reasoning").length, reasoningEvents);
+    assert.equal(
+      chunks.find((chunk) => chunk.type === "delta").text,
+      "<!DOCTYPE html><html></html>",
+    );
+    assert.ok(chunks.at(-1).reasoningTokens > 0);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("Anthropic summarized thinking reaches the deadlines as reasoning", async () => {
+  const original = globalThis.fetch;
+  const adapter = new AnthropicProvider({ baseUrl: "http://synthetic.invalid", apiKey: "fixture" });
+  globalThis.fetch = async () =>
+    new Response(
+      sse([
+        { type: "message_start", message: { usage: { input_tokens: 3 } } },
+        { type: "content_block_delta", delta: { type: "thinking_delta", thinking: "plan" } },
+        { type: "content_block_delta", delta: { type: "text_delta", text: "ok" } },
+        { type: "message_delta", usage: { output_tokens: 2 }, delta: { stop_reason: "end_turn" } },
+        { type: "message_stop" },
+      ]),
+    );
+  try {
+    const chunks = await collect(adapter.generate({ ...request, alwaysThinks: true }));
+    assert.deepEqual(
+      chunks.map((chunk) => chunk.type),
+      ["usage", "reasoning", "delta", "usage", "usage"],
+    );
   } finally {
     globalThis.fetch = original;
   }

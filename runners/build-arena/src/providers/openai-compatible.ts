@@ -209,6 +209,8 @@ export class OpenAiCompatibleProvider implements Provider {
          * completion_tokens and consume the same max_tokens budget, so a model
          * can spend the entire cap thinking and emit no answer at all. Measure
          * them so that case is diagnosable instead of looking like an empty reply.
+         * Ollama streams them as `reasoning` beside empty content; passing them on
+         * lets every deadline layer see a model that is thinking as live.
          */
         const reasoningDelta: unknown =
           chunk?.choices?.[0]?.delta?.reasoning_content ?? chunk?.choices?.[0]?.delta?.reasoning;
@@ -216,6 +218,7 @@ export class OpenAiCompatibleProvider implements Provider {
           sawFinalUsage = false;
           finishReason = null;
           reasoningLength += reasoningDelta.length;
+          yield { type: "reasoning" };
         }
         const rawFinish = normalizeFinishReason(chunk?.choices?.[0]?.finish_reason);
         if (rawFinish !== null) finishReason = rawFinish;

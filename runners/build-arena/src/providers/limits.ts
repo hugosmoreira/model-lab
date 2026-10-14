@@ -122,6 +122,8 @@ export async function* boundedGenerate(
       const next = await deadline.wait(iterator.next());
       if (next.done) break;
       const chunk = next.value;
+      // Reasoning keeps the request alive but is not answer text, so it renews
+      // the first-output window instead of ending it.
       if (chunk.type === "delta") deadline.output();
       else deadline.touch();
       if (chunk.type === "delta") {
@@ -129,13 +131,14 @@ export async function* boundedGenerate(
         if (bytes > maxBytes)
           throw new ProviderSafetyError(`provider output exceeds ${maxBytes} byte limit`);
       } else if (
-        !Number.isFinite(chunk.tokensIn) ||
-        chunk.tokensIn < 0 ||
-        !Number.isFinite(chunk.tokensOut) ||
-        chunk.tokensOut < 0 ||
-        (chunk.reasoningTokens !== undefined &&
-          chunk.reasoningTokens !== null &&
-          (!Number.isFinite(chunk.reasoningTokens) || chunk.reasoningTokens < 0))
+        chunk.type === "usage" &&
+        (!Number.isFinite(chunk.tokensIn) ||
+          chunk.tokensIn < 0 ||
+          !Number.isFinite(chunk.tokensOut) ||
+          chunk.tokensOut < 0 ||
+          (chunk.reasoningTokens !== undefined &&
+            chunk.reasoningTokens !== null &&
+            (!Number.isFinite(chunk.reasoningTokens) || chunk.reasoningTokens < 0)))
       ) {
         throw new ProviderSafetyError("provider reported invalid token usage");
       }

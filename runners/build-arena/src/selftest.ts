@@ -106,13 +106,17 @@ async function main(): Promise<void> {
 
   const degraded = log.some((e) => e.message.includes(BROWSER_NOT_INSTALLED_NOTE));
 
-  // Provenance: the bundle must say where it ran and in which browser.
+  // Provenance: the bundle must say where it ran, in which browser, and under
+  // which provider deadlines.
   const manifest = JSON.parse(
     readFileSync(join(bundle.dir, "manifest.json"), "utf8"),
   ) as RunManifest;
   const env = manifest.environment ?? null;
   const provenanceOk =
-    env !== null && env.node === process.version && (degraded || typeof env.chromium === "string");
+    env !== null &&
+    env.node === process.version &&
+    (degraded || typeof env.chromium === "string") &&
+    (env.providerDeadlines?.firstOutputMs ?? 0) > 0;
   console.log(
     `provenance: ${env ? `node ${env.node} · ${env.platform} · ${env.chromium ?? "no browser"}` : "MISSING"}`,
   );
