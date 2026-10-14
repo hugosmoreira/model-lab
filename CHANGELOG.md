@@ -23,6 +23,12 @@ All notable changes to Model Lab are recorded here. The format follows
 - Allow reasoning models up to ten minutes before their first answer text and
   twenty minutes in total; the 30-second idle limit applies once text starts.
 - New Run offers a per-run budget ceiling of $2, $5, $10 or $25.
+- Raise the `sharp` override to 0.35.5 (librsvg advisory GHSA-wq5f-xc86-pv6w) and
+  pin `source-map-js` to 1.2.2 (GHSA-68fv-2mgg-jv7q). The high-severity `braces`
+  advisory GHSA-vfj7-8cjw-p6xm has no patched release and reaches only lint
+  tooling (`eslint-config-next` → `fast-glob` → `micromatch`), so `pnpm audit`
+  ignores that one advisory by id; every other high advisory still fails CI.
+  Remove the exception once a fixed `braces` or a `micromatch`-free path ships.
 - Bound all mutation JSON bodies to 64 KiB and ten seconds of reading, including
   requests with missing or incorrect Content-Length. Reject compressed bodies.
 - Limit new annotation notes to 4,000 UTF-16 units and total persisted text to

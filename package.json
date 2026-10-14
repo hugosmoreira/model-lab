@@ -34,11 +34,17 @@
     "overrides": {
       "postcss@8": "^8.5.28",
       "nanoid@3": "^3.3.19",
-      "sharp@0.34": "^0.35.4"
+      "sharp@0.34": "^0.35.5",
+      "source-map-js@1": "^1.2.2"
     },
     "onlyBuiltDependencies": [
       "esbuild",
       "unrs-resolver"
-    ]
+    ],
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-vfj7-8cjw-p6xm"
+      ]
+    }
   }
 }
