@@ -5,11 +5,11 @@ register("./ts-resolve.mjs", import.meta.url);
 
 const { readSse, readBoundedText, scrubSecrets, errorMessage } =
   await import("../src/providers/util.ts");
-const { boundedGenerate, providerDeadlinesFor, ProviderSafetyError } =
+const { boundedGenerate, PROVIDER_LIMITS, ProviderSafetyError } =
   await import("../src/providers/limits.ts");
 const { OpenAiCompatibleProvider } = await import("../src/providers/openai-compatible.ts");
 const { AnthropicProvider } = await import("../src/providers/anthropic.ts");
-const { createProvider } = await import("../src/providers/index.ts");
+const { OllamaProvider } = await import("../src/providers/ollama.ts");
 const encode = (value) => new TextEncoder().encode(value);
 const collect = async (source) => {
   const values = [];
@@ -415,25 +415,70 @@ test("OpenAI rejects unmarked EOF and never treats usage before later deltas as 
   }
 });
 
-const localEndpoint = {
-  id: "ollama/fixture",
-  providerId: "ollama",
-  modelId: "fixture",
-  baseKind: "ollama",
-  model: "fixture",
-  priceInPerMtokUsd: null,
-  priceOutPerMtokUsd: null,
-  supportsSeed: true,
-  baseUrl: "http://synthetic.invalid/v1",
-};
-const cloudEndpoint = {
-  ...localEndpoint,
-  id: "openrouter/fixture",
-  providerId: "openrouter",
-  baseKind: "openai-compatible",
-  priceInPerMtokUsd: 1,
-  priceOutPerMtokUsd: 1,
-};
+test("a slow first answer is allowed; silence after answer text is not", async () => {
+  const limits = { idleMs: 15, firstOutputMs: 400, totalMs: 1_000 };
+  const thinker = {
+    async *generate() {
+      yield { type: "usage", tokensIn: 1, tokensOut: 0 };
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      yield { type: "delta", text: "late but fine" };
+    },
+  };
+  const chunks = await collect(boundedGenerate(thinker, request, 64, limits));
+  assert.equal(chunks.at(-1).text, "late but fine");
+  const stalls = {
+    async *generate() {
+      yield { type: "delta", text: "started" };
+      await new Promise(() => {});
+    },
+  };
+  await assert.rejects(collect(boundedGenerate(stalls, request, 64, limits)), /idle deadline/);
+});
+
+test("Anthropic follows the catalog's thinking and temperature hints", async () => {
+  const original = globalThis.fetch;
+  const adapter = new AnthropicProvider({ baseUrl: "http://synthetic.invalid", apiKey: "fixture" });
+  const events = [
+    { type: "message_start", message: { usage: { input_tokens: 3 } } },
+    { type: "content_block_delta", delta: { type: "text_delta", text: "ok" } },
+    { type: "message_delta", usage: { output_tokens: 2 }, delta: { stop_reason: "end_turn" } },
+    { type: "message_stop" },
+  ];
+  const sent = [];
+  globalThis.fetch = async (_url, options) => {
+    sent.push(JSON.parse(options.body));
+    return new Response(sse(events));
+  };
+  try {
+    await collect(adapter.generate({ ...request, alwaysThinks: true, omitTemperature: true }));
+    await collect(adapter.generate(request));
+    const [thinker, plain] = sent;
+    assert.equal("temperature" in thinker, false);
+    assert.deepEqual(thinker.thinking, { type: "adaptive", display: "summarized" });
+    assert.equal(plain.temperature, 0);
+    assert.equal("thinking" in plain, false);
+
+    // An unlisted model that rejects temperature is retried once without it.
+    sent.length = 0;
+    let retries = 0;
+    globalThis.fetch = async (_url, options) => {
+      const sentBody = JSON.parse(options.body);
+      sent.push(sentBody);
+      if ("temperature" in sentBody)
+        return new Response('{"error":{"message":"temperature is not supported"}}', {
+          status: 400,
+        });
+      return new Response(sse(events));
+    };
+    await collect(adapter.generate({ ...request, beforeRetry: () => retries++ }));
+    assert.equal(sent.length, 2);
+    assert.equal("temperature" in sent[1], false);
+    assert.equal(retries, 1);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
 /** Advances mocked timers in steps, letting stream reads settle between them. */
 async function advance(timers, ms, step = 1_000) {
   for (let elapsed = 0; elapsed < ms; elapsed += step) {
@@ -490,120 +535,77 @@ function ollamaFetch({
     );
   };
 }
-const generateFor = (endpoint) => {
-  const limits = providerDeadlinesFor(endpoint, {});
-  return collect(boundedGenerate(createProvider(endpoint, limits), request, 1024, limits));
-};
-
-test("local endpoints get a longer first-token window, bounded by the total deadline", () => {
-  const cloud = providerDeadlinesFor(cloudEndpoint, { MODEL_LAB_LOCAL_FIRST_TOKEN_MS: "90000" });
-  assert.deepEqual(cloud, { firstTokenMs: 30_000, idleMs: 30_000, totalMs: 180_000 });
-  assert.deepEqual(providerDeadlinesFor(localEndpoint, {}), {
-    firstTokenMs: 120_000,
-    idleMs: 30_000,
-    totalMs: 180_000,
-  });
-  const local = (value) =>
-    providerDeadlinesFor(localEndpoint, { MODEL_LAB_LOCAL_FIRST_TOKEN_MS: value }).firstTokenMs;
-  assert.equal(local("90000"), 90_000);
-  assert.equal(local(" 5000 "), 5_000);
-  assert.equal(local("999999999"), 180_000);
-  for (const invalid of ["", "0", "-1", "1e5", "90s", "abc"]) assert.equal(local(invalid), 120_000);
-});
-
-test("a silent first 45 s passes for a local endpoint and times out for a cloud one", async (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
-  const silentThenAnswer = {
-    async *generate(req) {
-      await delay(45_000, req.signal);
-      yield { type: "delta", text: "<html></html>" };
-      yield { type: "usage", tokensIn: 1, tokensOut: 1 };
-    },
-  };
-  const local = collect(
-    boundedGenerate(silentThenAnswer, request, 1024, providerDeadlinesFor(localEndpoint, {})),
-  );
-  const cloud = assert.rejects(
-    collect(
-      boundedGenerate(silentThenAnswer, request, 1024, providerDeadlinesFor(cloudEndpoint, {})),
+const ollamaGenerate = () =>
+  collect(
+    boundedGenerate(
+      new OllamaProvider("http://synthetic.invalid/v1"),
+      request,
+      1024,
+      PROVIDER_LIMITS,
     ),
-    (error) => error instanceof ProviderSafetyError && /first-token deadline/.test(error.message),
   );
-  await advance(t.mock.timers, 45_000);
-  assert.equal((await local)[0].text, "<html></html>");
-  await cloud;
-});
 
-test("after the first token a local endpoint is back on the idle deadline", async (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
-  const stallsAfterReasoning = {
-    async *generate(req) {
-      yield { type: "reasoning" };
-      await delay(31_000, req.signal);
-      yield { type: "delta", text: "late" };
-    },
-  };
-  const stalled = assert.rejects(
-    collect(
-      boundedGenerate(stallsAfterReasoning, request, 1024, providerDeadlinesFor(localEndpoint, {})),
-    ),
-    /idle deadline/,
-  );
-  await advance(t.mock.timers, 31_000);
-  await stalled;
-});
-
-test("Ollama adapter survives a 45 s cold start that a cloud endpoint may not", async (t) => {
+test("a 45 s silent Ollama start passes the default deadlines (run_e4706263)", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const original = globalThis.fetch;
-  globalThis.fetch = ollamaFetch({ headersAfterMs: 45_000, reasoningEvents: 1 });
   try {
-    const local = generateFor(localEndpoint);
-    const cloud = assert.rejects(generateFor(cloudEndpoint), /first-token deadline/);
-    await advance(t.mock.timers, 46_000);
-    const chunks = await local;
+    // Headers with the first token (Ollama), or headers first and a silent prefill.
+    for (const shape of [{ headersAfterMs: 45_000 }, { firstEventAfterMs: 45_000 }]) {
+      globalThis.fetch = ollamaFetch({ ...shape, reasoningEvents: 1 });
+      const run = ollamaGenerate();
+      await advance(t.mock.timers, 46_000);
+      const chunks = await run;
+      assert.deepEqual(
+        chunks.map((chunk) => chunk.type),
+        ["reasoning", "delta", "usage", "usage"],
+      );
+      assert.equal(chunks.at(-1).usageComplete, true);
+    }
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("streamed reasoning keeps a request alive past the first-output window", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const original = globalThis.fetch;
+  // Reasoning every 10 s for 11 minutes and no answer text until it ends.
+  const reasoningEvents = Math.ceil(PROVIDER_LIMITS.firstOutputMs / 10_000) + 6;
+  globalThis.fetch = ollamaFetch({ reasoningGapMs: 10_000, reasoningEvents });
+  try {
+    const run = ollamaGenerate();
+    await advance(t.mock.timers, reasoningEvents * 10_000, 5_000);
+    const chunks = await run;
+    assert.equal(chunks.filter((chunk) => chunk.type === "reasoning").length, reasoningEvents);
+    assert.equal(
+      chunks.find((chunk) => chunk.type === "delta").text,
+      "<!DOCTYPE html><html></html>",
+    );
+    assert.ok(chunks.at(-1).reasoningTokens > 0);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("Anthropic summarized thinking reaches the deadlines as reasoning", async () => {
+  const original = globalThis.fetch;
+  const adapter = new AnthropicProvider({ baseUrl: "http://synthetic.invalid", apiKey: "fixture" });
+  globalThis.fetch = async () =>
+    new Response(
+      sse([
+        { type: "message_start", message: { usage: { input_tokens: 3 } } },
+        { type: "content_block_delta", delta: { type: "thinking_delta", thinking: "plan" } },
+        { type: "content_block_delta", delta: { type: "text_delta", text: "ok" } },
+        { type: "message_delta", usage: { output_tokens: 2 }, delta: { stop_reason: "end_turn" } },
+        { type: "message_stop" },
+      ]),
+    );
+  try {
+    const chunks = await collect(adapter.generate({ ...request, alwaysThinks: true }));
     assert.deepEqual(
       chunks.map((chunk) => chunk.type),
-      ["reasoning", "delta", "usage", "usage"],
+      ["usage", "reasoning", "delta", "usage", "usage"],
     );
-    assert.equal(chunks.at(-1).usageComplete, true);
-    await cloud;
-  } finally {
-    globalThis.fetch = original;
-  }
-});
-
-test("headers sent before a silent prefill do not shorten the local first-token window", async (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
-  const original = globalThis.fetch;
-  globalThis.fetch = ollamaFetch({ firstEventAfterMs: 45_000, reasoningEvents: 1 });
-  try {
-    const local = generateFor(localEndpoint);
-    const cloud = assert.rejects(generateFor(cloudEndpoint), /first-token deadline/);
-    await advance(t.mock.timers, 46_000);
-    assert.equal((await local).at(-1).usageComplete, true);
-    await cloud;
-  } finally {
-    globalThis.fetch = original;
-  }
-});
-
-test("streamed reasoning keeps a request alive past the idle deadline before any answer", async (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
-  const original = globalThis.fetch;
-  // 40 s of reasoning in 10 s steps and no answer text until it ends (run_e4706263).
-  globalThis.fetch = ollamaFetch({ headersAfterMs: 0, reasoningGapMs: 10_000, reasoningEvents: 5 });
-  try {
-    const runs = [generateFor(localEndpoint), generateFor(cloudEndpoint)];
-    await advance(t.mock.timers, 41_000);
-    for (const chunks of await Promise.all(runs)) {
-      assert.equal(chunks.filter((chunk) => chunk.type === "reasoning").length, 5);
-      assert.equal(
-        chunks.find((chunk) => chunk.type === "delta").text.slice(0, 15),
-        "<!DOCTYPE html>",
-      );
-      assert.ok(chunks.at(-1).reasoningTokens > 0);
-    }
   } finally {
     globalThis.fetch = original;
   }

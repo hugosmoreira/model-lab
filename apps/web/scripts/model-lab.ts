@@ -72,6 +72,7 @@ async function main(): Promise<void> {
       "no-bundle": { type: "boolean", default: false },
       quiet: { type: "boolean", default: false },
       check: { type: "boolean", default: false },
+      all: { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
   });
@@ -96,8 +97,20 @@ async function main(): Promise<void> {
     await import("@model-lab/build-arena-runner");
 
   if (command === "models") {
-    const rows = runService.listEndpointAvailability();
-    console.log(`${pad("endpoint", 40)}${pad("deployment", 12)}now`);
+    const { getModelCatalog } = await import("../lib/server/model-catalog");
+    const catalog = await getModelCatalog();
+    const info = new Map(catalog.models.map((m) => [m.endpoint.id, m]));
+    const rows = (await runService.listEndpointAvailability()).filter(
+      (r) => values.all === true || info.get(r.id)?.recent !== false,
+    );
+    console.log(
+      `model list: ${catalog.source} · ${catalog.fetchedAt}${values.all === true ? "" : " · last 6 months (--all for every model)"}`,
+    );
+    for (const listing of catalog.providers) {
+      if (listing.status !== "listed")
+        console.log(`  ${pad(listing.providerId, 12)}${listing.detail ?? listing.status}`);
+    }
+    console.log(`${pad("endpoint", 40)}${pad("released", 12)}${pad("$/Mtok in·out", 16)}now`);
     for (const r of rows) {
       const status =
         r.providerId === "baseline"
@@ -109,7 +122,16 @@ async function main(): Promise<void> {
             : r.providerId === "ollama"
               ? "real (local server, keyless)"
               : "real (key present)";
-      console.log(`${pad(r.id, 40)}${pad(r.deployment, 12)}${status}`);
+      const m = info.get(r.id);
+      const price =
+        m?.endpoint.priceInPerMtokUsd != null
+          ? `${m.endpoint.priceInPerMtokUsd}·${m.endpoint.priceOutPerMtokUsd}`
+          : r.deployment === "local"
+            ? "0 (local)"
+            : "unknown";
+      console.log(
+        `${pad(r.id, 40)}${pad(m?.releasedAt?.slice(0, 10) ?? "—", 12)}${pad(price, 16)}${status}`,
+      );
     }
     if (values.check) {
       // One read-only model-list request per provider — proves the key works

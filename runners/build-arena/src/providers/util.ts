@@ -104,6 +104,7 @@ export interface SseEvent {
 interface StreamOptions {
   signal?: AbortSignal;
   idleMs?: number;
+  firstOutputMs?: number;
   totalMs?: number;
   frameBytes?: number;
   streamBytes?: number;
@@ -115,7 +116,11 @@ export async function readBoundedText(
   options: StreamOptions & { maxBytes?: number } = {},
 ): Promise<string> {
   if (body === null) return "";
-  const deadline = providerDeadline(options.signal, options);
+  // An error body follows its headers at once, so it gets no reasoning allowance.
+  const deadline = providerDeadline(options.signal, {
+    firstOutputMs: options.idleMs ?? PROVIDER_LIMITS.idleMs,
+    ...options,
+  });
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let bytes = 0;

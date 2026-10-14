@@ -61,9 +61,8 @@ import { errorMessage } from "./providers/util";
 import {
   boundedGenerate,
   MAX_GENERATION_BYTES,
-  providerDeadlinesFor,
+  PROVIDER_LIMITS,
   ProviderSafetyError,
-  type ProviderDeadlines,
 } from "./providers/limits";
 import { FsRunStore } from "./store-fs";
 import { acquireRunAdmission, type RunAdmission } from "./run-admission";
@@ -129,7 +128,7 @@ export interface StartRunOptions {
     html: string,
     opts: { screenshotPath: string; watchdogMs?: number; signal?: AbortSignal },
   ) => Promise<BrowserChecksOutcome>;
-  providerFactory?: (endpoint: EndpointConfig, limits: ProviderDeadlines) => Provider;
+  providerFactory?: (endpoint: EndpointConfig) => Provider;
   browserWatchdogMs?: number;
 }
 
@@ -247,14 +246,14 @@ function startAdmittedRun(
         )
         .map((ep) => [ep.id, ep.quantization]),
     ),
-    // A local first-token window decides whether a slow prefill fails, so a rerun needs it.
-    providerDeadlines: Object.fromEntries(
-      cfg.endpoints.map((ep) => [ep.id, providerDeadlinesFor(ep)]),
-    ),
+    // Whether a slow first answer or a long think fails depends on these, and they change between versions.
+    providerDeadlines: {
+      firstOutputMs: PROVIDER_LIMITS.firstOutputMs,
+      idleMs: PROVIDER_LIMITS.idleMs,
+      totalMs: PROVIDER_LIMITS.totalMs,
+    },
     recordedAt: startedAtIso,
   };
-  const deadlinesFor = (ep: EndpointConfig): ProviderDeadlines =>
-    environment.providerDeadlines[ep.id] ?? providerDeadlinesFor(ep);
 
   let cancelled = false;
   let budgetStopped = false;
@@ -452,6 +451,8 @@ function startAdmittedRun(
     if (task !== undefined) req.task = task;
     if (answerWrong === true) req.answerWrong = true;
     if (cfg.seed !== null && ep.supportsSeed) req.seed = cfg.seed;
+    if (ep.alwaysThinks === true) req.alwaysThinks = true;
+    if (ep.omitTemperature === true) req.omitTemperature = true;
     const reservations: BudgetReservation[] = [];
     let complete = false;
     const prices = endpointPrices(ep);
@@ -466,12 +467,7 @@ function startAdmittedRun(
     req.beforeRetry = admit;
     admit();
     try {
-      for await (const chunk of boundedGenerate(
-        provider,
-        req,
-        MAX_GENERATION_BYTES,
-        deadlinesFor(ep),
-      )) {
+      for await (const chunk of boundedGenerate(provider, req, MAX_GENERATION_BYTES)) {
         if (chunk.type === "delta") {
           if (ttftMs === null) ttftMs = Date.now() - started;
           text += chunk.text;
@@ -1073,7 +1069,7 @@ function startAdmittedRun(
     const st = stateFor(ep);
     let provider: Provider;
     try {
-      provider = providerFactory(ep, deadlinesFor(ep));
+      provider = providerFactory(ep);
     } catch (err) {
       st.status = "failed";
       emit("model.failed", {

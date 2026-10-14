@@ -120,7 +120,7 @@ before publishing it. Do not expose an operator's whole data volume as a demo.
 
 ## Provider limits and spending
 
-Provider receipt has first-token, idle and total deadlines, frame and aggregate byte limits,
+Provider receipt has first-output, idle and total deadlines, frame and aggregate byte limits,
 bounded error bodies, and cancellation. Generation and judge consumers enforce
 their own output limits. Every paid request, including retries and judge fallbacks,
 requires a shared conservative budget reservation before dispatch. Failed or

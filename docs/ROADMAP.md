@@ -65,12 +65,6 @@ as new candidate-version measurements. Current limitations follow.
   operator sets `MODEL_LAB_LOCAL_HARDWARE`; nothing detects the GPU. A `seed`
   is dropped for providers that do not support it (the gpt-5 family,
   Anthropic) — it is flagged per model as "unseeded", not in the fingerprint.
-- **Provider deadlines are fixed.** Each request has 180 seconds in total and
-  30 seconds of silence once tokens stream. Ollama endpoints may wait 120
-  seconds for a first token (`MODEL_LAB_LOCAL_FIRST_TOKEN_MS`), cloud endpoints
-  30. At the ~46 tokens/s of `run_e4706263`, the total ends a local answer near
-  8k tokens, below the 32k output cap. Loopback OpenAI-compatible servers are
-  not treated as local.
 - **Gemini token accounting under-reports.** Google's OpenAI-compatible surface
   omits reasoning tokens from usage, so cost derived from it is a lower bound;
   `finishReason` remains reliable.

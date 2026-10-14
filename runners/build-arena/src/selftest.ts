@@ -116,7 +116,7 @@ async function main(): Promise<void> {
     env !== null &&
     env.node === process.version &&
     (degraded || typeof env.chromium === "string") &&
-    cfg.endpoints.every((ep) => (env.providerDeadlines?.[ep.id]?.firstTokenMs ?? 0) > 0);
+    (env.providerDeadlines?.firstOutputMs ?? 0) > 0;
   console.log(
     `provenance: ${env ? `node ${env.node} · ${env.platform} · ${env.chromium ?? "no browser"}` : "MISSING"}`,
   );

@@ -1,62 +1,27 @@
-import type { EndpointConfig, GenerateRequest, Provider, ProviderChunk } from "../types";
+import type { GenerateRequest, Provider, ProviderChunk } from "../types";
 
 export const MAX_GENERATION_BYTES = 2 * 1024 * 1024;
 export const MAX_JUDGE_BYTES = 64 * 1024;
 export const PROVIDER_LIMITS = {
+  /** Silence allowed between chunks once answer text has started. */
   idleMs: 30_000,
-  totalMs: 180_000,
   /**
-   * Silence a local endpoint may keep before its first token: loading weights
-   * and prefill run on the operator's hardware and can outlast idleMs.
-   * MODEL_LAB_LOCAL_FIRST_TOKEN_MS overrides it; totalMs still bounds it.
+   * Silence allowed before the first answer text. Reasoning models think for
+   * minutes before they write, and a local model can spend most of a minute on
+   * its first token; both are slow, not stalled.
    */
-  localFirstTokenMs: 120_000,
+  firstOutputMs: 600_000,
+  totalMs: 1_200_000,
   frameBytes: 256 * 1024,
   streamBytes: 16 * 1024 * 1024,
   errorBytes: 16 * 1024,
 };
 
-export interface ProviderLimits {
-  /**
-   * Longest silence before the first answer or reasoning token. When set, the
-   * deadline starts in this window and leaves it at token(); when unset, the
-   * idle window applies from the start (readers that cannot see tokens).
-   */
-  firstTokenMs?: number;
-  /** Longest silence between activity. */
+export interface DeadlineLimits {
   idleMs?: number;
-  /** Bound on the whole request, whatever its activity. */
+  /** Defaults to `idleMs` when that is given explicitly, else `PROVIDER_LIMITS.firstOutputMs`. */
+  firstOutputMs?: number;
   totalMs?: number;
-}
-
-export type ProviderDeadlines = Required<ProviderLimits>;
-
-/**
- * The time limits a run applies to one endpoint. Only Ollama endpoints are
- * local, matching how the runner labels and prices them.
- */
-export function providerDeadlinesFor(
-  endpoint: Pick<EndpointConfig, "baseKind">,
-  env: Record<string, string | undefined> = process.env,
-): ProviderDeadlines {
-  const { idleMs, totalMs } = PROVIDER_LIMITS;
-  if (endpoint.baseKind !== "ollama") return { firstTokenMs: idleMs, idleMs, totalMs };
-  const raw = (env["MODEL_LAB_LOCAL_FIRST_TOKEN_MS"] ?? "").trim();
-  const override = /^\d+$/.test(raw) ? Number(raw) : 0;
-  return {
-    firstTokenMs: override > 0 ? Math.min(override, totalMs) : PROVIDER_LIMITS.localFirstTokenMs,
-    idleMs,
-    totalMs,
-  };
-}
-
-/**
- * Silence a byte reader under these limits must tolerate. It cannot tell a
- * reasoning event from a role-only one, so it backstops with the widest
- * window and leaves the first-token phase to the adapter's own deadline.
- */
-export function transportIdleMs(limits: ProviderLimits = {}): number {
-  return Math.max(limits.firstTokenMs ?? 0, limits.idleMs ?? PROVIDER_LIMITS.idleMs);
 }
 
 export class ProviderSafetyError extends Error {
@@ -67,17 +32,17 @@ export class ProviderSafetyError extends Error {
 }
 
 /**
- * Owns the time limits, including time before headers and between chunks.
- * touch() records activity; token() records model output and ends the
- * first-token window, after which idleMs bounds every gap.
+ * Owns both time limits, including time before headers and between chunks.
+ * `touch` records activity; `output` records answer text, after which the
+ * shorter idle window applies.
  */
 export function providerDeadline(
   parent?: AbortSignal,
-  limits: ProviderLimits = {},
+  limits: DeadlineLimits = {},
 ): {
   signal: AbortSignal;
   touch: () => void;
-  token: () => void;
+  output: () => void;
   wait: <T>(work: Promise<T>) => Promise<T>;
   dispose: () => void;
 } {
@@ -85,16 +50,21 @@ export function providerDeadline(
   const fail = (message: string): void => controller.abort(new ProviderSafetyError(message));
   const onParent = (): void => fail("provider request cancelled");
   const idleMs = limits.idleMs ?? PROVIDER_LIMITS.idleMs;
-  let awaitingToken = limits.firstTokenMs !== undefined;
+  const firstOutputMs = Math.max(
+    idleMs,
+    limits.firstOutputMs ?? (limits.idleMs !== undefined ? idleMs : PROVIDER_LIMITS.firstOutputMs),
+  );
+  let producing = false;
   let idle: ReturnType<typeof setTimeout>;
   const touch = (): void => {
     clearTimeout(idle);
-    idle = awaitingToken
-      ? setTimeout(() => fail("provider first-token deadline exceeded"), limits.firstTokenMs)
-      : setTimeout(() => fail("provider idle deadline exceeded"), idleMs);
+    idle = setTimeout(
+      () => fail("provider idle deadline exceeded"),
+      producing ? idleMs : firstOutputMs,
+    );
   };
-  const token = (): void => {
-    awaitingToken = false;
+  const output = (): void => {
+    producing = true;
     touch();
   };
   const total = setTimeout(
@@ -125,7 +95,7 @@ export function providerDeadline(
   return {
     signal: controller.signal,
     touch,
-    token,
+    output,
     wait,
     dispose: () => {
       clearTimeout(total);
@@ -142,7 +112,7 @@ export async function* boundedGenerate(
   provider: Provider,
   request: GenerateRequest,
   maxBytes: number,
-  limits: ProviderLimits = {},
+  limits: DeadlineLimits = {},
 ): AsyncGenerator<ProviderChunk, void, void> {
   const deadline = providerDeadline(request.signal, limits);
   const iterator = provider.generate({ ...request, signal: deadline.signal });
@@ -152,9 +122,10 @@ export async function* boundedGenerate(
       const next = await deadline.wait(iterator.next());
       if (next.done) break;
       const chunk = next.value;
-      // Reasoning is model output too: a model thinking before it answers is live.
-      if (chunk.type === "usage") deadline.touch();
-      else deadline.token();
+      // Reasoning keeps the request alive but is not answer text, so it renews
+      // the first-output window instead of ending it.
+      if (chunk.type === "delta") deadline.output();
+      else deadline.touch();
       if (chunk.type === "delta") {
         bytes += Buffer.byteLength(chunk.text, "utf8");
         if (bytes > maxBytes)

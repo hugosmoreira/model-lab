@@ -11,18 +11,13 @@ import {
   readSse,
   scrubSecrets,
 } from "./util";
-import {
-  providerDeadline,
-  ProviderSafetyError,
-  transportIdleMs,
-  type ProviderLimits,
-} from "./limits";
+import { providerDeadline, ProviderSafetyError, type DeadlineLimits } from "./limits";
 
 export interface OpenAiCompatibleOptions {
   baseUrl: string;
   apiKey: string | null; // null => no Authorization header (local servers)
   headers?: Record<string, string>;
-  limits?: ProviderLimits;
+  limits?: DeadlineLimits;
 }
 
 /**
@@ -88,12 +83,12 @@ export class OpenAiCompatibleProvider implements Provider {
 
     const body: Record<string, unknown> = {
       model: req.model,
-      temperature: req.temperature,
       max_tokens: req.maxTokens,
       stream: true,
       stream_options: { include_usage: true },
       messages,
     };
+    if (req.omitTemperature !== true) body["temperature"] = req.temperature;
     if (req.seed !== undefined) body["seed"] = req.seed;
 
     const headers: Record<string, string> = {
@@ -176,10 +171,7 @@ export class OpenAiCompatibleProvider implements Provider {
       let reasoningTokens = 0;
       let finishReason: FinishReason | null = null;
       let servedModel: string | null = null;
-      for await (const sse of readSse(res.body, {
-        signal: deadline.signal,
-        idleMs: transportIdleMs(this.opts.limits),
-      })) {
+      for await (const sse of readSse(res.body, { signal: deadline.signal })) {
         deadline.touch();
         if (sse.data === "[DONE]") {
           sawDone = true;
@@ -205,10 +197,10 @@ export class OpenAiCompatibleProvider implements Provider {
         }
         const delta: unknown = chunk?.choices?.[0]?.delta?.content;
         if (typeof delta === "string" && delta.length > 0) {
-          deadline.token();
           sawFinalUsage = false;
           finishReason = null;
           textLength += delta.length;
+          deadline.output();
           yield { type: "delta", text: delta };
         }
         /**
@@ -217,13 +209,12 @@ export class OpenAiCompatibleProvider implements Provider {
          * completion_tokens and consume the same max_tokens budget, so a model
          * can spend the entire cap thinking and emit no answer at all. Measure
          * them so that case is diagnosable instead of looking like an empty reply.
-         * Ollama streams them as `reasoning` beside empty content, sometimes for
-         * longer than the idle deadline, so they also count as stream activity.
+         * Ollama streams them as `reasoning` beside empty content; passing them on
+         * lets every deadline layer see a model that is thinking as live.
          */
         const reasoningDelta: unknown =
           chunk?.choices?.[0]?.delta?.reasoning_content ?? chunk?.choices?.[0]?.delta?.reasoning;
         if (typeof reasoningDelta === "string" && reasoningDelta.length > 0) {
-          deadline.token();
           sawFinalUsage = false;
           finishReason = null;
           reasoningLength += reasoningDelta.length;

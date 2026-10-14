@@ -36,6 +36,10 @@ export interface EndpointConfig {
   baseUrl?: string;
   /** quantization tag for local models, e.g. "q4_K_M" — provenance only */
   quantization?: string;
+  /** from the provider's model capabilities: thinks on every request */
+  alwaysThinks?: boolean;
+  /** from the price catalog's supported parameters: rejects temperature */
+  omitTemperature?: boolean;
 }
 
 /** Objective scorer kinds for verified-benchmark tasks. */
@@ -151,6 +155,10 @@ export interface GenerateRequest {
   signal?: AbortSignal;
   /** Internal admission hook before a provider adapter repeats its HTTP request. */
   beforeRetry?: () => void;
+  /** the endpoint thinks on every request (see EndpointConfig) */
+  alwaysThinks?: boolean;
+  /** the endpoint rejects sampling parameters (see EndpointConfig) */
+  omitTemperature?: boolean;
   /** mock determinism: output varies per (model, sampleIndex) */
   sampleIndex?: number;
   /** mock failure path: emit the null-canvas-bug artifact */
@@ -255,11 +263,8 @@ export interface RunEnvironment {
   localHardware: string | null;
   /** endpoint id → quantization tag from the registry, for the local models that have one */
   quantizations: Record<string, string>;
-  /**
-   * endpoint id → provider time limits the run applied, in ms. Local endpoints
-   * get a longer first-token window (MODEL_LAB_LOCAL_FIRST_TOKEN_MS).
-   */
-  providerDeadlines: Record<string, { firstTokenMs: number; idleMs: number; totalMs: number }>;
+  /** provider time limits the run applied, in ms (PROVIDER_LIMITS at run time) */
+  providerDeadlines: { firstOutputMs: number; idleMs: number; totalMs: number };
   /** ISO timestamp of the run start */
   recordedAt: string;
 }
