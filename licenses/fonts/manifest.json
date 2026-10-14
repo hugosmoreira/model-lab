@@ -1,0 +1,125 @@
+{
+  "description": "Unmodified Google Fonts web font files served by apps/web, with the OFL text published beside each family in google/fonts.",
+  "retrievedAt": "2026-10-14T02:11Z",
+  "cssRequest": {
+    "url": [
+      "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap",
+      "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap"
+    ],
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36"
+  },
+  "fonts": [
+    {
+      "family": "IBM Plex Sans",
+      "subset": "cyrillic-ext",
+      "path": "apps/web/public/fonts/ibm-plex-sans-v23-cyrillic-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexsans/v23/zYXzKVElMYYaJe8bpLHnCwDKr932-G7dytD-Dmu1syxTKYbSB4ZhRNU.woff2",
+      "bytes": 19684,
+      "sha256": "c01b3de8c8058462caadd044a6b874a9f4d7098d7d71d6c70e6a278096b8640e"
+    },
+    {
+      "family": "IBM Plex Sans",
+      "subset": "cyrillic",
+      "path": "apps/web/public/fonts/ibm-plex-sans-v23-cyrillic.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexsans/v23/zYXzKVElMYYaJe8bpLHnCwDKr932-G7dytD-Dmu1syxaKYbSB4ZhRNU.woff2",
+      "bytes": 25408,
+      "sha256": "5bac72520e0a9a5669e08b15fa1e15be6f4da74aa0b2d4315a97c11e1465120a"
+    },
+    {
+      "family": "IBM Plex Sans",
+      "subset": "greek",
+      "path": "apps/web/public/fonts/ibm-plex-sans-v23-greek.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexsans/v23/zYXzKVElMYYaJe8bpLHnCwDKr932-G7dytD-Dmu1syxdKYbSB4ZhRNU.woff2",
+      "bytes": 16296,
+      "sha256": "a29d4e6345cdb7e2b6daabf4961a6dcafcbc7ed1eac26186ca4a004cd32d64d8"
+    },
+    {
+      "family": "IBM Plex Sans",
+      "subset": "vietnamese",
+      "path": "apps/web/public/fonts/ibm-plex-sans-v23-vietnamese.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexsans/v23/zYXzKVElMYYaJe8bpLHnCwDKr932-G7dytD-Dmu1syxRKYbSB4ZhRNU.woff2",
+      "bytes": 9612,
+      "sha256": "526a4dd36c3af41f73a623e852302d8947d7fd4c00ee3026d82ef1f24a412fcd"
+    },
+    {
+      "family": "IBM Plex Sans",
+      "subset": "latin-ext",
+      "path": "apps/web/public/fonts/ibm-plex-sans-v23-latin-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexsans/v23/zYXzKVElMYYaJe8bpLHnCwDKr932-G7dytD-Dmu1syxQKYbSB4ZhRNU.woff2",
+      "bytes": 25868,
+      "sha256": "ae1d854fefa1167a79071f1afe01d4d51b60c5840c1be36dd74bd5fe7375b405"
+    },
+    {
+      "family": "IBM Plex Sans",
+      "subset": "latin",
+      "path": "apps/web/public/fonts/ibm-plex-sans-v23-latin.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexsans/v23/zYXzKVElMYYaJe8bpLHnCwDKr932-G7dytD-Dmu1syxeKYbSB4Zh.woff2",
+      "bytes": 40240,
+      "sha256": "056e4e2459f57a0033c8c9c844ff19d6e42ac8602027803d4345823bcc939818"
+    },
+    {
+      "family": "JetBrains Mono",
+      "subset": "cyrillic-ext",
+      "path": "apps/web/public/fonts/jetbrains-mono-v24-cyrillic-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPx3cwgknk-6nFg.woff2",
+      "bytes": 1664,
+      "sha256": "9343de2ca5d9549f792e7962375af8efb0f320c7643bfd36c884b5a30e5c396f"
+    },
+    {
+      "family": "JetBrains Mono",
+      "subset": "cyrillic",
+      "path": "apps/web/public/fonts/jetbrains-mono-v24-cyrillic.woff2",
+      "source": "https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxTcwgknk-6nFg.woff2",
+      "bytes": 8892,
+      "sha256": "4995a9a43ac659ec32fcd8b463755cd6a07b31a6e6b3894a6a153b661cf490e2"
+    },
+    {
+      "family": "JetBrains Mono",
+      "subset": "greek",
+      "path": "apps/web/public/fonts/jetbrains-mono-v24-greek.woff2",
+      "source": "https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxPcwgknk-6nFg.woff2",
+      "bytes": 6800,
+      "sha256": "49c3da6c9a2b279b0f1f860f5cfb1f5dc38d88a5c7be9c9b1837bbc4e3db6111"
+    },
+    {
+      "family": "JetBrains Mono",
+      "subset": "vietnamese",
+      "path": "apps/web/public/fonts/jetbrains-mono-v24-vietnamese.woff2",
+      "source": "https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPx_cwgknk-6nFg.woff2",
+      "bytes": 5872,
+      "sha256": "d44eb1936043a56038eb02dd70b243f379bef65783f94ec12f277550720411f1"
+    },
+    {
+      "family": "JetBrains Mono",
+      "subset": "latin-ext",
+      "path": "apps/web/public/fonts/jetbrains-mono-v24-latin-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPx7cwgknk-6nFg.woff2",
+      "bytes": 11596,
+      "sha256": "9c38cb2d0d2d93c1ee6e21fa78db76f13ea7e15e15cc64214c7ca89b6aaa35c4"
+    },
+    {
+      "family": "JetBrains Mono",
+      "subset": "latin",
+      "path": "apps/web/public/fonts/jetbrains-mono-v24-latin.woff2",
+      "source": "https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxDcwgknk-4.woff2",
+      "bytes": 31340,
+      "sha256": "2c32b9b3ee358c119e210f6f5195f9bd34894d78a785ff2e95d60e718e400af4"
+    }
+  ],
+  "licenses": [
+    {
+      "family": "IBM Plex Sans",
+      "path": "licenses/fonts/ibm-plex-sans-OFL.txt",
+      "license": "OFL-1.1",
+      "source": "https://github.com/google/fonts/blob/e0b9f6ca2d88f7d6e89710ee06b17d53a21f6a22/ofl/ibmplexsans/OFL.txt",
+      "sha256": "7e6b2818edbd8f6a01ae80641cc8f16a51080d08fb4e532be3a0b6f74adb07da"
+    },
+    {
+      "family": "JetBrains Mono",
+      "path": "licenses/fonts/jetbrains-mono-OFL.txt",
+      "license": "OFL-1.1",
+      "source": "https://github.com/google/fonts/blob/2e05c1cf00a6e4f40a4b931600a90881c26e15cd/ofl/jetbrainsmono/OFL.txt",
+      "sha256": "b2fe5e8987594e9ffd1d2ca52a2f5d73eb8335243893c5d6254b5ad69269591d"
+    }
+  ]
+}
