@@ -565,3 +565,15 @@ export const RUN_ENDPOINT_IDS = [
   "google/gemini-3-flash",
   "ollama/qwen3-coder-32b@q4_K_M",
 ] as const;
+
+/**
+ * Endpoints that exist only so the illustrative run renders: no provider serves
+ * these ids (or the local model is not installed). Live runs never use them.
+ */
+export const DEMO_ONLY_ENDPOINT_IDS: readonly string[] = [
+  "openai/gpt-5.2-mini",
+  "google/gemini-3-flash",
+  "ollama/qwen3-coder-32b@q4_K_M",
+  "openrouter/qwen3-coder-32b@fp16",
+  "ollama/llama-4-scout-17b",
+];

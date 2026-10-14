@@ -412,3 +412,67 @@ test("OpenAI rejects unmarked EOF and never treats usage before later deltas as 
     globalThis.fetch = original;
   }
 });
+
+test("a slow first answer is allowed; silence after answer text is not", async () => {
+  const limits = { idleMs: 15, firstOutputMs: 400, totalMs: 1_000 };
+  const thinker = {
+    async *generate() {
+      yield { type: "usage", tokensIn: 1, tokensOut: 0 };
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      yield { type: "delta", text: "late but fine" };
+    },
+  };
+  const chunks = await collect(boundedGenerate(thinker, request, 64, limits));
+  assert.equal(chunks.at(-1).text, "late but fine");
+  const stalls = {
+    async *generate() {
+      yield { type: "delta", text: "started" };
+      await new Promise(() => {});
+    },
+  };
+  await assert.rejects(collect(boundedGenerate(stalls, request, 64, limits)), /idle deadline/);
+});
+
+test("Anthropic follows the catalog's thinking and temperature hints", async () => {
+  const original = globalThis.fetch;
+  const adapter = new AnthropicProvider({ baseUrl: "http://synthetic.invalid", apiKey: "fixture" });
+  const events = [
+    { type: "message_start", message: { usage: { input_tokens: 3 } } },
+    { type: "content_block_delta", delta: { type: "text_delta", text: "ok" } },
+    { type: "message_delta", usage: { output_tokens: 2 }, delta: { stop_reason: "end_turn" } },
+    { type: "message_stop" },
+  ];
+  const sent = [];
+  globalThis.fetch = async (_url, options) => {
+    sent.push(JSON.parse(options.body));
+    return new Response(sse(events));
+  };
+  try {
+    await collect(adapter.generate({ ...request, alwaysThinks: true, omitTemperature: true }));
+    await collect(adapter.generate(request));
+    const [thinker, plain] = sent;
+    assert.equal("temperature" in thinker, false);
+    assert.deepEqual(thinker.thinking, { type: "adaptive", display: "summarized" });
+    assert.equal(plain.temperature, 0);
+    assert.equal("thinking" in plain, false);
+
+    // An unlisted model that rejects temperature is retried once without it.
+    sent.length = 0;
+    let retries = 0;
+    globalThis.fetch = async (_url, options) => {
+      const sentBody = JSON.parse(options.body);
+      sent.push(sentBody);
+      if ("temperature" in sentBody)
+        return new Response('{"error":{"message":"temperature is not supported"}}', {
+          status: 400,
+        });
+      return new Response(sse(events));
+    };
+    await collect(adapter.generate({ ...request, beforeRetry: () => retries++ }));
+    assert.equal(sent.length, 2);
+    assert.equal("temperature" in sent[1], false);
+    assert.equal(retries, 1);
+  } finally {
+    globalThis.fetch = original;
+  }
+});

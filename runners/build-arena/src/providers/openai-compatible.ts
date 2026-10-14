@@ -11,13 +11,13 @@ import {
   readSse,
   scrubSecrets,
 } from "./util";
-import { providerDeadline, ProviderSafetyError } from "./limits";
+import { providerDeadline, ProviderSafetyError, type DeadlineLimits } from "./limits";
 
 export interface OpenAiCompatibleOptions {
   baseUrl: string;
   apiKey: string | null; // null => no Authorization header (local servers)
   headers?: Record<string, string>;
-  limits?: { idleMs?: number; totalMs?: number };
+  limits?: DeadlineLimits;
 }
 
 /**
@@ -83,12 +83,12 @@ export class OpenAiCompatibleProvider implements Provider {
 
     const body: Record<string, unknown> = {
       model: req.model,
-      temperature: req.temperature,
       max_tokens: req.maxTokens,
       stream: true,
       stream_options: { include_usage: true },
       messages,
     };
+    if (req.omitTemperature !== true) body["temperature"] = req.temperature;
     if (req.seed !== undefined) body["seed"] = req.seed;
 
     const headers: Record<string, string> = {
@@ -200,6 +200,7 @@ export class OpenAiCompatibleProvider implements Provider {
           sawFinalUsage = false;
           finishReason = null;
           textLength += delta.length;
+          deadline.output();
           yield { type: "delta", text: delta };
         }
         /**

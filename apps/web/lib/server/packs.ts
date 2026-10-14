@@ -42,7 +42,7 @@ export type DiskPack = z.infer<typeof DiskPack>;
 /** Lowercase kebab slugs only — anything else never reaches the filesystem. */
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,79}$/;
 
-function repoRoot(): string {
+export function repoRoot(): string {
   let dir = process.cwd();
   for (let i = 0; i < 8; i++) {
     if (existsSync(join(dir, "pnpm-workspace.yaml"))) return dir;

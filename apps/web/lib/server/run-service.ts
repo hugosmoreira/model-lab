@@ -53,6 +53,7 @@ import type {
 } from "@model-lab/schemas";
 import {
   benchmarkPacks,
+  DEMO_ONLY_ENDPOINT_IDS,
   endpoints as endpointCatalog,
   modelDefinitions,
   providers,
@@ -80,6 +81,7 @@ import {
 } from "@model-lab/build-arena-runner";
 import { registerRun, type RunRecord } from "@/lib/live/run-registry";
 import { loadPackFromDisk, tasksForPack } from "@/lib/server/packs";
+import { findLiveModel, getModelCatalog, type LiveModel } from "@/lib/server/model-catalog";
 import { acquireRunLease, reconcileInterruptedRuns, type RunLease } from "./run-recovery";
 
 // CLI imports this service dynamically under tsx. Use the same error exports
@@ -265,10 +267,11 @@ export interface EndpointAvailability {
   mocked: boolean;
 }
 
-/** Every registry endpoint, resolved under the current mock policy. */
-export function listEndpointAvailability(): EndpointAvailability[] {
+/** Every model in the live catalog, resolved under the current mock policy. */
+export async function listEndpointAvailability(): Promise<EndpointAvailability[]> {
   const mockFor = resolveMockPolicy();
-  return endpointCatalog.map((ep) => ({
+  const catalog = await getModelCatalog();
+  return catalog.models.map(({ endpoint: ep }) => ({
     id: ep.id,
     providerId: ep.providerId,
     modelId: ep.modelId,
@@ -301,8 +304,8 @@ function baseFor(providerId: string): { baseKind: BaseKind; baseUrl?: string } {
   }
 }
 
-function toEndpointConfig(ep: ModelEndpoint, mock: boolean): EndpointConfig {
-  const def = modelDefinitions.find((m) => m.id === ep.modelId);
+function toEndpointConfig(ep: ModelEndpoint, mock: boolean, live?: LiveModel): EndpointConfig {
+  const def = live?.model ?? modelDefinitions.find((m) => m.id === ep.modelId);
   // The baseline control is the mock's blank document whatever the policy says.
   const base =
     mock || ep.providerId === "baseline"
@@ -321,6 +324,8 @@ function toEndpointConfig(ep: ModelEndpoint, mock: boolean): EndpointConfig {
   };
   if ("baseUrl" in base && base.baseUrl !== undefined) config.baseUrl = base.baseUrl;
   if (ep.quantization != null && ep.quantization !== "") config.quantization = ep.quantization;
+  if (live?.hints.alwaysThinks === true) config.alwaysThinks = true;
+  if (live?.hints.omitTemperature === true) config.omitTemperature = true;
   return config;
 }
 
@@ -328,6 +333,12 @@ function toPackConfig(packSlug: string): PackConfig {
   const pack = benchmarkPacks.find((p) => p.slug === packSlug);
   if (pack === undefined) {
     throw new RunServiceError(`Unknown benchmark pack: ${packSlug}`);
+  }
+  // Catalog-only packs would be scored by another pack's browser checks.
+  if (loadPackFromDisk(packSlug) === null) {
+    throw new RunServiceError(
+      `Benchmark pack "${packSlug}" is not available yet — it has no benchmark-packs/<slug>/pack.json`,
+    );
   }
   const prompt =
     pack.prompt ??
@@ -537,10 +548,20 @@ async function persistRunCreation(
   store: RunStore,
   cfg: RunnerConfig,
   startedAt: string,
+  liveModels: LiveModel[] = [],
 ): Promise<void> {
   // FK safety on a fresh database: registry rows must exist before
   // run_models/samples/artifacts reference them.
   await ensureRegistrySeeded(store);
+  // Live models enter the registry as they are first used.
+  if (liveModels.length > 0) {
+    await store.seedRegistry({
+      providers: [],
+      modelDefinitions: liveModels.map((m) => m.model),
+      endpoints: liveModels.map((m) => m.endpoint),
+      packs: [],
+    });
+  }
   await store.createRun(synthesizeRun(cfg, startedAt), synthesizeConfiguration(cfg));
   for (const ep of cfg.endpoints) {
     await store.upsertRunModel({
@@ -721,15 +742,38 @@ export async function startRun(input: StartRunInput): Promise<{ runId: string }>
   // Copy before the first await: callers cannot mutate validated selection.
   input = structuredClone(input);
   validateRunSelection(input);
-  const selected = input.endpointIds.map((id) => {
+  const catalog = await getModelCatalog();
+  const mockFor = resolveMockPolicy();
+  const resolved = input.endpointIds.map((id) => {
+    const live = findLiveModel(catalog, id);
+    if (live !== null) return { ep: live.endpoint, live };
+    // Registry endpoints outside the live list still run as mocks (demo, tests, --mock).
     const ep = endpointCatalog.find((candidate) => candidate.id === id);
-    if (ep === undefined) throw new RunServiceError(`Unknown model endpoint: ${id}`);
-    return ep;
+    if (ep !== undefined && (mockFor(ep) || ep.providerId === "baseline")) {
+      return { ep, live: undefined };
+    }
+    if (ep !== undefined && DEMO_ONLY_ENDPOINT_IDS.includes(ep.id)) {
+      throw new RunServiceError(`${ep.id} exists only in the illustrative demo; pick a live model`);
+    }
+    throw new RunServiceError(`Unknown model endpoint: ${id} — no configured provider lists it`);
   });
+  for (const { ep, live } of resolved) {
+    // No list price means admission cannot bound what the call may cost.
+    if (
+      live !== undefined &&
+      !mockFor(ep) &&
+      ep.deployment !== "local" &&
+      ep.priceOutPerMtokUsd === null
+    ) {
+      throw new RunServiceError(
+        `${ep.id} has no list price in the price catalog, so its spend cannot be capped`,
+      );
+    }
+  }
   const verified = input.mode === "verified";
   const pack = verified ? toVerifiedPackConfig(input.packSlug) : toPackConfig(input.packSlug);
-  const mockFor = resolveMockPolicy();
-  const endpoints = selected.map((ep) => toEndpointConfig(ep, mockFor(ep)));
+  const endpoints = resolved.map(({ ep, live }) => toEndpointConfig(ep, mockFor(ep), live));
+  const liveModels = resolved.flatMap(({ live }) => (live !== undefined ? [live] : []));
   const runId = newRunId();
   const name =
     input.name ?? benchmarkPacks.find((p) => p.slug === input.packSlug)?.name ?? input.packSlug;
@@ -788,7 +832,9 @@ export async function startRun(input: StartRunInput): Promise<{ runId: string }>
     lease = store !== null ? acquireRunLease(store, runId) : null;
     if (store !== null) {
       // Metadata failures remain non-fatal. Capacity is already reserved.
-      await persistRunCreation(store, cfg, createdAt).catch(warnPersist("runCreation", store));
+      await persistRunCreation(store, cfg, createdAt, liveModels).catch(
+        warnPersist("runCreation", store),
+      );
     }
     handle = runnerStartRun(cfg, { store: fsStore, admission });
   } catch (err) {

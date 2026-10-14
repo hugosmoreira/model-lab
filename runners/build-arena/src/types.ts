@@ -36,6 +36,10 @@ export interface EndpointConfig {
   baseUrl?: string;
   /** quantization tag for local models, e.g. "q4_K_M" — provenance only */
   quantization?: string;
+  /** from the provider's model capabilities: thinks on every request */
+  alwaysThinks?: boolean;
+  /** from the price catalog's supported parameters: rejects temperature */
+  omitTemperature?: boolean;
 }
 
 /** Objective scorer kinds for verified-benchmark tasks. */
@@ -146,6 +150,10 @@ export interface GenerateRequest {
   signal?: AbortSignal;
   /** Internal admission hook before a provider adapter repeats its HTTP request. */
   beforeRetry?: () => void;
+  /** the endpoint thinks on every request (see EndpointConfig) */
+  alwaysThinks?: boolean;
+  /** the endpoint rejects sampling parameters (see EndpointConfig) */
+  omitTemperature?: boolean;
   /** mock determinism: output varies per (model, sampleIndex) */
   sampleIndex?: number;
   /** mock failure path: emit the null-canvas-bug artifact */

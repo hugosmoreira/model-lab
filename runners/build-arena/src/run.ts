@@ -440,6 +440,8 @@ function startAdmittedRun(
     if (task !== undefined) req.task = task;
     if (answerWrong === true) req.answerWrong = true;
     if (cfg.seed !== null && ep.supportsSeed) req.seed = cfg.seed;
+    if (ep.alwaysThinks === true) req.alwaysThinks = true;
+    if (ep.omitTemperature === true) req.omitTemperature = true;
     const reservations: BudgetReservation[] = [];
     let complete = false;
     const prices = endpointPrices(ep);

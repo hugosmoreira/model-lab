@@ -3,12 +3,26 @@ import type { GenerateRequest, Provider, ProviderChunk } from "../types";
 export const MAX_GENERATION_BYTES = 2 * 1024 * 1024;
 export const MAX_JUDGE_BYTES = 64 * 1024;
 export const PROVIDER_LIMITS = {
+  /** Silence allowed between chunks once answer text has started. */
   idleMs: 30_000,
-  totalMs: 180_000,
+  /**
+   * Silence allowed before the first answer text. Reasoning models think for
+   * minutes before they write, and a local model can spend most of a minute on
+   * its first token; both are slow, not stalled.
+   */
+  firstOutputMs: 600_000,
+  totalMs: 1_200_000,
   frameBytes: 256 * 1024,
   streamBytes: 16 * 1024 * 1024,
   errorBytes: 16 * 1024,
 };
+
+export interface DeadlineLimits {
+  idleMs?: number;
+  /** Defaults to `idleMs` when that is given explicitly, else `PROVIDER_LIMITS.firstOutputMs`. */
+  firstOutputMs?: number;
+  totalMs?: number;
+}
 
 export class ProviderSafetyError extends Error {
   constructor(message: string) {
@@ -17,26 +31,41 @@ export class ProviderSafetyError extends Error {
   }
 }
 
-/** Owns both time limits, including time before headers and between chunks. */
+/**
+ * Owns both time limits, including time before headers and between chunks.
+ * `touch` records activity; `output` records answer text, after which the
+ * shorter idle window applies.
+ */
 export function providerDeadline(
   parent?: AbortSignal,
-  limits: { idleMs?: number; totalMs?: number } = {},
+  limits: DeadlineLimits = {},
 ): {
   signal: AbortSignal;
   touch: () => void;
+  output: () => void;
   wait: <T>(work: Promise<T>) => Promise<T>;
   dispose: () => void;
 } {
   const controller = new AbortController();
   const fail = (message: string): void => controller.abort(new ProviderSafetyError(message));
   const onParent = (): void => fail("provider request cancelled");
+  const idleMs = limits.idleMs ?? PROVIDER_LIMITS.idleMs;
+  const firstOutputMs = Math.max(
+    idleMs,
+    limits.firstOutputMs ?? (limits.idleMs !== undefined ? idleMs : PROVIDER_LIMITS.firstOutputMs),
+  );
+  let producing = false;
   let idle: ReturnType<typeof setTimeout>;
   const touch = (): void => {
     clearTimeout(idle);
     idle = setTimeout(
       () => fail("provider idle deadline exceeded"),
-      limits.idleMs ?? PROVIDER_LIMITS.idleMs,
+      producing ? idleMs : firstOutputMs,
     );
+  };
+  const output = (): void => {
+    producing = true;
+    touch();
   };
   const total = setTimeout(
     () => fail("provider total deadline exceeded"),
@@ -66,6 +95,7 @@ export function providerDeadline(
   return {
     signal: controller.signal,
     touch,
+    output,
     wait,
     dispose: () => {
       clearTimeout(total);
@@ -82,7 +112,7 @@ export async function* boundedGenerate(
   provider: Provider,
   request: GenerateRequest,
   maxBytes: number,
-  limits: { idleMs?: number; totalMs?: number } = {},
+  limits: DeadlineLimits = {},
 ): AsyncGenerator<ProviderChunk, void, void> {
   const deadline = providerDeadline(request.signal, limits);
   const iterator = provider.generate({ ...request, signal: deadline.signal });
@@ -91,8 +121,9 @@ export async function* boundedGenerate(
     for (;;) {
       const next = await deadline.wait(iterator.next());
       if (next.done) break;
-      deadline.touch();
       const chunk = next.value;
+      if (chunk.type === "delta") deadline.output();
+      else deadline.touch();
       if (chunk.type === "delta") {
         bytes += Buffer.byteLength(chunk.text, "utf8");
         if (bytes > maxBytes)

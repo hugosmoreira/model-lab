@@ -6,6 +6,23 @@ All notable changes to Model Lab are recorded here. The format follows
 
 ## Unreleased
 
+- List runnable models live from each configured provider's model API
+  (Anthropic, OpenAI, Google, DeepSeek, Ollama) instead of the demo registry.
+  New Run, Models and `pnpm cli models` show chat models released in the last
+  six months by default (`--all` / "Older models" for the rest), with release
+  dates. The list is cached for ten minutes and saved for forced-mock mode,
+  which never contacts a provider; without cloud keys only local Ollama is read.
+- Price models from the provider's own standard-tier host in OpenRouter's public
+  catalog. Models without one stay unpriced and cannot start a live run; an
+  operator can price them in `<data dir>/model-prices.json`. Demo-only and
+  catalog-only endpoints and packs are no longer offered for live runs.
+- Send each model the request shape its catalog entry supports: always-thinking
+  Claude models get summarized adaptive thinking, and models that reject
+  `temperature` no longer receive it (Anthropic now retries once without it, as
+  the OpenAI-compatible path already did).
+- Allow reasoning models up to ten minutes before their first answer text and
+  twenty minutes in total; the 30-second idle limit applies once text starts.
+- New Run offers a per-run budget ceiling of $2, $5, $10 or $25.
 - Bound all mutation JSON bodies to 64 KiB and ten seconds of reading, including
   requests with missing or incorrect Content-Length. Reject compressed bodies.
 - Limit new annotation notes to 4,000 UTF-16 units and total persisted text to
