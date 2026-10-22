@@ -239,6 +239,11 @@ export const RunEnvironment = z.object({
   servedModels: z.record(z.string(), z.string()), // endpoint id → model the provider reported serving
   localHardware: z.string().nullable().default(null), // MODEL_LAB_LOCAL_HARDWARE, e.g. "RTX 4090 · 24 GB"
   quantizations: z.record(z.string(), z.string()).default({}), // endpoint id → "q4_K_M"
+  // provider time limits in ms; null for runs recorded before they were
+  providerDeadlines: z
+    .object({ firstOutputMs: z.number(), idleMs: z.number(), totalMs: z.number() })
+    .nullable()
+    .default(null),
   recordedAt: z.string(),
 });
 export type RunEnvironment = z.infer<typeof RunEnvironment>;

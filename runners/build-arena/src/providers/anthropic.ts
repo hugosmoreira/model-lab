@@ -151,6 +151,8 @@ export class AnthropicProvider implements Provider {
           if (msg?.delta?.type === "text_delta" && typeof msg?.delta?.text === "string") {
             deadline.output();
             yield { type: "delta", text: msg.delta.text as string };
+          } else if (msg?.delta?.type === "thinking_delta") {
+            yield { type: "reasoning" };
           }
         } else if (type === "message_delta") {
           tokensOut = Number(msg?.usage?.output_tokens ?? tokensOut);

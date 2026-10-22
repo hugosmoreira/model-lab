@@ -22,6 +22,11 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "no-referrer" },
         ],
       },
+      {
+        // Vendored font files carry their upstream version in the name, so they never change in place.
+        source: "/fonts/:file*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
     ];
   },
   // Evidence images are served directly; this app has no next/image callers.

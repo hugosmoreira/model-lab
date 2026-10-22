@@ -105,6 +105,11 @@ export type FinishReason = "stop" | "length" | "content_filter" | "other";
 /** Streaming chunks every provider adapter emits: deltas, then one usage. */
 export type ProviderChunk =
   | { type: "delta"; text: string }
+  /**
+   * Hidden reasoning arrived. It is not answer text and is not retained; it
+   * shows the deadlines that a model thinking before its answer is still live.
+   */
+  | { type: "reasoning" }
   | {
       type: "usage";
       tokensIn: number;
@@ -258,6 +263,8 @@ export interface RunEnvironment {
   localHardware: string | null;
   /** endpoint id → quantization tag from the registry, for the local models that have one */
   quantizations: Record<string, string>;
+  /** provider time limits the run applied, in ms (PROVIDER_LIMITS at run time) */
+  providerDeadlines: { firstOutputMs: number; idleMs: number; totalMs: number };
   /** ISO timestamp of the run start */
   recordedAt: string;
 }

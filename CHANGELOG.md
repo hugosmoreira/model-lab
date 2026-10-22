@@ -6,6 +6,16 @@ All notable changes to Model Lab are recorded here. The format follows
 
 ## Unreleased
 
+- Count streamed reasoning as provider activity (Ollama and OpenRouter
+  `reasoning`, DeepSeek `reasoning_content`, Anthropic summarized thinking), so
+  a model that is still thinking is not treated as silent. Under the earlier
+  30-second limit, `run_e4706263` failed after thirty seconds of reasoning. Run
+  provenance now records the provider deadlines each run applied.
+- Vendor the IBM Plex Sans and JetBrains Mono web fonts in `apps/web/public/fonts`
+  instead of downloading them from Google Fonts during `next build`, which failed
+  CI when Google returned an unexpected response. The twelve files are
+  byte-identical to those the build previously self-hosted; their OFL licenses,
+  source URLs and hashes are in `licenses/fonts/`.
 - List runnable models live from each configured provider's model API
   (Anthropic, OpenAI, Google, DeepSeek, Ollama) instead of the demo registry.
   New Run, Models and `pnpm cli models` show chat models released in the last

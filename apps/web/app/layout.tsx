@@ -1,20 +1,14 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans, JetBrains_Mono } from "next/font/google";
+import { preload } from "react-dom";
 import { AppShell } from "@/components/shell/AppShell";
+import "./fonts.css";
 import "./globals.css";
 
-// next/font self-hosts at build time — no runtime request to Google (audit M-2)
-const plex = IBM_Plex_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-plex",
-});
-
-const jbMono = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-jbmono",
-});
+// Fonts are vendored (app/fonts.css): neither the build nor the browser contacts Google (audit M-2).
+const LATIN_FONTS = [
+  "/fonts/ibm-plex-sans-v23-latin.woff2",
+  "/fonts/jetbrains-mono-v24-latin.woff2",
+];
 
 export const metadata: Metadata = {
   title: "Model Lab",
@@ -23,8 +17,12 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // The latin subsets render nearly every page; other subsets load on demand.
+  for (const href of LATIN_FONTS) {
+    preload(href, { as: "font", type: "font/woff2", crossOrigin: "anonymous" });
+  }
   return (
-    <html lang="en" className={`${plex.variable} ${jbMono.variable}`}>
+    <html lang="en">
       <body>
         <AppShell>{children}</AppShell>
       </body>

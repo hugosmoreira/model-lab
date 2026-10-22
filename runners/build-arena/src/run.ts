@@ -58,7 +58,12 @@ import { EventBus } from "./event-bus";
 import { runJudgePhase } from "./judge";
 import { createProvider } from "./providers";
 import { errorMessage } from "./providers/util";
-import { boundedGenerate, MAX_GENERATION_BYTES, ProviderSafetyError } from "./providers/limits";
+import {
+  boundedGenerate,
+  MAX_GENERATION_BYTES,
+  PROVIDER_LIMITS,
+  ProviderSafetyError,
+} from "./providers/limits";
 import { FsRunStore } from "./store-fs";
 import { acquireRunAdmission, type RunAdmission } from "./run-admission";
 import { validateWorkload } from "./workload";
@@ -241,6 +246,12 @@ function startAdmittedRun(
         )
         .map((ep) => [ep.id, ep.quantization]),
     ),
+    // Whether a slow first answer or a long think fails depends on these, and they change between versions.
+    providerDeadlines: {
+      firstOutputMs: PROVIDER_LIMITS.firstOutputMs,
+      idleMs: PROVIDER_LIMITS.idleMs,
+      totalMs: PROVIDER_LIMITS.totalMs,
+    },
     recordedAt: startedAtIso,
   };
 
@@ -460,7 +471,7 @@ function startAdmittedRun(
         if (chunk.type === "delta") {
           if (ttftMs === null) ttftMs = Date.now() - started;
           text += chunk.text;
-        } else {
+        } else if (chunk.type === "usage") {
           tokensIn = chunk.tokensIn;
           tokensOut = chunk.tokensOut;
           finishReason = chunk.finishReason ?? null;
