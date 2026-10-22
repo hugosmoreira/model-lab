@@ -30,6 +30,12 @@ headers or README text and is not, by itself, a finding that a license is absent
 | Debian libraries, utilities and fonts | `/usr/share/doc/<package>/copyright`; 172 such files were recorded, with referenced texts also under `/usr/share/common-licenses/` |
 | Supplemental notices verified in this image | `/app/licenses/` and `/app/THIRD_PARTY_NOTICES.md`; 151 indexed files; [collection provenance](licenses/README.md) |
 
+Web fonts: images built after this inspection serve IBM Plex Sans and JetBrains
+Mono (OFL-1.1) from `/app/apps/web/public/fonts/` and retain their license texts
+and file hashes in `/app/licenses/fonts/`. The inspected candidate contained the
+same twelve files under `.next/static/media`, self-hosted by `next/font` without
+a retained license text.
+
 The image's JSON inventory records exact package versions, paths and notice
 SHA-256 hashes. Generate it from the candidate, with networking disabled:
 

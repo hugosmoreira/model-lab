@@ -47,6 +47,14 @@ complete browser notice and version-pinned source references. Its
 the browser's shipped terms from the CfT dashboard scripts' Apache license and
 records the remaining product-terms and covered-source questions.
 
+`fonts/` retains the SIL Open Font License 1.1 texts for the two web font families
+the UI serves from `apps/web/public/fonts/`: IBM Plex Sans (Copyright 2017 IBM
+Corp., Reserved Font Name "Plex") and JetBrains Mono. The twelve `.woff2` files are
+unmodified Google Fonts subsets, byte-identical to the files `next/font/google`
+previously downloaded and self-hosted at build time; Model Lab does not subset,
+convert or rename the fonts. `manifest.json` records each file's source URL and
+SHA-256 and pins each license text to the `google/fonts` commit it was copied from.
+
 The repository's Docker `COPY` includes this `licenses/` directory, making the
 retained notices available at `/app/licenses/` after rebuilding. Verify these
 paths and hashes in the final image; a previous image does not gain these files.
