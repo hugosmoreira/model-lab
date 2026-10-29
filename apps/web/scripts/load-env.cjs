@@ -15,7 +15,7 @@ function findWorkspaceRoot(startDir = process.cwd()) {
   let dir = startDir;
   while (!existsSync(join(dir, "pnpm-workspace.yaml"))) {
     const parent = dirname(dir);
-    if (parent === dir) throw new Error("Cannot find the Model Lab workspace root");
+    if (parent === dir) throw new Error("Cannot find the HugoLabs workspace root");
     dir = parent;
   }
   return dir;

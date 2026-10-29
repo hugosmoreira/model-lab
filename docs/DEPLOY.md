@@ -1,6 +1,6 @@
-# Deploying Model Lab
+# Deploying HugoLabs
 
-Model Lab needs one long-lived Node process, Chromium and persistent local disk.
+HugoLabs needs one long-lived Node process, Chromium and persistent local disk.
 The supported release profile is a single Linux amd64 container with SQLite and
 a volume. Memory storage is an ephemeral fixture workspace; Supabase remains
 experimental. Serverless and horizontally scaled deployment are unsupported.

@@ -100,7 +100,7 @@ jobs:
           flags=(--draft --verify-tag --latest=false)
           if [[ "$RELEASE_TAG" == *-rc.* ]]; then flags+=(--prerelease); fi
           gh release create "$RELEASE_TAG" "${flags[@]}" \
-            --title "Model Lab $RELEASE_TAG — source release" \
+            --title "HugoLabs $RELEASE_TAG — source release" \
             --notes-file artifacts-data/source-release/RELEASE_NOTES.md \
             artifacts-data/source-release/*-source.zip \
             artifacts-data/source-release/SOURCE_REVISION \

@@ -1,6 +1,6 @@
 cff-version: 1.2.0
-message: "If you use Model Lab in research or a published comparison, please cite it."
-title: "Model Lab: LLM Benchmark & Build Arena"
+message: "If you use HugoLabs in research or a published comparison, please cite it."
+title: "HugoLabs: LLM Benchmark & Build Arena"
 type: software
 authors:
   - family-names: Moreira

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { resolveBackend } from "@model-lab/store";
+import { BRAND_NAME } from "@/lib/brand";
 import { isReadOnly } from "@/lib/server/read-only";
 
 /**
@@ -122,7 +123,7 @@ export async function TopBar({ title }: { title: string }) {
         {readOnly ? (
           <span
             aria-disabled="true"
-            title="This instance is read-only — run Model Lab locally to benchmark"
+            title={`This instance is read-only — run ${BRAND_NAME} locally to benchmark`}
             style={{ ...newRunButton, opacity: 0.45, cursor: "not-allowed" }}
           >
             New Run

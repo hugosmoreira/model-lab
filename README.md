@@ -1,12 +1,15 @@
-# Model Lab
+# HugoLabs
 
 > Run LLM comparisons, inspect captured artifacts, and export results with their evidence.
+
+_Formerly Model Lab. The repository, package names and `MODEL_LAB_*` settings keep
+the `model-lab` name, so existing checkouts, `.env` files and run bundles keep working._
 
 [![CI](https://github.com/hugosmoreira/model-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/hugosmoreira/model-lab/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node 22.13+](https://img.shields.io/badge/node-%E2%89%A5%2022.13-3c873a.svg)](.nvmrc)
 
-Model Lab is a local-first, open-source **LLM Benchmark & Build Arena**: send the same
+HugoLabs is a local-first, open-source **LLM Benchmark & Build Arena**: send the same
 one-shot build challenge (or objective test pack) to several models — cloud APIs and
 local models side by side — under identical configuration. Watch the run live, execute
 real browser tests against every generated artifact, judge the builds with an
@@ -181,7 +184,7 @@ CI runs the same gates on pushes to main and pull requests, using mocked provide
 
 ## Deploying
 
-Model Lab runs as one container with a volume — it needs a real Chromium, local disk,
+HugoLabs runs as one container with a volume — it needs a real Chromium, local disk,
 and a long-lived process, so serverless hosts are out. A public demo runs read-only on
 mock providers (`MODEL_LAB_READ_ONLY=1`, `MODEL_LAB_MOCK_PROVIDERS=1`, no keys); a
 private instance with real keys belongs behind authentication, because the API has none.
@@ -200,7 +203,7 @@ and publication checks.
 
 ## License
 
-Model Lab's own code is MIT — see [`LICENSE`](LICENSE). Dependencies retain their
+HugoLabs' own code is MIT — see [`LICENSE`](LICENSE). Dependencies retain their
 own licenses; [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) records retained
-notices and the binary distribution review. If Model Lab appears in research or
+notices and the binary distribution review. If HugoLabs appears in research or
 a published comparison, [`CITATION.cff`](CITATION.cff) has the reference.

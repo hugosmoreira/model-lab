@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import packageInfo from "../../package.json";
+import { BRAND_MARK, BRAND_NAME } from "@/lib/brand";
 
 interface NavItem {
   id: string;
@@ -116,11 +117,11 @@ export function Nav() {
             justifyContent: "center",
           }}
         >
-          ML
+          {BRAND_MARK}
         </span>
         <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
           <span style={{ fontWeight: 600, color: "var(--color-text)", fontSize: 14 }}>
-            Model Lab
+            {BRAND_NAME}
           </span>
           <span
             style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-faint)" }}

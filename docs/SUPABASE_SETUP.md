@@ -1,6 +1,6 @@
-# Supabase setup for Model Lab
+# Supabase setup for HugoLabs
 
-Model Lab is local-first: the default `memory` store needs no setup, and
+HugoLabs is local-first: the default `memory` store needs no setup, and
 `MODEL_LAB_STORE=sqlite` persists runs to a local file. Use Supabase when you
 want hosted metadata. This backend remains experimental until its migrations
 and runtime behavior have been validated on your isolated project. Artifact
@@ -57,7 +57,7 @@ MODEL_LAB_STORE=supabase                        # "memory" (default) | "sqlite" 
 Key naming note: on newer Supabase projects the API keys page shows a
 **publishable** key (`sb_publishable_…`) and a **secret** key (`sb_secret_…`).
 Use the **secret** key as `SUPABASE_SERVICE_ROLE_KEY` (on older projects this
-is the `service_role` JWT). The publishable/anon key is useless to Model Lab —
+is the `service_role` JWT). The publishable/anon key is useless to HugoLabs —
 the schema is RLS deny-by-default and the browser never talks to Supabase.
 
 Provider keys also live here, server-side only (the full list is in

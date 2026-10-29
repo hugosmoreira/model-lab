@@ -1,6 +1,6 @@
 # Architecture
 
-Model Lab is a pnpm workspace. The frontend calls the local API, provider calls
+HugoLabs is a pnpm workspace. The frontend calls the local API, provider calls
 run on the server, and generated HTML runs only in the restricted runner browser.
 The UI displays captured evidence. See [SECURITY.md](../SECURITY.md) for the
 tested controls and their limitations; browser restrictions are not an OS sandbox.
