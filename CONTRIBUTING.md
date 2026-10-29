@@ -1,6 +1,6 @@
 # Contributing
 
-Model Lab is early and moving fast — contributions are welcome, especially in
+HugoLabs is early and moving fast — contributions are welcome, especially in
 these extension points (each is deliberately behind a small interface):
 
 - **Provider adapters** (`runners/build-arena/src/providers/`) — reuse the

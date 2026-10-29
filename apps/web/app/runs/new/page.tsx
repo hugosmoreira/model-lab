@@ -10,6 +10,7 @@ import { loadPackFromDisk } from "@/lib/server/packs";
 import { fixtures } from "@/lib/data";
 import { getModelCatalog } from "@/lib/server/model-catalog";
 import { EmptyState } from "@/components/ui/primitives";
+import { BRAND_NAME } from "@/lib/brand";
 
 export default async function Page() {
   const readOnly = isReadOnly();
@@ -22,7 +23,7 @@ export default async function Page() {
         <main style={{ padding: 20 }}>
           <EmptyState
             title="This instance is read-only"
-            hint="Run Model Lab in a writable workspace to create benchmarks. Existing results remain available under Runs."
+            hint={`Run ${BRAND_NAME} in a writable workspace to create benchmarks. Existing results remain available under Runs.`}
           />
         </main>
       ) : (

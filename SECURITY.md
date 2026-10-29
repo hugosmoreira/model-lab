@@ -1,6 +1,6 @@
 # Security
 
-Model Lab executes untrusted generated code and can use paid provider credentials.
+HugoLabs executes untrusted generated code and can use paid provider credentials.
 The supported deployment is a trusted, single-host installation. The release
 checks and remaining gates are recorded in [the release plan](docs/RELEASE_PLAN.md).
 

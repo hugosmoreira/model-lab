@@ -1,11 +1,16 @@
 # Changelog
 
-All notable changes to Model Lab are recorded here. The format follows
+All notable changes to HugoLabs (formerly Model Lab) are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+- Rename the product to HugoLabs. The app, CLI banner, share-card header (now
+  with the @hugolabs handle), alt text and setup docs use the new name, set once
+  in `apps/web/lib/brand.ts`. Package names, `MODEL_LAB_*` settings, store keys,
+  the SQLite filename and the `model-lab-replay` bundle format are unchanged, so
+  existing workspaces and bundles keep working.
 - List runnable models live from each configured provider's model API
   (Anthropic, OpenAI, Google, DeepSeek, Ollama) instead of the demo registry.
   New Run, Models and `pnpm cli models` show chat models released in the last

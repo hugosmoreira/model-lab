@@ -8,6 +8,7 @@
  * HTTP API has no authentication of its own (see SECURITY.md).
  */
 import { NextResponse } from "next/server";
+import { BRAND_NAME } from "@/lib/brand";
 
 export const READ_ONLY_ENV = "MODEL_LAB_READ_ONLY";
 
@@ -15,8 +16,7 @@ export function isReadOnly(): boolean {
   return (process.env[READ_ONLY_ENV] ?? "").trim() === "1";
 }
 
-export const READ_ONLY_MESSAGE =
-  "This instance is read-only: it serves results but does not accept new runs, votes, or annotations. Run Model Lab locally to benchmark.";
+export const READ_ONLY_MESSAGE = `This instance is read-only: it serves results but does not accept new runs, votes, or annotations. Run ${BRAND_NAME} locally to benchmark.`;
 
 /** The 403 every write route returns while read-only. */
 export function readOnlyResponse(): NextResponse {

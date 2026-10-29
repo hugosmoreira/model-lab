@@ -3,6 +3,7 @@
  * no node imports — every function maps card data → string, so the exports
  * are exactly as faithful as the rendered card.
  */
+import { BRAND_NAME } from "../brand";
 import { SCORE_LABELS } from "../score-presentation";
 import type { RunManifest } from "@model-lab/schemas";
 import type { ShareCardContent, ShareCardRow } from "@/components/share/ShareCard";
@@ -60,7 +61,7 @@ export function buildAltText(
     return `${r.id}${r.mocked ? " (synthetic mock output; simulated cost)" : ""}: ${visual}, tests ${r.tests}, cost ${r.cost}${fails}.`;
   });
   const parts = [
-    `${templateLabel} card — ${content.title}.`,
+    `${BRAND_NAME} ${templateLabel} card — ${content.title}.`,
     content.takeaway,
     ...modelLines,
     `Methodology: ${content.methodology}${content.footnote ? ` (${content.footnote})` : ""}.`,

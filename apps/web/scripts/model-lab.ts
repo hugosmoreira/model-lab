@@ -1,5 +1,5 @@
 /**
- * Model Lab CLI — the app without the browser.
+ * HugoLabs CLI — the app without the browser.
  *
  *   pnpm cli run --pack raycaster-oneshot --models anthropic/claude-sonnet-4-6,openai/gpt-5-mini
  *   pnpm cli run --pack raycaster-oneshot --models … --samples 3 --budget 2 --fail-under 0.8
@@ -18,8 +18,9 @@
  */
 import { parseArgs } from "node:util";
 import { loadWorkspaceEnvironment } from "./load-env.cjs";
+import { BRAND_NAME } from "../lib/brand";
 
-const USAGE = `Model Lab — run a benchmark from the terminal
+const USAGE = `${BRAND_NAME} — run a benchmark from the terminal
 
 usage
   pnpm cli run --pack <slug> --models <endpoint,endpoint,…> [options]

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Sans, JetBrains_Mono } from "next/font/google";
 import { AppShell } from "@/components/shell/AppShell";
+import { BRAND_NAME } from "@/lib/brand";
 import "./globals.css";
 
 // next/font self-hosts at build time — no runtime request to Google (audit M-2)
@@ -17,7 +18,7 @@ const jbMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Model Lab",
+  title: BRAND_NAME,
   description:
     "Run reproducible LLM comparisons, inspect live artifacts, and export publication-ready results.",
 };

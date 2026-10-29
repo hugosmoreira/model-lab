@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { BRAND_HANDLE, BRAND_MARK, BRAND_NAME } from "@/lib/brand";
 import { SCORE_LABELS, type ScoreSource } from "@/lib/score-presentation";
 import type { ShareAspect } from "@model-lab/schemas";
 
@@ -634,13 +635,13 @@ export function ShareCard({
             flex: "0 0 22px",
           }}
         >
-          ML
+          {BRAND_MARK}
         </span>
         <span style={{ fontFamily: MONO, fontSize: 10.5, color: t.faint }}>
-          model-lab · open-source benchmark run
+          {BRAND_NAME} · open-source benchmark run
         </span>
         <span style={{ marginLeft: "auto", fontFamily: MONO, fontSize: 10.5, color: t.faint }}>
-          {content.date}
+          {BRAND_HANDLE} · {content.date}
         </span>
       </div>
 
